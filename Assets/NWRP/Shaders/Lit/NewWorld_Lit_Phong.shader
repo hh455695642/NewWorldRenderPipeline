@@ -1,0 +1,93 @@
+// ============================================================
+// NewWorld/Lit/Phong
+//
+// Phong 光照模型 = Lambert 漫反射 + Phong 镜面反射 + 环境光
+// 镜面反射使用反射向量 reflect(-L, N) 与视线方向 V 的点积。
+// ============================================================
+
+Shader "NewWorld/Lit/Phong"
+{
+    Properties
+    {
+        _BaseColor     ("Base Color", Color)          = (1, 1, 1, 1)
+        _SpecularColor ("Specular Color", Color)      = (1, 1, 1, 1)
+        _Smoothness    ("Smoothness", Range(0, 1))    = 0.5
+    }
+
+    SubShader
+    {
+        Tags { "RenderType" = "Opaque" "Queue" = "Geometry" }
+
+        Pass
+        {
+            Name "NewWorldForward"
+            Tags { "LightMode" = "NewWorldForward" }
+
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+
+            #include "../../ShaderLibrary/Core.hlsl"
+            #include "../../ShaderLibrary/Lighting.hlsl"
+            #include "../../ShaderLibrary/BRDF.hlsl"
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS   : NORMAL;
+            };
+
+            struct Varyings
+            {
+                float4 positionHCS : SV_POSITION;
+                float3 normalWS    : TEXCOORD0;
+                float3 viewWS      : TEXCOORD1;
+            };
+
+            CBUFFER_START(UnityPerMaterial)
+                half4 _BaseColor;
+                half4 _SpecularColor;
+                half  _Smoothness;
+            CBUFFER_END
+
+            Varyings vert(Attributes IN)
+            {
+                Varyings OUT;
+                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                OUT.positionHCS   = TransformWorldToHClip(positionWS);
+                OUT.normalWS      = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.viewWS        = GetWorldSpaceViewDir(positionWS);
+                return OUT;
+            }
+
+            half4 frag(Varyings IN) : SV_Target
+            {
+                half3 normalWS = normalize(IN.normalWS);
+                half3 viewWS   = SafeNormalize(IN.viewWS);
+
+                Light light = GetMainLight();
+                half3 lightColor = light.color * light.distanceAttenuation;
+
+                // Smoothness → 指数映射，和 URP 示例保持一致
+                half shininess = exp2(10.0 * _Smoothness + 1.0);
+
+                // 漫反射 (Lambert)
+                half NdotL = saturate(dot(normalWS, light.direction));
+                half3 diffuse = _BaseColor.rgb * lightColor * NdotL;
+
+                // 镜面反射 (Phong)
+                half3 specular = SpecularPhong(light.direction, normalWS, viewWS,
+                                               _SpecularColor.rgb, shininess) * lightColor;
+
+                // 环境光（简单 SH L0）
+                half3 ambient = half3(unity_SHAr.w, unity_SHAg.w, unity_SHAb.w) * _BaseColor.rgb;
+
+                return half4(diffuse + specular + ambient, 1.0);
+            }
+
+            ENDHLSL
+        }
+    }
+
+    CustomEditor "NWRP.Editor.NewWorldShaderGUI"
+}
