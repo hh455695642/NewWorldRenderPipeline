@@ -32,7 +32,7 @@ The primary audience for this file is coding agents working inside this project.
   - one `NWRPFeature`
   - one or more focused `NWRPPass`
   - explicit toggles/config in `NewWorldRenderPipelineAsset`
-- Do not build a “super feature” that owns unrelated systems.
+- Do not build a "super feature" that owns unrelated systems.
 - Pass communication must be explicit through frame data, global shader params, or named render targets. Avoid hidden coupling.
 
 ## Pass Order Contract
@@ -84,7 +84,11 @@ Do not introduce ad hoc pass ordering outside this contract unless there is a ha
 - The default real-time shadow path is:
   - one main directional light
   - stable cascaded shadow map
-  - low-cost PCF
+  - hard shadow only for the current stabilization branch
+- Main light shadow bias semantics are:
+  - `mainLightShadowBias` = user-facing depth bias
+  - `mainLightShadowNormalBias` = user-facing normal bias
+  - fixed raster depth bias remains an internal baseline, not a public tuning knob
 - Do not add multi-light real-time shadowing as a default path for mobile.
 - Additional lights may contribute lighting, but they should not silently become shadow casters.
 - If changing shadow code, keep these files aligned:
@@ -105,7 +109,7 @@ Do not introduce ad hoc pass ordering outside this contract unless there is a ha
 - Prefer `half` for mobile shader math unless world-space precision or matrix math requires `float`.
 - Prefer uniforms over shader keywords for runtime intensity/threshold toggles.
 - Prefer `#pragma shader_feature_local` over broad `multi_compile`.
-- Do not build giant shared “do everything” shaders across vegetation, characters, effects, and UI.
+- Do not build giant shared "do everything" shaders across vegetation, characters, effects, and UI.
 
 ## Variant Control
 
@@ -136,6 +140,32 @@ Variant growth is a hard constraint.
   - shared shader functions in `Assets/NWRP/ShaderLibrary`
   - material-facing shader definitions in `Assets/NWRP/Shaders`
 - If you add a new feature/pass file, also wire it into the pipeline asset lifecycle.
+
+## Rule Layering
+
+- Keep one root `AGENTS.md` for global architecture policy.
+- Add focused child `AGENTS.md` only for high-churn subsystems that need local constraints.
+- Current child scope is intentionally limited to:
+  - `Assets/NWRP/Runtime`
+  - `Assets/NWRP/ShaderLibrary`
+- Do not create `AGENTS.md` in every subfolder. Avoid rule drift and conflicting instructions.
+
+## Shared Shader Includes
+
+- Cross-shader reusable pass includes must live in `Assets/NWRP/ShaderLibrary/Passes`.
+- Shader-family local include folders (for example `Assets/NWRP/Shaders/Lit/Includes`) should be thin wrappers only.
+- New lit/NPR/effect shaders should reuse ShaderLibrary pass includes first, then add local wrappers only when needed for compatibility.
+
+## Main Light Shadow Filtering Policy
+
+- Mobile-first shadow filtering tiers are limited to:
+  - `Hard`
+- Soft shadow support is temporarily removed on the stabilization branch.
+- Shadow caster passes should use a dedicated shadow-light direction upload, not implicitly reuse forward-light globals.
+- Soft-shadow artifact mitigation priority is:
+  - correct shadow caster bias application
+  - cascade correctness and atlas addressing
+- Do not add PCSS/EVSM in baseline mobile path without explicit approval and profiling evidence.
 
 ## Validation Expectations
 

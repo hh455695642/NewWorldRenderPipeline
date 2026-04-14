@@ -38,6 +38,14 @@
 #define HALF_MIN        6.103515625e-05
 #define HALF_MIN_SQRT   0.0078125       // sqrt(HALF_MIN)
 
+#ifndef UNITY_NEAR_CLIP_VALUE
+    #if UNITY_REVERSED_Z
+        #define UNITY_NEAR_CLIP_VALUE (1.0)
+    #else
+        #define UNITY_NEAR_CLIP_VALUE (-1.0)
+    #endif
+#endif
+
 // ------------------------------------------------------------
 // SRP Batcher 兼容的 CBUFFER 宏
 // SRP Batcher 要求材质属性放在 CBUFFER_START(UnityPerMaterial) 中

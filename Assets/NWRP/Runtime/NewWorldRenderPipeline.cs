@@ -40,6 +40,7 @@ namespace NWRP
             if (disposing)
             {
                 _renderer.Dispose();
+                _asset.DisposeRuntimeFeatures();
             }
 
             base.Dispose(disposing);

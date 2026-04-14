@@ -68,7 +68,7 @@ namespace NWRP
             NewWorldRenderPipelineAsset asset
         )
         {
-            if (!TryCull(context, camera, out CullingResults cullingResults))
+            if (!TryCull(context, camera, asset, out CullingResults cullingResults))
             {
                 return;
             }
@@ -132,8 +132,10 @@ namespace NWRP
                 }
 
                 VisibleLight visibleLight = visibleLights[i];
-                mainLightPosition = -visibleLight.localToWorldMatrix.GetColumn(2);
-                mainLightPosition.w = 0f;
+                Vector4 mainLightDirection = -visibleLight.localToWorldMatrix.GetColumn(2);
+                mainLightDirection = mainLightDirection.normalized;
+                mainLightDirection.w = 0f;
+                mainLightPosition = mainLightDirection;
                 mainLightColor = visibleLight.finalColor;
                 mainLightIndex = i;
                 break;
@@ -143,7 +145,7 @@ namespace NWRP
             _cmd.SetGlobalVector(NWRPShaderIds.MainLightColor, mainLightColor);
 
             int additionalCount = 0;
-            int limit = Mathf.Min(frameData.asset.maxAdditionalLights, kMaxAdditionalLights);
+            int limit = kMaxAdditionalLights;
 
             for (int i = 0; i < visibleLights.Length && additionalCount < limit; i++)
             {
@@ -319,6 +321,7 @@ namespace NWRP
         private void EnqueueFeaturePasses(ref NWRPFrameData frameData)
         {
             List<NWRPFeature> features = frameData.asset.Features;
+            bool hasSerializedMainLightShadowFeature = false;
             for (int i = 0; i < features.Count; i++)
             {
                 NWRPFeature feature = features[i];
@@ -327,8 +330,23 @@ namespace NWRP
                     continue;
                 }
 
+                if (feature is MainLightShadowFeature)
+                {
+                    hasSerializedMainLightShadowFeature = true;
+                }
+
                 feature.EnsureCreated();
                 feature.AddPasses(this, ref frameData);
+            }
+
+            if (!hasSerializedMainLightShadowFeature)
+            {
+                MainLightShadowFeature runtimeMainLightShadowFeature = frameData.asset.GetOrCreateMainLightShadowFeature();
+                if (runtimeMainLightShadowFeature != null && runtimeMainLightShadowFeature.IsEnabled)
+                {
+                    runtimeMainLightShadowFeature.EnsureCreated();
+                    runtimeMainLightShadowFeature.AddPasses(this, ref frameData);
+                }
             }
         }
 
@@ -346,11 +364,17 @@ namespace NWRP
         private static bool TryCull(
             ScriptableRenderContext context,
             Camera camera,
+            NewWorldRenderPipelineAsset asset,
             out CullingResults cullingResults
         )
         {
             if (camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParameters))
             {
+                float shadowDistance = asset != null && asset.EnableMainLightShadows
+                    ? Mathf.Min(asset.MainLightShadowDistance, camera.farClipPlane)
+                    : 0f;
+                cullingParameters.shadowDistance = Mathf.Max(0f, shadowDistance);
+
                 cullingResults = context.Cull(ref cullingParameters);
                 return true;
             }

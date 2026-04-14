@@ -14,3 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useSRPBatcher: 1
   useGPUInstancing: 1
+  mainLightShadows:
+    enableMainLightShadows: 1
+    mainLightShadowResolution: 2048
+    mainLightShadowDistance: 40
+    mainLightShadowCascadeCount: 2
+    mainLightShadowCascadeSplit: 0.2
+    mainLightShadowBias: 0.35
+    mainLightShadowNormalBias: 1.2
+  featureSettings:
+    features: []

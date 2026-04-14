@@ -1,13 +1,9 @@
 // ============================================================
 // NewWorld/Lit/MultiLight
 //
-// 多光源演示 Shader（使用 Blinn-Phong 光照模型）。
-// 主方向光 + 附加光源（点光源/聚光灯）循环叠加。
-//
-// 需要场景中放置 Point Light 或 Spot Light 才能看到附加光源效果。
-// 附加光源数量上限由 Pipeline Asset 的 maxAdditionalLights 控制。
+// Demonstration shader for main light + additional point/spot lights.
+// Additional light count is clamped by the renderer-side runtime limit.
 // ============================================================
-
 Shader "NewWorld/Lit/MultiLight"
 {
     Properties
@@ -74,7 +70,7 @@ Shader "NewWorld/Lit/MultiLight"
                 half3 diffuse  = half3(0, 0, 0);
                 half3 specular = half3(0, 0, 0);
 
-                // ── 主方向光 ────────────────────────────────────
+                // Main directional light
                 Light mainLight = GetMainLight();
                 half3 mainLightColor = mainLight.color * mainLight.distanceAttenuation;
                 half mainNdotL = saturate(dot(normalWS, mainLight.direction));
@@ -83,7 +79,7 @@ Shader "NewWorld/Lit/MultiLight"
                 specular += SpecularBlinnPhong(mainLight.direction, normalWS, viewWS,
                                                _SpecularColor.rgb, shininess) * mainLightColor;
 
-                // ── 附加光源循环 ────────────────────────────────
+                // Additional lights
                 int addLightCount = GetAdditionalLightsCount();
                 for (int i = 0; i < addLightCount; i++)
                 {
@@ -96,7 +92,7 @@ Shader "NewWorld/Lit/MultiLight"
                                                    _SpecularColor.rgb, shininess) * attenuatedColor;
                 }
 
-                // ── 环境光 ──────────────────────────────────────
+                // Ambient
                 half3 ambient = half3(unity_SHAr.w, unity_SHAg.w, unity_SHAb.w) * _BaseColor.rgb;
 
                 return half4(diffuse + specular + ambient, 1.0);
