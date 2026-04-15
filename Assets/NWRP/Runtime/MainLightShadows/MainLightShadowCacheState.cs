@@ -33,6 +33,7 @@ namespace NWRP
         private float _cachedCascadeSplit;
         private float _cachedShadowBias;
         private float _cachedShadowNormalBias;
+        private int _cachedShadowCasterCullMode = (int)CullMode.Back;
         private int _cachedAtlasWidth;
         private int _cachedAtlasHeight;
         private int _cachedTileResolution;
@@ -154,7 +155,8 @@ namespace NWRP
                 || _cachedCascadeCount != cascadeCount
                 || !Mathf.Approximately(_cachedCascadeSplit, asset.MainLightShadowCascadeSplit)
                 || !Mathf.Approximately(_cachedShadowBias, asset.MainLightShadowBias)
-                || !Mathf.Approximately(_cachedShadowNormalBias, asset.MainLightShadowNormalBias))
+                || !Mathf.Approximately(_cachedShadowNormalBias, asset.MainLightShadowNormalBias)
+                || _cachedShadowCasterCullMode != (int)asset.MainLightShadowCasterCullModeSetting)
             {
                 return true;
             }
@@ -200,6 +202,7 @@ namespace NWRP
             _cachedCascadeSplit = asset.MainLightShadowCascadeSplit;
             _cachedShadowBias = asset.MainLightShadowBias;
             _cachedShadowNormalBias = asset.MainLightShadowNormalBias;
+            _cachedShadowCasterCullMode = (int)asset.MainLightShadowCasterCullModeSetting;
             _cachedAtlasWidth = atlasWidth;
             _cachedAtlasHeight = atlasHeight;
             _cachedTileResolution = tileResolution;

@@ -211,7 +211,7 @@ Shader "NewWorld/Lit/StandardLit"
             Name "ShadowCaster"
             Tags { "LightMode" = "ShadowCaster" }
 
-            Cull Back
+            Cull [_MainLightShadowCasterCull]
             ZWrite On
             ZTest LEqual
             ColorMask 0

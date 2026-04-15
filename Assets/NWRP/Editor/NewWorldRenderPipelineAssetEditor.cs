@@ -19,6 +19,11 @@ namespace NWRP.Editor
         private SerializedProperty _mainLightShadowCascadeSplitProperty;
         private SerializedProperty _mainLightShadowBiasProperty;
         private SerializedProperty _mainLightShadowNormalBiasProperty;
+        private SerializedProperty _mainLightShadowFilterModeProperty;
+        private SerializedProperty _mainLightShadowFilterRadiusProperty;
+        private SerializedProperty _mainLightShadowReceiverDepthBiasProperty;
+        private SerializedProperty _mainLightShadowReceiverNormalBiasProperty;
+        private SerializedProperty _mainLightShadowCasterCullModeProperty;
         private SerializedProperty _enableDynamicShadowOverlayProperty;
         private SerializedProperty _staticCasterLayerMaskProperty;
         private SerializedProperty _dynamicCasterLayerMaskProperty;
@@ -41,6 +46,11 @@ namespace NWRP.Editor
             _mainLightShadowCascadeSplitProperty = _mainLightShadowsProperty.FindPropertyRelative("mainLightShadowCascadeSplit");
             _mainLightShadowBiasProperty = _mainLightShadowsProperty.FindPropertyRelative("mainLightShadowBias");
             _mainLightShadowNormalBiasProperty = _mainLightShadowsProperty.FindPropertyRelative("mainLightShadowNormalBias");
+            _mainLightShadowFilterModeProperty = _mainLightShadowsProperty.FindPropertyRelative("mainLightShadowFilterMode");
+            _mainLightShadowFilterRadiusProperty = _mainLightShadowsProperty.FindPropertyRelative("mainLightShadowFilterRadius");
+            _mainLightShadowReceiverDepthBiasProperty = _mainLightShadowsProperty.FindPropertyRelative("mainLightShadowReceiverDepthBias");
+            _mainLightShadowReceiverNormalBiasProperty = _mainLightShadowsProperty.FindPropertyRelative("mainLightShadowReceiverNormalBias");
+            _mainLightShadowCasterCullModeProperty = _mainLightShadowsProperty.FindPropertyRelative("mainLightShadowCasterCullMode");
             _enableDynamicShadowOverlayProperty = _mainLightShadowsProperty.FindPropertyRelative("enableDynamicShadowOverlay");
             _staticCasterLayerMaskProperty = _mainLightShadowsProperty.FindPropertyRelative("staticCasterLayerMask");
             _dynamicCasterLayerMaskProperty = _mainLightShadowsProperty.FindPropertyRelative("dynamicCasterLayerMask");
@@ -82,6 +92,16 @@ namespace NWRP.Editor
                 EditorGUILayout.PropertyField(_mainLightShadowCascadeSplitProperty);
                 EditorGUILayout.PropertyField(_mainLightShadowBiasProperty);
                 EditorGUILayout.PropertyField(_mainLightShadowNormalBiasProperty);
+                EditorGUILayout.PropertyField(_mainLightShadowFilterModeProperty);
+                bool showFilterRadius = _mainLightShadowFilterModeProperty.enumValueIndex
+                    == (int)NewWorldRenderPipelineAsset.MainLightShadowFilterMode.MediumPCF;
+                if (showFilterRadius)
+                {
+                    EditorGUILayout.PropertyField(_mainLightShadowFilterRadiusProperty);
+                }
+                EditorGUILayout.PropertyField(_mainLightShadowReceiverDepthBiasProperty);
+                EditorGUILayout.PropertyField(_mainLightShadowReceiverNormalBiasProperty);
+                EditorGUILayout.PropertyField(_mainLightShadowCasterCullModeProperty, new GUIContent("Shadow Caster Cull Mode"));
                 EditorGUILayout.Space(2f);
                 EditorGUILayout.PropertyField(_enableCachedMainLightShadowsProperty, new GUIContent("Enable Cached Shadow"));
             }
@@ -91,6 +111,9 @@ namespace NWRP.Editor
                 EditorGUILayout.HelpBox("Main light shadows are fully disabled.", MessageType.Info);
                 return;
             }
+
+            bool useMediumPCF = _mainLightShadowFilterModeProperty.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.MainLightShadowFilterMode.MediumPCF;
 
             if (!_enableCachedMainLightShadowsProperty.boolValue)
             {
@@ -102,6 +125,10 @@ namespace NWRP.Editor
             EditorGUILayout.LabelField("Cached Shadow Controls", EditorStyles.miniBoldLabel);
             EditorGUILayout.HelpBox("Cached main light shadow is only used by Game Cameras. SceneView and Preview cameras fall back to realtime main light shadows.", MessageType.None);
             EditorGUILayout.PropertyField(_enableDynamicShadowOverlayProperty, new GUIContent("Enable Dynamic Shadow"));
+            if (useMediumPCF && _enableDynamicShadowOverlayProperty.boolValue)
+            {
+                EditorGUILayout.HelpBox("Medium PCF with dynamic shadow overlay can evaluate two 9-tap compare filters on the receiver path. Mobile cost is higher than static-only Medium PCF.", MessageType.Info);
+            }
             EditorGUILayout.PropertyField(_staticCasterLayerMaskProperty, new GUIContent("Static Caster Layer Mask"));
 
             using (new EditorGUI.DisabledScope(!_enableDynamicShadowOverlayProperty.boolValue))

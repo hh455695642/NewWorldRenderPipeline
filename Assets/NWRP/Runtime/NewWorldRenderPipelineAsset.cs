@@ -16,6 +16,18 @@ namespace NWRP
             CachedStaticDynamic = 1
         }
 
+        public enum MainLightShadowFilterMode
+        {
+            Hard = 0,
+            MediumPCF = 1
+        }
+
+        public enum MainLightShadowCasterCullMode
+        {
+            Front = (int)CullMode.Front,
+            Back = (int)CullMode.Back
+        }
+
         [System.Serializable]
         public sealed class FeatureSettings
         {
@@ -58,6 +70,27 @@ namespace NWRP
             [Tooltip("Normal bias applied along the caster normal. Use it carefully on thin or cutout-like geometry because large values can erode shadow silhouettes.")]
             [Range(0f, 3f)]
             public float mainLightShadowNormalBias = 1.0f;
+
+            [Tooltip("Receiver filter mode for main light shadows. Hard uses a single comparison; Medium PCF uses a 3x3 tent kernel.")]
+            public MainLightShadowFilterMode mainLightShadowFilterMode = MainLightShadowFilterMode.Hard;
+
+            [InspectorName("Main Light Shadow Filter Radius")]
+            [Tooltip("Receiver-side Medium PCF filter radius in shadow texels. 1.0 matches the current 3x3 tent kernel footprint.")]
+            [Range(0.5f, 2.0f)]
+            public float mainLightShadowFilterRadius = 1.0f;
+
+            [InspectorName("Main Light Shadow Receiver Depth Bias")]
+            [Tooltip("Receiver-side depth bias applied dynamically based on the surface angle to the main light. Increase it to reduce acne on grazing angles.")]
+            [Range(0f, 5f)]
+            public float mainLightShadowReceiverDepthBias = 0f;
+
+            [InspectorName("Main Light Shadow Receiver Normal Bias")]
+            [Tooltip("Receiver-side normal offset applied dynamically on grazing angles. Increase it carefully to reduce acne without over-expanding contact gaps.")]
+            [Range(0f, 3f)]
+            public float mainLightShadowReceiverNormalBias = 0f;
+
+            [Tooltip("Caster cull mode used by project shadow caster passes that support the main light shadow cull override.")]
+            public MainLightShadowCasterCullMode mainLightShadowCasterCullMode = MainLightShadowCasterCullMode.Back;
 
             [Header("Cached Main Light Shadows")]
             [Tooltip("Enable a per-frame dynamic shadow overlay for Game Cameras when cached main light shadows are active.")]
@@ -146,6 +179,11 @@ namespace NWRP
         public float MainLightShadowCascadeSplit => MainLightShadowSettingsData.mainLightShadowCascadeSplit;
         public float MainLightShadowBias => MainLightShadowSettingsData.mainLightShadowBias;
         public float MainLightShadowNormalBias => MainLightShadowSettingsData.mainLightShadowNormalBias;
+        public MainLightShadowFilterMode MainLightShadowFilterModeSetting => MainLightShadowSettingsData.mainLightShadowFilterMode;
+        public float MainLightShadowFilterRadius => MainLightShadowSettingsData.mainLightShadowFilterRadius;
+        public float MainLightShadowReceiverDepthBias => MainLightShadowSettingsData.mainLightShadowReceiverDepthBias;
+        public float MainLightShadowReceiverNormalBias => MainLightShadowSettingsData.mainLightShadowReceiverNormalBias;
+        public MainLightShadowCasterCullMode MainLightShadowCasterCullModeSetting => MainLightShadowSettingsData.mainLightShadowCasterCullMode;
         public bool EnableDynamicShadowOverlay =>
             MainLightShadowSettingsData.enableCachedMainLightShadows && MainLightShadowSettingsData.enableDynamicShadowOverlay;
         public LayerMask StaticCasterLayerMask => MainLightShadowSettingsData.staticCasterLayerMask;
@@ -263,6 +301,9 @@ namespace NWRP
             settings.mainLightShadowDistance = Mathf.Max(0f, settings.mainLightShadowDistance);
             settings.mainLightShadowBias = Mathf.Max(0f, settings.mainLightShadowBias);
             settings.mainLightShadowNormalBias = Mathf.Max(0f, settings.mainLightShadowNormalBias);
+            settings.mainLightShadowFilterRadius = Mathf.Clamp(settings.mainLightShadowFilterRadius, 0.5f, 2.0f);
+            settings.mainLightShadowReceiverDepthBias = Mathf.Max(0f, settings.mainLightShadowReceiverDepthBias);
+            settings.mainLightShadowReceiverNormalBias = Mathf.Max(0f, settings.mainLightShadowReceiverNormalBias);
             settings.cameraPositionInvalidationThreshold = Mathf.Max(0f, settings.cameraPositionInvalidationThreshold);
             settings.cameraRotationInvalidationThreshold = Mathf.Max(0f, settings.cameraRotationInvalidationThreshold);
             settings.lightDirectionInvalidationThreshold = Mathf.Max(0f, settings.lightDirectionInvalidationThreshold);

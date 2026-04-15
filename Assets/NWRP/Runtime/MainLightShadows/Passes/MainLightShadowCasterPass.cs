@@ -68,6 +68,7 @@ namespace NWRP.Runtime.Passes
 
             ShadowDrawingSettings shadowDrawingSettings = new ShadowDrawingSettings(frameData.cullingResults, mainLightIndex);
             Vector4 shadowLightDirection = GetShadowLightDirection(ref frameData, mainLightIndex);
+            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)asset.MainLightShadowCasterCullModeSetting);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, shadowLightDirection);
             cmd.SetGlobalDepthBias(kRasterDepthBias, kRasterSlopeBias);
             ExecuteBuffer(ref frameData);
@@ -129,6 +130,7 @@ namespace NWRP.Runtime.Passes
                 cmd.SetGlobalDepthBias(0.0f, 0.0f);
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
+                cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
                 cmd.EndSample(kMainLightShadowsSampleName);
                 ExecuteBuffer(ref frameData);
                 UploadDisabledGlobals(ref frameData);
@@ -140,6 +142,7 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalDepthBias(0.0f, 0.0f);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
+            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
             cmd.EndSample(kMainLightShadowsSampleName);
             ExecuteBuffer(ref frameData);
             frameData.context.SetupCameraProperties(frameData.camera);
@@ -149,7 +152,8 @@ namespace NWRP.Runtime.Passes
                 mainLight.shadowStrength,
                 cascadeCount,
                 atlasWidth,
-                atlasHeight
+                atlasHeight,
+                tileResolution
             );
         }
 
@@ -320,6 +324,11 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowParams, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightDynamicShadowParams, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowmapSize, Vector4.zero);
+            cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowFilterMode, 0);
+            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowFilterRadius, 0f);
+            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowReceiverBiasParams, Vector4.zero);
+            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowAtlasTexelSize, Vector4.zero);
+            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
             cmd.SetGlobalDepthBias(0.0f, 0.0f);
@@ -336,7 +345,8 @@ namespace NWRP.Runtime.Passes
             float shadowStrength,
             int cascadeCount,
             int atlasWidth,
-            int atlasHeight)
+            int atlasHeight,
+            int tileResolution)
         {
             CommandBuffer cmd = frameData.cmd;
 
@@ -357,6 +367,19 @@ namespace NWRP.Runtime.Passes
                 atlasWidth,
                 atlasHeight
             );
+            float safeTileResolution = Mathf.Max(tileResolution, 1);
+            Vector4 shadowAtlasTexelSize = new Vector4(
+                1f / atlasWidth,
+                1f / atlasHeight,
+                1f / safeTileResolution,
+                safeTileResolution
+            );
+            Vector4 receiverBiasParams = new Vector4(
+                frameData.asset.MainLightShadowReceiverDepthBias,
+                frameData.asset.MainLightShadowReceiverNormalBias,
+                0f,
+                0f
+            );
 
             Vector4 sphere0 = _cascadeSplitSpheres[0];
             Vector4 sphere1 = cascadeCount > 1 ? _cascadeSplitSpheres[1] : _cascadeSplitSpheres[0];
@@ -374,6 +397,10 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowParams, shadowParams);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightDynamicShadowParams, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowmapSize, shadowmapSize);
+            cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowFilterMode, (int)frameData.asset.MainLightShadowFilterModeSetting);
+            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowFilterRadius, frameData.asset.MainLightShadowFilterRadius);
+            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowReceiverBiasParams, receiverBiasParams);
+            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowAtlasTexelSize, shadowAtlasTexelSize);
             cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowCascadeCount, cascadeCount);
             cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSpheres0, sphere0);
             cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSpheres1, sphere1);

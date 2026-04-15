@@ -293,6 +293,7 @@ Shader "NewWorld/Env/TreeLeaf"
             Name "ShadowCaster"
             Tags { "LightMode" = "ShadowCaster" }
 
+            Cull [_MainLightShadowCasterCull]
             ZWrite On
             ZTest LEqual
             ColorMask 0

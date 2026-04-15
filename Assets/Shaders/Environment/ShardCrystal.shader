@@ -57,6 +57,7 @@ Shader "NewWorld/Env/ShardCrystal"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_instancing
             
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             
@@ -171,6 +172,7 @@ Shader "NewWorld/Env/ShardCrystal"
             Name "ShadowCaster"
             Tags { "LightMode" = "ShadowCaster" }
             
+            Cull [_MainLightShadowCasterCull]
             ZWrite On
             ZTest LEqual
             ColorMask 0
@@ -178,6 +180,7 @@ Shader "NewWorld/Env/ShardCrystal"
             HLSLPROGRAM
             #pragma vertex ShadowPassVertex
             #pragma fragment ShadowPassFragment
+            #pragma multi_compile_instancing
             
             // Lighting.hlsl 包含了 Shadows.hlsl 所需的全部依赖
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -239,6 +242,7 @@ Shader "NewWorld/Env/ShardCrystal"
             HLSLPROGRAM
             #pragma vertex DepthOnlyVertex
             #pragma fragment DepthOnlyFragment
+            #pragma multi_compile_instancing
             
             struct Attributes
             {
@@ -281,6 +285,7 @@ Shader "NewWorld/Env/ShardCrystal"
             HLSLPROGRAM
             #pragma vertex DepthNormalsVertex
             #pragma fragment DepthNormalsFragment
+            #pragma multi_compile_instancing
             
             struct Attributes
             {
