@@ -16,11 +16,24 @@ MonoBehaviour:
   useGPUInstancing: 1
   mainLightShadows:
     enableMainLightShadows: 1
+    enableCachedMainLightShadows: 1
+    shadowMode: 0
+    cachedShadowSettingsMigrated: 1
     mainLightShadowResolution: 2048
     mainLightShadowDistance: 40
     mainLightShadowCascadeCount: 2
-    mainLightShadowCascadeSplit: 0.2
-    mainLightShadowBias: 0.35
-    mainLightShadowNormalBias: 1.2
+    mainLightShadowCascadeSplit: 0.333
+    mainLightShadowBias: 1
+    mainLightShadowNormalBias: 1
+    enableDynamicShadowOverlay: 1
+    staticCasterLayerMask:
+      serializedVersion: 2
+      m_Bits: 55
+    dynamicCasterLayerMask:
+      serializedVersion: 2
+      m_Bits: 262144
+    cameraPositionInvalidationThreshold: 0.25
+    cameraRotationInvalidationThreshold: 0.5
+    lightDirectionInvalidationThreshold: 0.5
   featureSettings:
     features: []

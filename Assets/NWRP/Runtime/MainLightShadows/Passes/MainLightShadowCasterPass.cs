@@ -315,8 +315,10 @@ namespace NWRP.Runtime.Passes
             _cascadeSplitSpheres[1] = Vector4.zero;
 
             cmd.SetGlobalTexture(NWRPShaderIds.MainLightShadowmapTexture, Texture2D.blackTexture);
+            cmd.SetGlobalTexture(NWRPShaderIds.MainLightDynamicShadowmapTexture, Texture2D.blackTexture);
             cmd.SetGlobalMatrixArray(NWRPShaderIds.MainLightWorldToShadow, _mainLightWorldToShadow);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowParams, Vector4.zero);
+            cmd.SetGlobalVector(NWRPShaderIds.MainLightDynamicShadowParams, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowmapSize, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
@@ -367,8 +369,10 @@ namespace NWRP.Runtime.Passes
             );
 
             cmd.SetGlobalTexture(NWRPShaderIds.MainLightShadowmapTexture, _shadowmapTexture);
+            cmd.SetGlobalTexture(NWRPShaderIds.MainLightDynamicShadowmapTexture, Texture2D.blackTexture);
             cmd.SetGlobalMatrixArray(NWRPShaderIds.MainLightWorldToShadow, _mainLightWorldToShadow);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowParams, shadowParams);
+            cmd.SetGlobalVector(NWRPShaderIds.MainLightDynamicShadowParams, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowmapSize, shadowmapSize);
             cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowCascadeCount, cascadeCount);
             cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSpheres0, sphere0);

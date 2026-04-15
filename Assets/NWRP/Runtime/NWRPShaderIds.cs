@@ -18,8 +18,10 @@ namespace NWRP
 
         // Main light shadow globals
         public static readonly int MainLightShadowmapTexture = Shader.PropertyToID("_MainLightShadowmapTexture");
+        public static readonly int MainLightDynamicShadowmapTexture = Shader.PropertyToID("_MainLightDynamicShadowmapTexture");
         public static readonly int MainLightWorldToShadow = Shader.PropertyToID("_MainLightWorldToShadow");
         public static readonly int MainLightShadowParams = Shader.PropertyToID("_MainLightShadowParams");
+        public static readonly int MainLightDynamicShadowParams = Shader.PropertyToID("_MainLightDynamicShadowParams");
         public static readonly int MainLightShadowmapSize = Shader.PropertyToID("_MainLightShadowmapSize");
         public static readonly int ShadowBias = Shader.PropertyToID("_ShadowBias");
         public static readonly int ShadowLightDirection = Shader.PropertyToID("_ShadowLightDirection");

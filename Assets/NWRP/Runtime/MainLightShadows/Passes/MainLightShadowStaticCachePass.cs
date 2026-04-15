@@ -1,0 +1,189 @@
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace NWRP.Runtime.Passes
+{
+    internal sealed class MainLightShadowStaticCachePass : NWRPPass
+    {
+        private const string kStaticShadowCacheSampleName = "NWRP Main Light Static Shadow Cache";
+
+        private readonly MainLightShadowCacheState _cacheState;
+
+        public MainLightShadowStaticCachePass(MainLightShadowCacheState cacheState)
+            : base(NWRPPassEvent.ShadowMap)
+        {
+            _cacheState = cacheState;
+        }
+
+        public override void Execute(ref NWRPFrameData frameData)
+        {
+            NewWorldRenderPipelineAsset asset = frameData.asset;
+            if (asset == null
+                || !asset.EnableMainLightShadows
+                || !asset.EnableCachedMainLightShadows)
+            {
+                _cacheState.Invalidate();
+                MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, _cacheState.EmptyShadowmapTexture, _cacheState.EmptyShadowmapTexture);
+                return;
+            }
+
+            if (!MainLightShadowPassUtils.ShouldUseCachedMainLightShadow(frameData.camera))
+            {
+                return;
+            }
+
+            bool dynamicOverlayEnabled = MainLightShadowPassUtils.ShouldRenderDynamicOverlay(asset);
+
+            if (!MainLightShadowPassUtils.TryGetMainLight(ref frameData, out int mainLightIndex, out _, out Light mainLight))
+            {
+                _cacheState.Invalidate();
+                MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, _cacheState.EmptyShadowmapTexture, _cacheState.EmptyShadowmapTexture);
+                return;
+            }
+
+            if (mainLight == null || mainLight.shadows == LightShadows.None || mainLight.shadowStrength <= 0f)
+            {
+                _cacheState.Invalidate();
+                MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, _cacheState.EmptyShadowmapTexture, _cacheState.EmptyShadowmapTexture);
+                return;
+            }
+
+            int cascadeCount = Mathf.Clamp(asset.MainLightShadowCascadeCount, 1, 2);
+            int requestedResolution = Mathf.ClosestPowerOfTwo(Mathf.Clamp(asset.MainLightShadowResolution, 256, 4096));
+            MainLightShadowPassUtils.GetAtlasSize(requestedResolution, cascadeCount, out int atlasWidth, out int atlasHeight, out int tileResolution);
+
+            bool staticReallocated = _cacheState.EnsureStaticShadowmap(atlasWidth, atlasHeight);
+            bool emptyReallocated = _cacheState.EnsureEmptyShadowmap();
+            bool dynamicReallocated = dynamicOverlayEnabled && _cacheState.EnsureDynamicShadowmap(atlasWidth, atlasHeight);
+
+            float effectiveShadowDistance = MainLightShadowPassUtils.GetEffectiveShadowDistance(asset, frameData.camera);
+            int staticCasterLayerMask = MainLightShadowPassUtils.GetStaticCasterLayerMaskValue(asset);
+            int dynamicCasterLayerMask = asset.DynamicCasterLayerMask.value;
+
+            bool needsRebuild = staticReallocated
+                || emptyReallocated
+                || dynamicReallocated
+                || _cacheState.NeedsStaticCacheRebuild(
+                    asset,
+                    frameData.camera,
+                    mainLight,
+                    atlasWidth,
+                    atlasHeight,
+                    tileResolution,
+                    cascadeCount,
+                    effectiveShadowDistance,
+                    staticCasterLayerMask,
+                    dynamicCasterLayerMask,
+                    dynamicOverlayEnabled
+                );
+
+            if (!needsRebuild)
+            {
+                if (!dynamicOverlayEnabled && _cacheState.HasValidCache && _cacheState.StaticShadowmapTexture != null)
+                {
+                    MainLightShadowPassUtils.UploadCachedReceiverGlobals(
+                        ref frameData,
+                        _cacheState.StaticShadowmapTexture,
+                        _cacheState.EmptyShadowmapTexture,
+                        _cacheState,
+                        mainLight.shadowStrength,
+                        effectiveShadowDistance,
+                        false
+                    );
+                }
+
+                return;
+            }
+
+            if (!MainLightShadowPassUtils.ComputeCascadeData(
+                    ref frameData,
+                    mainLightIndex,
+                    mainLight,
+                    cascadeCount,
+                    atlasWidth,
+                    atlasHeight,
+                    tileResolution,
+                    _cacheState))
+            {
+                _cacheState.Invalidate();
+                MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, _cacheState.EmptyShadowmapTexture, _cacheState.EmptyShadowmapTexture);
+                return;
+            }
+
+            CullingResults staticCullResults = frameData.cullingResults;
+            if (!MainLightShadowPassUtils.IsEverythingLayerMask(staticCasterLayerMask)
+                && !MainLightShadowPassUtils.TryCull(ref frameData, staticCasterLayerMask, out staticCullResults))
+            {
+                _cacheState.Invalidate();
+                MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, _cacheState.EmptyShadowmapTexture, _cacheState.EmptyShadowmapTexture);
+                return;
+            }
+
+            if (!MainLightShadowPassUtils.TryGetMainLightIndex(staticCullResults, mainLight, out int staticLightIndex, out VisibleLight staticVisibleLight))
+            {
+                _cacheState.Invalidate();
+                MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, _cacheState.EmptyShadowmapTexture, _cacheState.EmptyShadowmapTexture);
+                return;
+            }
+
+            bool renderedStaticAtlas = MainLightShadowPassUtils.RenderMainLightShadowAtlas(
+                ref frameData,
+                _cacheState.StaticShadowmapTexture,
+                kStaticShadowCacheSampleName,
+                staticCullResults,
+                staticLightIndex,
+                staticVisibleLight,
+                cascadeCount,
+                _cacheState
+            );
+
+            if (!renderedStaticAtlas)
+            {
+                _cacheState.Invalidate();
+                MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, _cacheState.EmptyShadowmapTexture, _cacheState.EmptyShadowmapTexture);
+                frameData.context.SetupCameraProperties(frameData.camera);
+                return;
+            }
+
+            _cacheState.CommitStaticCache(
+                asset,
+                frameData.camera,
+                mainLight,
+                atlasWidth,
+                atlasHeight,
+                tileResolution,
+                cascadeCount,
+                effectiveShadowDistance,
+                staticCasterLayerMask,
+                dynamicCasterLayerMask,
+                dynamicOverlayEnabled
+            );
+
+            if (!_cacheState.HasValidCache || _cacheState.StaticShadowmapTexture == null)
+            {
+                MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, _cacheState.EmptyShadowmapTexture, _cacheState.EmptyShadowmapTexture);
+                return;
+            }
+
+            if (dynamicOverlayEnabled)
+            {
+                return;
+            }
+
+            MainLightShadowPassUtils.UploadCachedReceiverGlobals(
+                ref frameData,
+                _cacheState.StaticShadowmapTexture,
+                _cacheState.EmptyShadowmapTexture,
+                _cacheState,
+                mainLight.shadowStrength,
+                effectiveShadowDistance,
+                false
+            );
+
+            if (renderedStaticAtlas)
+            {
+                frameData.context.SetupCameraProperties(frameData.camera);
+            }
+        }
+    }
+}

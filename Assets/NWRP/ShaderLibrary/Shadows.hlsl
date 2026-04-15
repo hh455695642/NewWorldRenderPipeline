@@ -2,11 +2,13 @@
 #define NEWWORLD_SHADOWS_INCLUDED
 
 TEXTURE2D_SHADOW(_MainLightShadowmapTexture);
+TEXTURE2D_SHADOW(_MainLightDynamicShadowmapTexture);
 SAMPLER_CMP(sampler_LinearClampCompare);
 
 float4x4 _MainLightWorldToShadow[2];
 int _MainLightShadowCascadeCount;
 half4 _MainLightShadowParams;
+half4 _MainLightDynamicShadowParams;
 float4 _MainLightShadowmapSize;
 float4 _CascadeShadowSplitSpheres0;
 float4 _CascadeShadowSplitSpheres1;
@@ -83,6 +85,16 @@ half SampleMainLightShadow(float3 positionWS)
         sampler_LinearClampCompare,
         shadowCoordUVW
     );
+    if (_MainLightDynamicShadowParams.x > 0.5h)
+    {
+        half dynamicVisibility = SAMPLE_TEXTURE2D_SHADOW(
+            _MainLightDynamicShadowmapTexture,
+            sampler_LinearClampCompare,
+            shadowCoordUVW
+        );
+        visibility = min(visibility, dynamicVisibility);
+    }
+
     half fade = GetMainLightReceiverShadowFade(positionWS);
     half fadedVisibility = lerp(1.0h, visibility, fade);
     return lerp(1.0h, fadedVisibility, _MainLightShadowParams.x);

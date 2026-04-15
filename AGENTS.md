@@ -92,8 +92,8 @@ Do not introduce ad hoc pass ordering outside this contract unless there is a ha
 - Do not add multi-light real-time shadowing as a default path for mobile.
 - Additional lights may contribute lighting, but they should not silently become shadow casters.
 - If changing shadow code, keep these files aligned:
-  - [`MainLightShadowFeature.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/MainLightShadowFeature.cs)
-  - [`MainLightShadowCasterPass.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/MainLightShadowCasterPass.cs)
+  - [`MainLightShadowFeature.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/MainLightShadows/MainLightShadowFeature.cs)
+  - [`MainLightShadowCasterPass.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowCasterPass.cs)
   - [`Shadows.hlsl`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/ShaderLibrary/Shadows.hlsl)
   - [`Lighting.hlsl`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/ShaderLibrary/Lighting.hlsl)
 

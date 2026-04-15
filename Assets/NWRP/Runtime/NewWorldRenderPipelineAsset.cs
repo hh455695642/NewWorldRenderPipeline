@@ -10,6 +10,12 @@ namespace NWRP
     [CreateAssetMenu(menuName = "Rendering/New World Render Pipeline Asset")]
     public class NewWorldRenderPipelineAsset : RenderPipelineAsset
     {
+        public enum MainLightShadowMode
+        {
+            Realtime = 0,
+            CachedStaticDynamic = 1
+        }
+
         [System.Serializable]
         public sealed class FeatureSettings
         {
@@ -19,7 +25,17 @@ namespace NWRP
         [System.Serializable]
         public sealed class MainLightShadowSettings
         {
+            [Tooltip("Enable all main light shadow rendering. When disabled, both realtime and cached main light shadows are skipped.")]
             public bool enableMainLightShadows = true;
+
+            [Tooltip("Use cached static main light shadows for Game Cameras. SceneView and Preview cameras fall back to realtime main light shadows.")]
+            public bool enableCachedMainLightShadows = false;
+
+            [HideInInspector]
+            public MainLightShadowMode shadowMode = MainLightShadowMode.Realtime;
+
+            [HideInInspector]
+            public bool cachedShadowSettingsMigrated = false;
 
             [Range(256, 4096)]
             public int mainLightShadowResolution = 2048;
@@ -42,6 +58,28 @@ namespace NWRP
             [Tooltip("Normal bias applied along the caster normal. Use it carefully on thin or cutout-like geometry because large values can erode shadow silhouettes.")]
             [Range(0f, 3f)]
             public float mainLightShadowNormalBias = 1.0f;
+
+            [Header("Cached Main Light Shadows")]
+            [Tooltip("Enable a per-frame dynamic shadow overlay for Game Cameras when cached main light shadows are active.")]
+            public bool enableDynamicShadowOverlay = true;
+
+            [Tooltip("Layer mask rendered into the cached static main light shadow atlas for Game Cameras. Moving these casters does not refresh the cache until it is dirtied or invalidated.")]
+            public LayerMask staticCasterLayerMask = ~0;
+
+            [Tooltip("Layer mask rendered into the per-frame dynamic shadow overlay atlas for Game Cameras. Only used when Enable Dynamic Shadow is enabled.")]
+            public LayerMask dynamicCasterLayerMask = 0;
+
+            [Tooltip("Game Camera position delta in world units required to invalidate the cached static shadow atlas when using the OnDirty cached update path.")]
+            [Min(0f)]
+            public float cameraPositionInvalidationThreshold = 0.25f;
+
+            [Tooltip("Game Camera rotation delta in degrees required to invalidate the cached static shadow atlas when using the OnDirty cached update path.")]
+            [Min(0f)]
+            public float cameraRotationInvalidationThreshold = 0.5f;
+
+            [Tooltip("Main light direction delta in degrees required to invalidate the cached static shadow atlas when using the OnDirty cached update path.")]
+            [Min(0f)]
+            public float lightDirectionInvalidationThreshold = 0.5f;
         }
 
         [Header("General")]
@@ -59,6 +97,26 @@ namespace NWRP
 
         [System.NonSerialized]
         private MainLightShadowFeature _runtimeMainLightShadowFeature;
+
+        private MainLightShadowSettings MainLightShadowSettingsData
+        {
+            get
+            {
+                if (mainLightShadows == null)
+                {
+                    mainLightShadows = new MainLightShadowSettings();
+                }
+
+                if (!mainLightShadows.cachedShadowSettingsMigrated)
+                {
+                    mainLightShadows.enableCachedMainLightShadows =
+                        mainLightShadows.shadowMode == MainLightShadowMode.CachedStaticDynamic;
+                    mainLightShadows.cachedShadowSettingsMigrated = true;
+                }
+
+                return mainLightShadows;
+            }
+        }
 
         public List<NWRPFeature> Features
         {
@@ -78,13 +136,83 @@ namespace NWRP
             }
         }
 
-        public bool EnableMainLightShadows => mainLightShadows != null && mainLightShadows.enableMainLightShadows;
-        public int MainLightShadowResolution => mainLightShadows != null ? mainLightShadows.mainLightShadowResolution : 2048;
-        public float MainLightShadowDistance => mainLightShadows != null ? mainLightShadows.mainLightShadowDistance : 80f;
-        public int MainLightShadowCascadeCount => mainLightShadows != null ? mainLightShadows.mainLightShadowCascadeCount : 2;
-        public float MainLightShadowCascadeSplit => mainLightShadows != null ? mainLightShadows.mainLightShadowCascadeSplit : 0.35f;
-        public float MainLightShadowBias => mainLightShadows != null ? mainLightShadows.mainLightShadowBias : 0.7f;
-        public float MainLightShadowNormalBias => mainLightShadows != null ? mainLightShadows.mainLightShadowNormalBias : 1.0f;
+        public bool EnableMainLightShadows => MainLightShadowSettingsData.enableMainLightShadows;
+        public bool EnableCachedMainLightShadows => MainLightShadowSettingsData.enableCachedMainLightShadows;
+        internal MainLightShadowMode MainLightShadowModeSetting =>
+            EnableCachedMainLightShadows ? MainLightShadowMode.CachedStaticDynamic : MainLightShadowMode.Realtime;
+        public int MainLightShadowResolution => MainLightShadowSettingsData.mainLightShadowResolution;
+        public float MainLightShadowDistance => MainLightShadowSettingsData.mainLightShadowDistance;
+        public int MainLightShadowCascadeCount => MainLightShadowSettingsData.mainLightShadowCascadeCount;
+        public float MainLightShadowCascadeSplit => MainLightShadowSettingsData.mainLightShadowCascadeSplit;
+        public float MainLightShadowBias => MainLightShadowSettingsData.mainLightShadowBias;
+        public float MainLightShadowNormalBias => MainLightShadowSettingsData.mainLightShadowNormalBias;
+        public bool EnableDynamicShadowOverlay =>
+            MainLightShadowSettingsData.enableCachedMainLightShadows && MainLightShadowSettingsData.enableDynamicShadowOverlay;
+        public LayerMask StaticCasterLayerMask => MainLightShadowSettingsData.staticCasterLayerMask;
+        public LayerMask DynamicCasterLayerMask => MainLightShadowSettingsData.dynamicCasterLayerMask;
+        public float CameraPositionInvalidationThreshold => MainLightShadowSettingsData.cameraPositionInvalidationThreshold;
+        public float CameraRotationInvalidationThreshold => MainLightShadowSettingsData.cameraRotationInvalidationThreshold;
+        public float LightDirectionInvalidationThreshold => MainLightShadowSettingsData.lightDirectionInvalidationThreshold;
+
+        /// <summary>
+        /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,
+        /// the runtime fallback main light shadow feature is used instead.
+        /// </summary>
+        public void MarkMainLightShadowCacheDirty()
+        {
+            bool handled = false;
+            List<NWRPFeature> features = Features;
+            for (int i = 0; i < features.Count; i++)
+            {
+                if (features[i] is not MainLightShadowFeature feature)
+                {
+                    continue;
+                }
+
+                feature.EnsureCreated();
+                feature.MarkCacheDirty();
+                handled = true;
+            }
+
+            if (handled)
+            {
+                return;
+            }
+
+            MainLightShadowFeature runtimeFeature = GetOrCreateMainLightShadowFeature();
+            runtimeFeature.EnsureCreated();
+            runtimeFeature.MarkCacheDirty();
+        }
+
+        /// <summary>
+        /// Clears the cached main light shadow atlas state. If the pipeline asset has no serialized feature instance,
+        /// the runtime fallback main light shadow feature is used instead.
+        /// </summary>
+        public void ClearMainLightShadowCache()
+        {
+            bool handled = false;
+            List<NWRPFeature> features = Features;
+            for (int i = 0; i < features.Count; i++)
+            {
+                if (features[i] is not MainLightShadowFeature feature)
+                {
+                    continue;
+                }
+
+                feature.EnsureCreated();
+                feature.ClearCache();
+                handled = true;
+            }
+
+            if (handled)
+            {
+                return;
+            }
+
+            MainLightShadowFeature runtimeFeature = GetOrCreateMainLightShadowFeature();
+            runtimeFeature.EnsureCreated();
+            runtimeFeature.ClearCache();
+        }
 
         internal MainLightShadowFeature GetOrCreateMainLightShadowFeature()
         {
@@ -125,19 +253,19 @@ namespace NWRP
 #if UNITY_EDITOR
         private void OnValidate()
         {
-            if (mainLightShadows == null)
-            {
-                mainLightShadows = new MainLightShadowSettings();
-            }
+            MainLightShadowSettings settings = MainLightShadowSettingsData;
 
-            mainLightShadows.mainLightShadowResolution = Mathf.ClosestPowerOfTwo(
-                Mathf.Clamp(mainLightShadows.mainLightShadowResolution, 256, 4096)
+            settings.mainLightShadowResolution = Mathf.ClosestPowerOfTwo(
+                Mathf.Clamp(settings.mainLightShadowResolution, 256, 4096)
             );
-            mainLightShadows.mainLightShadowCascadeCount = Mathf.Clamp(mainLightShadows.mainLightShadowCascadeCount, 1, 2);
-            mainLightShadows.mainLightShadowCascadeSplit = Mathf.Clamp(mainLightShadows.mainLightShadowCascadeSplit, 0.05f, 0.95f);
-            mainLightShadows.mainLightShadowDistance = Mathf.Max(0f, mainLightShadows.mainLightShadowDistance);
-            mainLightShadows.mainLightShadowBias = Mathf.Max(0f, mainLightShadows.mainLightShadowBias);
-            mainLightShadows.mainLightShadowNormalBias = Mathf.Max(0f, mainLightShadows.mainLightShadowNormalBias);
+            settings.mainLightShadowCascadeCount = Mathf.Clamp(settings.mainLightShadowCascadeCount, 1, 2);
+            settings.mainLightShadowCascadeSplit = Mathf.Clamp(settings.mainLightShadowCascadeSplit, 0.05f, 0.95f);
+            settings.mainLightShadowDistance = Mathf.Max(0f, settings.mainLightShadowDistance);
+            settings.mainLightShadowBias = Mathf.Max(0f, settings.mainLightShadowBias);
+            settings.mainLightShadowNormalBias = Mathf.Max(0f, settings.mainLightShadowNormalBias);
+            settings.cameraPositionInvalidationThreshold = Mathf.Max(0f, settings.cameraPositionInvalidationThreshold);
+            settings.cameraRotationInvalidationThreshold = Mathf.Max(0f, settings.cameraRotationInvalidationThreshold);
+            settings.lightDirectionInvalidationThreshold = Mathf.Max(0f, settings.lightDirectionInvalidationThreshold);
         }
 #endif
     }
