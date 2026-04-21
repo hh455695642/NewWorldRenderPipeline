@@ -6,7 +6,6 @@ namespace NWRP.Runtime.Passes
 {
     public sealed class MainLightShadowCasterPass : NWRPPass
     {
-        private const string kMainLightShadowsSampleName = "NWRP Main Light Shadows";
         private const float kRasterDepthBias = 1.0f;
         private const float kRasterSlopeBias = 2.5f;
 
@@ -18,7 +17,11 @@ namespace NWRP.Runtime.Passes
         private int _shadowmapHeight;
 
         public MainLightShadowCasterPass()
-            : base(NWRPPassEvent.ShadowMap)
+            : base(
+                NWRPPassEvent.ShadowMap,
+                "Render Main Light Realtime Cascades",
+                NWRPProfiling.MainLightShadow,
+                usePassProfilingScope: false)
         {
             _mainLightWorldToShadow[0] = Matrix4x4.identity;
             _mainLightWorldToShadow[1] = Matrix4x4.identity;
@@ -51,110 +54,118 @@ namespace NWRP.Runtime.Passes
             }
 
             int cascadeCount = Mathf.Clamp(asset.MainLightShadowCascadeCount, 1, 2);
-            int requestedResolution = Mathf.ClosestPowerOfTwo(Mathf.Clamp(asset.MainLightShadowResolution, 256, 4096));
-            GetAtlasSize(requestedResolution, cascadeCount, out int atlasWidth, out int atlasHeight, out int tileResolution);
+            int requestedResolution = Mathf.ClosestPowerOfTwo(
+                Mathf.Clamp(asset.MainLightShadowResolution, 256, 4096));
+            GetAtlasSize(
+                requestedResolution,
+                cascadeCount,
+                out int atlasWidth,
+                out int atlasHeight,
+                out int tileResolution);
 
-            if (!EnsureShadowmap(atlasWidth, atlasHeight))
+            bool anyCascadeRendered;
+            using (new ProfilingScope(frameData.cmd, MainLightShadowPassUtils.RenderRealtimeShadowAtlasSampler))
             {
-                UploadDisabledGlobals(ref frameData);
-                return;
-            }
-
-            CommandBuffer cmd = frameData.cmd;
-            cmd.BeginSample(kMainLightShadowsSampleName);
-            cmd.SetRenderTarget(_shadowmapTexture);
-            cmd.ClearRenderTarget(true, false, Color.black);
-            ExecuteBuffer(ref frameData);
-
-            ShadowDrawingSettings shadowDrawingSettings = new ShadowDrawingSettings(frameData.cullingResults, mainLightIndex);
-            Vector4 shadowLightDirection = GetShadowLightDirection(ref frameData, mainLightIndex);
-            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)asset.MainLightShadowCasterCullModeSetting);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, shadowLightDirection);
-            cmd.SetGlobalDepthBias(kRasterDepthBias, kRasterSlopeBias);
-            ExecuteBuffer(ref frameData);
-
-            Vector3 cascadeRatios = cascadeCount == 2
-                ? new Vector3(asset.MainLightShadowCascadeSplit, 1f, 1f)
-                : Vector3.zero;
-
-            bool anyCascadeRendered = false;
-            for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
-            {
-                if (!frameData.cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
-                        mainLightIndex,
-                        cascadeIndex,
-                        cascadeCount,
-                        cascadeRatios,
-                        tileResolution,
-                        mainLight.shadowNearPlane,
-                        out Matrix4x4 viewMatrix,
-                        out Matrix4x4 projMatrix,
-                        out ShadowSplitData splitData))
+                if (!EnsureShadowmap(atlasWidth, atlasHeight))
                 {
-                    _mainLightWorldToShadow[cascadeIndex] = Matrix4x4.identity;
-                    _cascadeSplitSpheres[cascadeIndex] = Vector4.zero;
-                    continue;
+                    UploadDisabledGlobals(ref frameData);
+                    return;
                 }
 
-                splitData.shadowCascadeBlendCullingFactor = 1.0f;
-                shadowDrawingSettings.splitData = splitData;
-                _cascadeSplitSpheres[cascadeIndex] = splitData.cullingSphere;
-
-                GetTileOffset(cascadeIndex, tileResolution, out int offsetX, out int offsetY);
-                Rect viewport = new Rect(offsetX, offsetY, tileResolution, tileResolution);
-
-                cmd.SetViewport(viewport);
-                cmd.SetViewProjectionMatrices(viewMatrix, projMatrix);
-                cmd.SetGlobalVector(
-                    NWRPShaderIds.ShadowBias,
-                    CalculateShadowBias(asset, projMatrix, tileResolution)
-                );
+                MainLightShadowPassUtils.ClearShadowAtlas(ref frameData, _shadowmapTexture);
+                CommandBuffer cmd = frameData.cmd;
+                ShadowDrawingSettings shadowDrawingSettings =
+                    new ShadowDrawingSettings(frameData.cullingResults, mainLightIndex);
+                Vector4 shadowLightDirection = GetShadowLightDirection(ref frameData, mainLightIndex);
+                cmd.SetGlobalFloat(
+                    NWRPShaderIds.MainLightShadowCasterCull,
+                    (float)asset.MainLightShadowCasterCullModeSetting);
+                cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, shadowLightDirection);
+                cmd.SetGlobalDepthBias(kRasterDepthBias, kRasterSlopeBias);
                 ExecuteBuffer(ref frameData);
 
-                frameData.context.DrawShadows(ref shadowDrawingSettings);
-                anyCascadeRendered = true;
+                Vector3 cascadeRatios = cascadeCount == 2
+                    ? new Vector3(asset.MainLightShadowCascadeSplit, 1f, 1f)
+                    : Vector3.zero;
 
-                _mainLightWorldToShadow[cascadeIndex] = BuildWorldToShadowMatrix(
-                    projMatrix,
-                    viewMatrix,
-                    offsetX,
-                    offsetY,
-                    tileResolution,
-                    atlasWidth,
-                    atlasHeight
-                );
-            }
+                anyCascadeRendered = false;
+                for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
+                {
+                    if (!frameData.cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
+                            mainLightIndex,
+                            cascadeIndex,
+                            cascadeCount,
+                            cascadeRatios,
+                            tileResolution,
+                            mainLight.shadowNearPlane,
+                            out Matrix4x4 viewMatrix,
+                            out Matrix4x4 projMatrix,
+                            out ShadowSplitData splitData))
+                    {
+                        _mainLightWorldToShadow[cascadeIndex] = Matrix4x4.identity;
+                        _cascadeSplitSpheres[cascadeIndex] = Vector4.zero;
+                        continue;
+                    }
 
-            if (!anyCascadeRendered)
-            {
+                    splitData.shadowCascadeBlendCullingFactor = 1.0f;
+                    shadowDrawingSettings.splitData = splitData;
+                    _cascadeSplitSpheres[cascadeIndex] = splitData.cullingSphere;
+
+                    GetTileOffset(cascadeIndex, tileResolution, out int offsetX, out int offsetY);
+                    cmd.SetViewport(new Rect(offsetX, offsetY, tileResolution, tileResolution));
+                    cmd.SetViewProjectionMatrices(viewMatrix, projMatrix);
+                    cmd.SetGlobalVector(
+                        NWRPShaderIds.ShadowBias,
+                        CalculateShadowBias(asset, projMatrix, tileResolution)
+                    );
+                    ExecuteBuffer(ref frameData);
+
+                    frameData.context.DrawShadows(ref shadowDrawingSettings);
+                    anyCascadeRendered = true;
+
+                    _mainLightWorldToShadow[cascadeIndex] = BuildWorldToShadowMatrix(
+                        projMatrix,
+                        viewMatrix,
+                        offsetX,
+                        offsetY,
+                        tileResolution,
+                        atlasWidth,
+                        atlasHeight
+                    );
+                }
+
                 cmd.SetGlobalDepthBias(0.0f, 0.0f);
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
                 cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
-                cmd.EndSample(kMainLightShadowsSampleName);
                 ExecuteBuffer(ref frameData);
+            }
+
+            if (!anyCascadeRendered)
+            {
                 UploadDisabledGlobals(ref frameData);
                 frameData.context.SetupCameraProperties(frameData.camera);
                 return;
             }
 
-            // Reset bias and camera matrices for camera-space rendering passes.
-            cmd.SetGlobalDepthBias(0.0f, 0.0f);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
-            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
-            cmd.EndSample(kMainLightShadowsSampleName);
-            ExecuteBuffer(ref frameData);
             frameData.context.SetupCameraProperties(frameData.camera);
 
-            UploadReceiverGlobals(
+            MainLightShadowPassUtils.UploadRealtimeReceiverGlobals(
                 ref frameData,
+                _shadowmapTexture,
+                _mainLightWorldToShadow,
+                _cascadeSplitSpheres,
                 mainLight.shadowStrength,
                 cascadeCount,
                 atlasWidth,
                 atlasHeight,
                 tileResolution
             );
+        }
+
+        private void UploadDisabledGlobals(ref NWRPFrameData frameData)
+        {
+            MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, null, null);
         }
 
         private bool TryGetMainLightIndex(ref NWRPFrameData frameData, out int mainLightIndex, out Light mainLight)
@@ -233,12 +244,18 @@ namespace NWRP.Runtime.Passes
             {
                 Object.DestroyImmediate(_shadowmapTexture);
             }
+
             _shadowmapTexture = null;
             _shadowmapWidth = 0;
             _shadowmapHeight = 0;
         }
 
-        private static void GetAtlasSize(int resolution, int cascadeCount, out int atlasWidth, out int atlasHeight, out int tileResolution)
+        private static void GetAtlasSize(
+            int resolution,
+            int cascadeCount,
+            out int atlasWidth,
+            out int atlasHeight,
+            out int tileResolution)
         {
             if (cascadeCount <= 1)
             {
@@ -307,106 +324,6 @@ namespace NWRP.Runtime.Passes
             atlasTransform.m13 = (float)tileOffsetY / atlasHeight;
 
             return atlasTransform * textureScaleBias * worldToShadow;
-        }
-
-        private void UploadDisabledGlobals(ref NWRPFrameData frameData)
-        {
-            CommandBuffer cmd = frameData.cmd;
-
-            _mainLightWorldToShadow[0] = Matrix4x4.identity;
-            _mainLightWorldToShadow[1] = Matrix4x4.identity;
-            _cascadeSplitSpheres[0] = Vector4.zero;
-            _cascadeSplitSpheres[1] = Vector4.zero;
-
-            cmd.SetGlobalTexture(NWRPShaderIds.MainLightShadowmapTexture, Texture2D.blackTexture);
-            cmd.SetGlobalTexture(NWRPShaderIds.MainLightDynamicShadowmapTexture, Texture2D.blackTexture);
-            cmd.SetGlobalMatrixArray(NWRPShaderIds.MainLightWorldToShadow, _mainLightWorldToShadow);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowParams, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightDynamicShadowParams, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowmapSize, Vector4.zero);
-            cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowFilterMode, 0);
-            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowFilterRadius, 0f);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowReceiverBiasParams, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowAtlasTexelSize, Vector4.zero);
-            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
-            cmd.SetGlobalDepthBias(0.0f, 0.0f);
-            cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowCascadeCount, 0);
-            cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSpheres0, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSpheres1, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSphereRadii, Vector4.zero);
-
-            ExecuteBuffer(ref frameData);
-        }
-
-        private void UploadReceiverGlobals(
-            ref NWRPFrameData frameData,
-            float shadowStrength,
-            int cascadeCount,
-            int atlasWidth,
-            int atlasHeight,
-            int tileResolution)
-        {
-            CommandBuffer cmd = frameData.cmd;
-
-            float maxDistance = Mathf.Max(frameData.asset.MainLightShadowDistance, 0.001f);
-            float fadeRange = Mathf.Max(maxDistance * 0.1f, 0.001f);
-            float invFadeRange = 1f / fadeRange;
-
-            Vector4 shadowParams = new Vector4(
-                shadowStrength,
-                maxDistance,
-                invFadeRange,
-                0f
-            );
-
-            Vector4 shadowmapSize = new Vector4(
-                1f / atlasWidth,
-                1f / atlasHeight,
-                atlasWidth,
-                atlasHeight
-            );
-            float safeTileResolution = Mathf.Max(tileResolution, 1);
-            Vector4 shadowAtlasTexelSize = new Vector4(
-                1f / atlasWidth,
-                1f / atlasHeight,
-                1f / safeTileResolution,
-                safeTileResolution
-            );
-            Vector4 receiverBiasParams = new Vector4(
-                frameData.asset.MainLightShadowReceiverDepthBias,
-                frameData.asset.MainLightShadowReceiverNormalBias,
-                0f,
-                0f
-            );
-
-            Vector4 sphere0 = _cascadeSplitSpheres[0];
-            Vector4 sphere1 = cascadeCount > 1 ? _cascadeSplitSpheres[1] : _cascadeSplitSpheres[0];
-
-            Vector4 sphereRadii = new Vector4(
-                sphere0.w * sphere0.w,
-                sphere1.w * sphere1.w,
-                0f,
-                0f
-            );
-
-            cmd.SetGlobalTexture(NWRPShaderIds.MainLightShadowmapTexture, _shadowmapTexture);
-            cmd.SetGlobalTexture(NWRPShaderIds.MainLightDynamicShadowmapTexture, Texture2D.blackTexture);
-            cmd.SetGlobalMatrixArray(NWRPShaderIds.MainLightWorldToShadow, _mainLightWorldToShadow);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowParams, shadowParams);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightDynamicShadowParams, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowmapSize, shadowmapSize);
-            cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowFilterMode, (int)frameData.asset.MainLightShadowFilterModeSetting);
-            cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowFilterRadius, frameData.asset.MainLightShadowFilterRadius);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowReceiverBiasParams, receiverBiasParams);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowAtlasTexelSize, shadowAtlasTexelSize);
-            cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowCascadeCount, cascadeCount);
-            cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSpheres0, sphere0);
-            cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSpheres1, sphere1);
-            cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSphereRadii, sphereRadii);
-
-            ExecuteBuffer(ref frameData);
         }
 
         private static void ExecuteBuffer(ref NWRPFrameData frameData)

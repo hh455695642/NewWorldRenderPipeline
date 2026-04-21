@@ -5,7 +5,7 @@ namespace NWRP.Runtime.Passes
         private readonly NWRPRenderer _renderer;
 
         public SetupLightsPass(NWRPRenderer renderer)
-            : base(NWRPPassEvent.BeforeShadowMap)
+            : base(NWRPPassEvent.BeforeShadowMap, "Light Globals")
         {
             _renderer = renderer;
         }

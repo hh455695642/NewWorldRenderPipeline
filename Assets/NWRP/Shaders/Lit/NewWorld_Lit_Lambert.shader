@@ -63,6 +63,12 @@ Shader "NewWorld/Lit/Lambert"
             {
                 half3 normalWS = normalize(input.normalWS);
                 Light light = GetMainLight(input.positionWS, normalWS);
+                half3 debugColor;
+                if (TryGetMainLightShadowDebugOverride(light, debugColor))
+                {
+                    return half4(debugColor, 1.0);
+                }
+
                 half3 lightColor = light.color * light.distanceAttenuation * light.shadowAttenuation;
                 half NdotL = saturate(dot(normalWS, light.direction));
                 half3 diffuse = _BaseColor.rgb * lightColor * NdotL;

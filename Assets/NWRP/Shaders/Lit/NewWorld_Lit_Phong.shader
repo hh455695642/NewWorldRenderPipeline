@@ -73,6 +73,12 @@ Shader "NewWorld/Lit/Phong"
                 half3 viewWS   = SafeNormalize(IN.viewWS);
 
                 Light light = GetMainLight(IN.positionWS, normalWS);
+                half3 debugColor;
+                if (TryGetMainLightShadowDebugOverride(light, debugColor))
+                {
+                    return half4(debugColor, 1.0);
+                }
+
                 half3 lightColor = light.color * light.distanceAttenuation * light.shadowAttenuation;
 
                 // Smoothness → 指数映射，和 URP 示例保持一致

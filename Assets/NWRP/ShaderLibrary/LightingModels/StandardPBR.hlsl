@@ -39,6 +39,12 @@ half3 DirectBRDF_StandardPBR(
     half   metallic,
     half   perceptualRoughness)
 {
+    half3 debugColor;
+    if (TryGetMainLightShadowDebugOverride(light, debugColor))
+    {
+        return debugColor;
+    }
+
     half roughness = PerceptualRoughnessToRoughness(perceptualRoughness);
     roughness = max(roughness, HALF_MIN_SQRT); // 防止零粗糙度导致除零
 
@@ -89,6 +95,12 @@ half3 EvaluateStandardPBR(
 
     // ── 直接光：主光源 ────────────────────────────────────
     Light mainLight = GetMainLight(positionWS, normalWS);
+    half3 debugColor;
+    if (TryGetMainLightShadowDebugOverride(mainLight, debugColor))
+    {
+        return debugColor;
+    }
+
     color += DirectBRDF_StandardPBR(mainLight, normalWS, viewDirWS,
                                      albedo, metallic, perceptualRoughness);
 

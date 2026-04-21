@@ -1,9 +1,15 @@
+using UnityEngine.Rendering;
+
 namespace NWRP.Runtime.Passes
 {
     internal sealed class MainLightShadowDisabledPass : NWRPPass
     {
         public MainLightShadowDisabledPass()
-            : base(NWRPPassEvent.ShadowMap)
+            : base(
+                NWRPPassEvent.ShadowMap,
+                "Upload Main Light Disabled Globals",
+                NWRPProfiling.MainLightShadow,
+                usePassProfilingScope: false)
         {
         }
 

@@ -77,6 +77,12 @@ Shader "NewWorld/Lit/MultiLight"
 
                 // Main directional light
                 Light mainLight = GetMainLight(IN.positionWS, normalWS);
+                half3 debugColor;
+                if (TryGetMainLightShadowDebugOverride(mainLight, debugColor))
+                {
+                    return half4(debugColor, 1.0);
+                }
+
                 half3 mainLightColor = mainLight.color * mainLight.distanceAttenuation * mainLight.shadowAttenuation;
                 half mainNdotL = saturate(dot(normalWS, mainLight.direction));
 

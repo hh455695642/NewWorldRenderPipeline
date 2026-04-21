@@ -19,6 +19,12 @@
 /// 对单个光源计算能量守恒 Lambert 漫反射
 half3 EvaluateLambert(Light light, half3 normalWS, half3 albedo)
 {
+    half3 debugColor;
+    if (TryGetMainLightShadowDebugOverride(light, debugColor))
+    {
+        return debugColor;
+    }
+
     half NdotL = saturate(dot(normalWS, light.direction));
     half3 radiance = light.color * light.distanceAttenuation * light.shadowAttenuation * NdotL;
     return albedo * INV_PI * radiance;

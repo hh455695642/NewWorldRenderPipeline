@@ -102,6 +102,12 @@ Shader "NewWorld/Lit/StandardLit"
                 half3 f0,
                 half roughness)
             {
+                half3 debugColor;
+                if (TryGetMainLightShadowDebugOverride(light, debugColor))
+                {
+                    return debugColor;
+                }
+
                 half3 H = SafeNormalize(float3(light.direction) + float3(viewWS));
 
                 half NdotL = saturate(dot(normalWS, light.direction));
@@ -175,6 +181,12 @@ Shader "NewWorld/Lit/StandardLit"
                 half3 directColor = half3(0, 0, 0);
 
                 Light mainLight = GetMainLight(input.positionWS, normalWS);
+                half3 debugColor;
+                if (TryGetMainLightShadowDebugOverride(mainLight, debugColor))
+                {
+                    return half4(debugColor, 1.0);
+                }
+
                 directColor += EvaluateDirectPBR(
                     mainLight,
                     normalWS,

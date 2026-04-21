@@ -1,7 +1,9 @@
 {
     "name": "NWRP.Runtime",
     "rootNamespace": "NWRP",
-    "references": [],
+    "references": [
+        "Unity.RenderPipelines.Core.Runtime"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

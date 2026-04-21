@@ -33,7 +33,6 @@ namespace NWRP
         private readonly Vector4[] _additionalLightsAttenuation = new Vector4[kMaxAdditionalLights];
         private readonly Vector4[] _additionalLightsSpotDir = new Vector4[kMaxAdditionalLights];
 
-        private readonly CommandBuffer _cmd = new CommandBuffer { name = "NewWorld Camera" };
         private readonly List<QueuedPass> _activePasses = new List<QueuedPass>(32);
 
         private readonly SetupCameraPass _setupCameraPass;
@@ -59,7 +58,6 @@ namespace NWRP
 
         public void Dispose()
         {
-            _cmd.Release();
         }
 
         public void Render(
@@ -73,17 +71,34 @@ namespace NWRP
                 return;
             }
 
+            CommandBuffer cmd = CommandBufferPool.Get();
             NWRPFrameData frameData = new NWRPFrameData
             {
                 context = context,
                 camera = camera,
                 cullingResults = cullingResults,
-                cmd = _cmd,
+                cmd = cmd,
                 asset = asset
             };
 
-            BuildPassQueue(ref frameData);
-            ExecutePassQueue(ref frameData);
+            try
+            {
+                using (new ProfilingScope(cmd, NWRPProfiling.TryGetOrAddCameraSampler(camera)))
+                {
+                    using (new ProfilingScope(cmd, NWRPProfiling.RendererExecute))
+                    {
+                        BuildPassQueue(ref frameData);
+                        ExecutePassQueue(ref frameData);
+                    }
+                }
+
+                ExecuteBuffer(ref frameData);
+                frameData.context.Submit();
+            }
+            finally
+            {
+                CommandBufferPool.Release(cmd);
+            }
         }
 
         public void EnqueuePass(NWRPPass pass)
@@ -105,7 +120,7 @@ namespace NWRP
             frameData.context.SetupCameraProperties(frameData.camera);
 
             CameraClearFlags clearFlags = frameData.camera.clearFlags;
-            _cmd.ClearRenderTarget(
+            frameData.cmd.ClearRenderTarget(
                 clearDepth: clearFlags <= CameraClearFlags.Depth,
                 clearColor: clearFlags <= CameraClearFlags.SolidColor,
                 backgroundColor: clearFlags == CameraClearFlags.SolidColor
@@ -113,7 +128,6 @@ namespace NWRP
                     : Color.clear
             );
 
-            _cmd.BeginSample("NewWorld Render Camera");
             ExecuteBuffer(ref frameData);
         }
 
@@ -141,8 +155,8 @@ namespace NWRP
                 break;
             }
 
-            _cmd.SetGlobalVector(NWRPShaderIds.MainLightPosition, mainLightPosition);
-            _cmd.SetGlobalVector(NWRPShaderIds.MainLightColor, mainLightColor);
+            frameData.cmd.SetGlobalVector(NWRPShaderIds.MainLightPosition, mainLightPosition);
+            frameData.cmd.SetGlobalVector(NWRPShaderIds.MainLightColor, mainLightColor);
 
             int additionalCount = 0;
             int limit = kMaxAdditionalLights;
@@ -200,11 +214,11 @@ namespace NWRP
                 _additionalLightsSpotDir[i] = Vector4.zero;
             }
 
-            _cmd.SetGlobalInt(NWRPShaderIds.AdditionalLightsCount, additionalCount);
-            _cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsPosition, _additionalLightsPosition);
-            _cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsColor, _additionalLightsColor);
-            _cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsAttenuation, _additionalLightsAttenuation);
-            _cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsSpotDir, _additionalLightsSpotDir);
+            frameData.cmd.SetGlobalInt(NWRPShaderIds.AdditionalLightsCount, additionalCount);
+            frameData.cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsPosition, _additionalLightsPosition);
+            frameData.cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsColor, _additionalLightsColor);
+            frameData.cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsAttenuation, _additionalLightsAttenuation);
+            frameData.cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsSpotDir, _additionalLightsSpotDir);
 
             ExecuteBuffer(ref frameData);
         }
@@ -285,9 +299,7 @@ namespace NWRP
 
         internal void ExecuteSubmit(ref NWRPFrameData frameData)
         {
-            _cmd.EndSample("NewWorld Render Camera");
             ExecuteBuffer(ref frameData);
-            frameData.context.Submit();
         }
 
         private void BuildPassQueue(ref NWRPFrameData frameData)
@@ -312,10 +324,169 @@ namespace NWRP
 
         private void ExecutePassQueue(ref NWRPFrameData frameData)
         {
+            ExecuteStage(ref frameData, NWRPProfiling.SetupCamera, IsSetupCameraPass);
+            ExecuteStage(ref frameData, NWRPProfiling.SetupLights, IsSetupLightsPass);
+            ExecuteMainLightShadowStage(ref frameData);
+            ExecuteStage(ref frameData, NWRPProfiling.BeforeRendering, IsBeforeRenderingPass);
+            ExecuteStage(ref frameData, NWRPProfiling.MainRenderingOpaque, IsMainRenderingOpaquePass);
+            ExecuteStage(ref frameData, NWRPProfiling.MainRenderingTransparent, IsMainRenderingTransparentPass);
+            ExecuteStage(ref frameData, NWRPProfiling.Submit, IsSubmitStagePass);
+        }
+
+        private void ExecuteMainLightShadowStage(ref NWRPFrameData frameData)
+        {
+            if (!HasMatchingPass(IsMainLightShadowPass))
+            {
+                return;
+            }
+
+            using (new ProfilingScope(frameData.cmd, NWRPProfiling.MainLightShadow))
+            {
+                ExecuteBuffer(ref frameData);
+
+                for (int passIndex = 0; passIndex < _activePasses.Count; passIndex++)
+                {
+                    if (!IsMainLightShadowPass(_activePasses[passIndex]))
+                    {
+                        continue;
+                    }
+
+                    ExecutePass(ref frameData, _activePasses[passIndex].pass);
+                }
+            }
+
+            ExecuteBuffer(ref frameData);
+        }
+
+        private void ExecuteStage(
+            ref NWRPFrameData frameData,
+            ProfilingSampler stageSampler,
+            Func<QueuedPass, bool> predicate)
+        {
+            if (!HasMatchingPass(predicate))
+            {
+                return;
+            }
+
+            using (new ProfilingScope(frameData.cmd, stageSampler))
+            {
+                ExecuteBuffer(ref frameData);
+
+                int passIndex = 0;
+                while (passIndex < _activePasses.Count)
+                {
+                    if (!predicate(_activePasses[passIndex]))
+                    {
+                        passIndex++;
+                        continue;
+                    }
+
+                    ProfilingSampler groupSampler = _activePasses[passIndex].pass.profilingGroupSampler;
+                    if (groupSampler != null)
+                    {
+                        int groupEnd = passIndex + 1;
+                        while (groupEnd < _activePasses.Count
+                            && predicate(_activePasses[groupEnd])
+                            && ReferenceEquals(
+                                _activePasses[groupEnd].pass.profilingGroupSampler,
+                                groupSampler))
+                        {
+                            groupEnd++;
+                        }
+
+                        using (new ProfilingScope(frameData.cmd, groupSampler))
+                        {
+                            ExecuteBuffer(ref frameData);
+
+                            for (int groupedIndex = passIndex; groupedIndex < groupEnd; groupedIndex++)
+                            {
+                                ExecutePass(ref frameData, _activePasses[groupedIndex].pass);
+                            }
+                        }
+
+                        ExecuteBuffer(ref frameData);
+
+                        passIndex = groupEnd;
+                        continue;
+                    }
+
+                    ExecutePass(ref frameData, _activePasses[passIndex].pass);
+                    passIndex++;
+                }
+            }
+
+            ExecuteBuffer(ref frameData);
+        }
+
+        private static void ExecutePass(ref NWRPFrameData frameData, NWRPPass pass)
+        {
+            if (pass.usePassProfilingScope)
+            {
+                using (new ProfilingScope(frameData.cmd, pass.profilingSampler))
+                {
+                    ExecuteBuffer(ref frameData);
+                    pass.Execute(ref frameData);
+                }
+
+                ExecuteBuffer(ref frameData);
+
+                return;
+            }
+
+            pass.Execute(ref frameData);
+        }
+
+        private bool HasMatchingPass(Func<QueuedPass, bool> predicate)
+        {
             for (int i = 0; i < _activePasses.Count; i++)
             {
-                _activePasses[i].pass.Execute(ref frameData);
+                if (predicate(_activePasses[i]))
+                {
+                    return true;
+                }
             }
+
+            return false;
+        }
+
+        private bool IsSetupCameraPass(QueuedPass queuedPass)
+        {
+            return ReferenceEquals(queuedPass.pass, _setupCameraPass);
+        }
+
+        private bool IsSetupLightsPass(QueuedPass queuedPass)
+        {
+            return ReferenceEquals(queuedPass.pass, _setupLightsPass);
+        }
+
+        private bool IsBeforeRenderingPass(QueuedPass queuedPass)
+        {
+            return !IsSetupCameraPass(queuedPass)
+                && !IsSetupLightsPass(queuedPass)
+                && !IsMainLightShadowPass(queuedPass)
+                && queuedPass.pass.passEvent <= NWRPPassEvent.ShadowMap;
+        }
+
+        private static bool IsMainLightShadowPass(QueuedPass queuedPass)
+        {
+            return ReferenceEquals(queuedPass.pass.profilingGroupSampler, NWRPProfiling.MainLightShadow);
+        }
+
+        private static bool IsMainRenderingOpaquePass(QueuedPass queuedPass)
+        {
+            return queuedPass.pass.passEvent > NWRPPassEvent.ShadowMap
+                && queuedPass.pass.passEvent <= NWRPPassEvent.Skybox;
+        }
+
+        private static bool IsMainRenderingTransparentPass(QueuedPass queuedPass)
+        {
+            return queuedPass.pass.passEvent > NWRPPassEvent.Skybox
+                && queuedPass.pass.passEvent < NWRPPassEvent.DebugOverlay;
+        }
+
+        private static bool IsSubmitStagePass(QueuedPass queuedPass)
+        {
+            return queuedPass.pass.passEvent >= NWRPPassEvent.DebugOverlay;
         }
 
         private void EnqueueFeaturePasses(ref NWRPFrameData frameData)
@@ -341,7 +512,8 @@ namespace NWRP
 
             if (!hasSerializedMainLightShadowFeature)
             {
-                MainLightShadowFeature runtimeMainLightShadowFeature = frameData.asset.GetOrCreateMainLightShadowFeature();
+                MainLightShadowFeature runtimeMainLightShadowFeature =
+                    frameData.asset.GetOrCreateMainLightShadowFeature();
                 if (runtimeMainLightShadowFeature != null && runtimeMainLightShadowFeature.IsEnabled)
                 {
                     runtimeMainLightShadowFeature.EnsureCreated();
@@ -383,10 +555,15 @@ namespace NWRP
             return false;
         }
 
-        private void ExecuteBuffer(ref NWRPFrameData frameData)
+        private static void ExecuteBuffer(ref NWRPFrameData frameData)
         {
-            frameData.context.ExecuteCommandBuffer(_cmd);
-            _cmd.Clear();
+            if (frameData.cmd == null)
+            {
+                return;
+            }
+
+            frameData.context.ExecuteCommandBuffer(frameData.cmd);
+            frameData.cmd.Clear();
         }
     }
 }

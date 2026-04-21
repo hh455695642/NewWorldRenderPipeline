@@ -68,6 +68,12 @@ Shader "NewWorld/Lit/HalfLambert"
                 half3 normalWS = normalize(IN.normalWS);
 
                 Light light = GetMainLight(IN.positionWS, normalWS);
+                half3 debugColor;
+                if (TryGetMainLightShadowDebugOverride(light, debugColor))
+                {
+                    return half4(debugColor, 1.0);
+                }
+
                 half3 lightColor = light.color * light.distanceAttenuation * light.shadowAttenuation;
 
                 // Half-Lambert: 把 [-1,1] 映射到 [0.5, 1]，再平方

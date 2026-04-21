@@ -30,6 +30,21 @@ namespace NWRP
             Back = (int)CullMode.Back
         }
 
+        public enum MainLightShadowExecutionPath
+        {
+            Unknown = 0,
+            Disabled = 1,
+            RealtimeAtlas = 2,
+            CachedStatic = 3,
+            CachedStaticPlusDynamicOverlay = 4
+        }
+
+        public enum MainLightShadowDebugViewMode
+        {
+            Off = 0,
+            FinalShadowSourceTint = 1
+        }
+
         [System.Serializable]
         public sealed class FeatureSettings
         {
@@ -127,6 +142,13 @@ namespace NWRP
         }
 
         [System.Serializable]
+        public sealed class MainLightShadowDebugSettings
+        {
+            [Tooltip("Receiver-side shadow debug visualization. Final Shadow Source Tint colors the final main light shadow source on receivers without adding a fullscreen pass.")]
+            public MainLightShadowDebugViewMode debugViewMode = MainLightShadowDebugViewMode.Off;
+        }
+
+        [System.Serializable]
         public sealed class MainLightShadowSettings
         {
             public const int CurrentSerializedVersion = 1;
@@ -136,6 +158,7 @@ namespace NWRP
             public MainLightShadowAtlasSettings atlas = new MainLightShadowAtlasSettings();
             public MainLightShadowBiasSettings bias = new MainLightShadowBiasSettings();
             public MainLightShadowCachedSettings cached = new MainLightShadowCachedSettings();
+            public MainLightShadowDebugSettings debug = new MainLightShadowDebugSettings();
 
             [HideInInspector]
             public int serializedVersion = 0;
@@ -229,6 +252,11 @@ namespace NWRP
                 {
                     cached = new MainLightShadowCachedSettings();
                 }
+
+                if (debug == null)
+                {
+                    debug = new MainLightShadowDebugSettings();
+                }
             }
         }
 
@@ -298,6 +326,8 @@ namespace NWRP
         public float CameraPositionInvalidationThreshold => MainLightShadowSettingsData.cached.cameraPositionInvalidationThreshold;
         public float CameraRotationInvalidationThreshold => MainLightShadowSettingsData.cached.cameraRotationInvalidationThreshold;
         public float LightDirectionInvalidationThreshold => MainLightShadowSettingsData.cached.lightDirectionInvalidationThreshold;
+        public MainLightShadowDebugViewMode MainLightShadowDebugViewModeSetting =>
+            MainLightShadowSettingsData.debug.debugViewMode;
 
         /// <summary>
         /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,

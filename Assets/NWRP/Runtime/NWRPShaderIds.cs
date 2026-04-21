@@ -28,6 +28,8 @@ namespace NWRP
         public static readonly int MainLightShadowReceiverBiasParams = Shader.PropertyToID("_MainLightShadowReceiverBiasParams");
         public static readonly int MainLightShadowAtlasTexelSize = Shader.PropertyToID("_MainLightShadowAtlasTexelSize");
         public static readonly int MainLightShadowCasterCull = Shader.PropertyToID("_MainLightShadowCasterCull");
+        public static readonly int MainLightShadowDebugViewMode = Shader.PropertyToID("_MainLightShadowDebugViewMode");
+        public static readonly int MainLightShadowDebugExecutionPath = Shader.PropertyToID("_MainLightShadowDebugExecutionPath");
         public static readonly int ShadowBias = Shader.PropertyToID("_ShadowBias");
         public static readonly int ShadowLightDirection = Shader.PropertyToID("_ShadowLightDirection");
         public static readonly int MainLightShadowCascadeCount = Shader.PropertyToID("_MainLightShadowCascadeCount");

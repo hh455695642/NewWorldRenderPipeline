@@ -5,7 +5,7 @@ namespace NWRP.Runtime.Passes
         private readonly NWRPRenderer _renderer;
 
         public DrawSkyboxPass(NWRPRenderer renderer)
-            : base(NWRPPassEvent.Skybox)
+            : base(NWRPPassEvent.Skybox, "Draw Skybox")
         {
             _renderer = renderer;
         }

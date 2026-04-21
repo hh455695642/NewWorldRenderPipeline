@@ -13,6 +13,8 @@ struct Light
     half3 color;
     half distanceAttenuation;
     half shadowAttenuation;
+    half3 shadowDebugColor;
+    half shadowDebugActive;
 };
 
 float4 _AdditionalLightsPosition[MAX_ADDITIONAL_LIGHTS];
@@ -21,6 +23,26 @@ half4 _AdditionalLightsAttenuation[MAX_ADDITIONAL_LIGHTS];
 half4 _AdditionalLightsSpotDir[MAX_ADDITIONAL_LIGHTS];
 int _AdditionalLightsCount;
 
+void InitializeLightDebugData(inout Light light)
+{
+    light.shadowDebugColor = 0.0h.xxx;
+    light.shadowDebugActive = 0.0h;
+}
+
+bool TryGetMainLightShadowDebugOverride(Light light, out half3 debugColor)
+{
+    debugColor = light.shadowDebugColor;
+    return light.shadowDebugActive > 0.5h;
+}
+
+void ApplyMainLightShadowDebugData(inout Light light, MainLightShadowResult shadowResult)
+{
+    if (!IsMainLightShadowSourceTintDebugEnabled())
+    {
+        return;
+    }
+}
+
 Light GetMainLight()
 {
     Light light;
@@ -28,20 +50,25 @@ Light GetMainLight()
     light.color = half3(_MainLightColor.rgb);
     light.distanceAttenuation = 1.0h;
     light.shadowAttenuation = 1.0h;
+    InitializeLightDebugData(light);
     return light;
 }
 
 Light GetMainLight(float3 positionWS)
 {
     Light light = GetMainLight();
-    light.shadowAttenuation = SampleMainLightShadow(positionWS, light.direction);
+    MainLightShadowResult shadowResult = GetMainLightShadowResult(positionWS, light.direction);
+    light.shadowAttenuation = shadowResult.finalVisibility;
+    ApplyMainLightShadowDebugData(light, shadowResult);
     return light;
 }
 
 Light GetMainLight(float3 positionWS, float3 normalWS)
 {
     Light light = GetMainLight();
-    light.shadowAttenuation = SampleMainLightShadow(positionWS, normalWS, light.direction);
+    MainLightShadowResult shadowResult = GetMainLightShadowResult(positionWS, normalWS, light.direction);
+    light.shadowAttenuation = shadowResult.finalVisibility;
+    ApplyMainLightShadowDebugData(light, shadowResult);
     return light;
 }
 
@@ -75,6 +102,7 @@ Light GetAdditionalLight(int index, float3 positionWS)
     light.distanceAttenuation *= spotAttenuation;
 
     light.shadowAttenuation = 1.0h;
+    InitializeLightDebugData(light);
     return light;
 }
 

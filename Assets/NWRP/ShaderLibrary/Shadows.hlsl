@@ -4,6 +4,15 @@
 #define NWRP_MAIN_LIGHT_SHADOW_FILTER_HARD 0
 #define NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF 1
 
+#define NWRP_MAIN_LIGHT_SHADOW_DEBUG_OFF 0
+#define NWRP_MAIN_LIGHT_SHADOW_DEBUG_SOURCE_TINT 1
+
+#define NWRP_MAIN_LIGHT_SHADOW_PATH_UNKNOWN 0
+#define NWRP_MAIN_LIGHT_SHADOW_PATH_DISABLED 1
+#define NWRP_MAIN_LIGHT_SHADOW_PATH_REALTIME 2
+#define NWRP_MAIN_LIGHT_SHADOW_PATH_CACHED_STATIC 3
+#define NWRP_MAIN_LIGHT_SHADOW_PATH_CACHED_STATIC_DYNAMIC 4
+
 TEXTURE2D_SHADOW(_MainLightShadowmapTexture);
 TEXTURE2D_SHADOW(_MainLightDynamicShadowmapTexture);
 SAMPLER_CMP(sampler_LinearClampCompare);
@@ -11,6 +20,8 @@ SAMPLER_CMP(sampler_LinearClampCompare);
 float4x4 _MainLightWorldToShadow[2];
 int _MainLightShadowCascadeCount;
 int _MainLightShadowFilterMode;
+int _MainLightShadowDebugViewMode;
+int _MainLightShadowDebugExecutionPath;
 float _MainLightShadowFilterRadius;
 half4 _MainLightShadowParams;
 half4 _MainLightDynamicShadowParams;
@@ -21,6 +32,13 @@ float4 _CascadeShadowSplitSpheres0;
 float4 _CascadeShadowSplitSpheres1;
 float4 _CascadeShadowSplitSphereRadii;
 
+struct MainLightShadowResult
+{
+    half finalVisibility;
+    half staticVisibility;
+    half dynamicVisibility;
+};
+
 #ifndef NWRP_MATERIAL_RECEIVE_SHADOWS
 #define NWRP_MATERIAL_RECEIVE_SHADOWS 1.0h
 #endif
@@ -28,6 +46,20 @@ float4 _CascadeShadowSplitSphereRadii;
 half GetMaterialRealtimeShadowReceiverState()
 {
     return saturate((half)NWRP_MATERIAL_RECEIVE_SHADOWS);
+}
+
+bool IsMainLightShadowSourceTintDebugEnabled()
+{
+    return _MainLightShadowDebugViewMode == NWRP_MAIN_LIGHT_SHADOW_DEBUG_SOURCE_TINT;
+}
+
+MainLightShadowResult CreateDefaultMainLightShadowResult()
+{
+    MainLightShadowResult result;
+    result.finalVisibility = 1.0h;
+    result.staticVisibility = 1.0h;
+    result.dynamicVisibility = 1.0h;
+    return result;
 }
 
 int GetMainLightShadowCascadeIndex(float3 positionWS)
@@ -163,59 +195,61 @@ half SampleMainLightDynamicShadowTextureMediumTent(float3 shadowCoordUVW, int ca
     return visibility * (1.0h / 16.0h);
 }
 
-half SampleMainLightShadowHard(float3 shadowCoordUVW, int cascadeIndex)
-{
-    half visibility = SampleMainLightShadowTextureHard(shadowCoordUVW, cascadeIndex);
-    if (_MainLightDynamicShadowParams.x > 0.5h)
-    {
-        half dynamicVisibility = SampleMainLightDynamicShadowTextureHard(shadowCoordUVW, cascadeIndex);
-        visibility = min(visibility, dynamicVisibility);
-    }
-
-    return visibility;
-}
-
-half SampleMainLightShadowMediumTent(float3 shadowCoordUVW, int cascadeIndex)
-{
-    half visibility = SampleMainLightShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
-    if (_MainLightDynamicShadowParams.x > 0.5h)
-    {
-        half dynamicVisibility = SampleMainLightDynamicShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
-        visibility = min(visibility, dynamicVisibility);
-    }
-
-    return visibility;
-}
-
-half SampleMainLightShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
+half SampleMainLightStaticShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
 {
     if (_MainLightShadowFilterMode == NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
     {
-        return SampleMainLightShadowMediumTent(shadowCoordUVW, cascadeIndex);
+        return SampleMainLightShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
     }
 
-    return SampleMainLightShadowHard(shadowCoordUVW, cascadeIndex);
+    return SampleMainLightShadowTextureHard(shadowCoordUVW, cascadeIndex);
 }
 
-half SampleMainLightShadowInternal(float3 positionWS, float3 normalWS, float3 lightDirectionWS, bool applyReceiverBias)
+half SampleMainLightDynamicShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
 {
-    // Material-side realtime shadow receiver toggle. The current main-light path
-    // covers both fully realtime sampling and cached-shadow receiver sampling.
-    // Additional realtime shadow paths can reuse the same uniform later.
+    if (_MainLightShadowFilterMode == NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
+    {
+        return SampleMainLightDynamicShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
+    }
+
+    return SampleMainLightDynamicShadowTextureHard(shadowCoordUVW, cascadeIndex);
+}
+
+MainLightShadowResult SampleMainLightShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
+{
+    MainLightShadowResult result = CreateDefaultMainLightShadowResult();
+    result.staticVisibility = SampleMainLightStaticShadowAtCoord(shadowCoordUVW, cascadeIndex);
+    if (_MainLightDynamicShadowParams.x > 0.5h)
+    {
+        result.dynamicVisibility = SampleMainLightDynamicShadowAtCoord(shadowCoordUVW, cascadeIndex);
+    }
+
+    result.finalVisibility = min(result.staticVisibility, result.dynamicVisibility);
+    return result;
+}
+
+MainLightShadowResult SampleMainLightShadowResultInternal(
+    float3 positionWS,
+    float3 normalWS,
+    float3 lightDirectionWS,
+    bool applyReceiverBias)
+{
+    MainLightShadowResult result = CreateDefaultMainLightShadowResult();
+
     if (GetMaterialRealtimeShadowReceiverState() <= 0.5h)
     {
-        return 1.0h;
+        return result;
     }
 
     if (_MainLightShadowParams.x <= 0.0h || _MainLightShadowCascadeCount <= 0)
     {
-        return 1.0h;
+        return result;
     }
 
     int cascadeIndex = GetMainLightShadowCascadeIndex(positionWS);
     if (cascadeIndex < 0)
     {
-        return 1.0h;
+        return result;
     }
 
     float3 samplePositionWS = positionWS;
@@ -241,28 +275,87 @@ half SampleMainLightShadowInternal(float3 positionWS, float3 normalWS, float3 li
 
     if (IsMainLightShadowCoordOutOfBounds(shadowCoordUVW))
     {
-        return 1.0h;
+        return result;
     }
 
-    half visibility = SampleMainLightShadowAtCoord(shadowCoordUVW, cascadeIndex);
+    result = SampleMainLightShadowAtCoord(shadowCoordUVW, cascadeIndex);
     half fade = GetMainLightReceiverShadowFade(positionWS);
-    half fadedVisibility = lerp(1.0h, visibility, fade);
-    return lerp(1.0h, fadedVisibility, _MainLightShadowParams.x);
+    result.staticVisibility = lerp(1.0h, result.staticVisibility, fade);
+    result.dynamicVisibility = lerp(1.0h, result.dynamicVisibility, fade);
+    result.finalVisibility = min(result.staticVisibility, result.dynamicVisibility);
+    result.finalVisibility = lerp(1.0h, result.finalVisibility, _MainLightShadowParams.x);
+    return result;
+}
+
+MainLightShadowResult GetMainLightShadowResult(float3 positionWS)
+{
+    return SampleMainLightShadowResultInternal(positionWS, 0.0.xxx, 0.0.xxx, false);
+}
+
+MainLightShadowResult GetMainLightShadowResult(float3 positionWS, float3 lightDirectionWS)
+{
+    return GetMainLightShadowResult(positionWS);
+}
+
+MainLightShadowResult GetMainLightShadowResult(float3 positionWS, float3 normalWS, float3 lightDirectionWS)
+{
+    return SampleMainLightShadowResultInternal(positionWS, normalWS, lightDirectionWS, true);
+}
+
+half3 GetMainLightShadowDebugTint(MainLightShadowResult shadowResult)
+{
+    half staticOcclusion = 1.0h - shadowResult.staticVisibility;
+    half dynamicOcclusion = 1.0h - shadowResult.dynamicVisibility;
+    const half epsilon = 0.02h;
+
+    bool hasStaticOcclusion = staticOcclusion > epsilon;
+    bool hasDynamicOcclusion = dynamicOcclusion > epsilon;
+
+    if (hasDynamicOcclusion && hasStaticOcclusion)
+    {
+        return half3(1.00h, 0.90h, 0.20h);
+    }
+
+    if (hasDynamicOcclusion)
+    {
+        return half3(0.20h, 0.45h, 1.00h);
+    }
+
+    if (hasStaticOcclusion)
+    {
+        return half3(0.20h, 1.00h, 0.30h);
+    }
+
+    return half3(1.0h, 1.0h, 1.0h);
+}
+
+bool HasMainLightShadowDebugOverlap(MainLightShadowResult shadowResult)
+{
+    half staticOcclusion = 1.0h - shadowResult.staticVisibility;
+    half dynamicOcclusion = 1.0h - shadowResult.dynamicVisibility;
+    const half epsilon = 0.02h;
+    return staticOcclusion > epsilon && dynamicOcclusion > epsilon;
+}
+
+half3 GetMainLightShadowDebugColor(MainLightShadowResult shadowResult)
+{
+    half shadowAmount = saturate(1.0h - shadowResult.finalVisibility);
+    return lerp(half3(1.0h, 1.0h, 1.0h), half3(1.00h, 0.90h, 0.20h), shadowAmount);
 }
 
 half SampleMainLightShadow(float3 positionWS)
 {
-    return SampleMainLightShadowInternal(positionWS, 0.0.xxx, 0.0.xxx, false);
+    return GetMainLightShadowResult(positionWS).finalVisibility;
 }
 
 half SampleMainLightShadow(float3 positionWS, float3 lightDirectionWS)
 {
-    return SampleMainLightShadow(positionWS);
+    return GetMainLightShadowResult(positionWS, lightDirectionWS).finalVisibility;
 }
 
 half SampleMainLightShadow(float3 positionWS, float3 normalWS, float3 lightDirectionWS)
 {
-    return SampleMainLightShadowInternal(positionWS, normalWS, lightDirectionWS, true);
+    return GetMainLightShadowResult(positionWS, normalWS, lightDirectionWS).finalVisibility;
 }
 
 #undef NWRP_SAMPLE_MAIN_LIGHT_TENT9

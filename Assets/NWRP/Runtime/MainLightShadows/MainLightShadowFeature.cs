@@ -10,12 +10,12 @@ namespace NWRP
         private MainLightShadowCasterPass _mainLightShadowPass;
         private MainLightShadowStaticCachePass _staticCachePass;
         private MainLightShadowDynamicOverlayPass _dynamicOverlayPass;
+        private MainLightShadowCasterDebugOverlayPass _debugOverlayPass;
         private MainLightShadowCacheState _cacheState;
+        private NewWorldRenderPipelineAsset.MainLightShadowExecutionPath _lastExecutionPath
+            = NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.Unknown;
 
-        public bool HasValidCache => _cacheState != null && _cacheState.HasValidCache;
-        public bool IsCacheDirty => _cacheState == null || _cacheState.IsDirty;
-        public CameraType LastCacheCameraType => _cacheState != null ? _cacheState.LastCacheCameraType : CameraType.Game;
-        public int LastCacheCameraInstanceId => _cacheState != null ? _cacheState.LastCacheCameraInstanceId : 0;
+        internal NewWorldRenderPipelineAsset.MainLightShadowExecutionPath LastExecutionPath => _lastExecutionPath;
 
         protected override void Create()
         {
@@ -24,6 +24,7 @@ namespace NWRP
             _mainLightShadowPass = new MainLightShadowCasterPass();
             _staticCachePass = new MainLightShadowStaticCachePass(_cacheState);
             _dynamicOverlayPass = new MainLightShadowDynamicOverlayPass(_cacheState);
+            _debugOverlayPass = new MainLightShadowCasterDebugOverlayPass();
         }
 
         public override void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData)
@@ -31,7 +32,8 @@ namespace NWRP
             if (_mainLightShadowDisabledPass == null
                 || _mainLightShadowPass == null
                 || _staticCachePass == null
-                || _dynamicOverlayPass == null)
+                || _dynamicOverlayPass == null
+                || _debugOverlayPass == null)
             {
                 return;
             }
@@ -40,29 +42,46 @@ namespace NWRP
             bool isGameCamera = MainLightShadowPassUtils.ShouldUseCachedMainLightShadow(frameData.camera);
             if (asset == null || !asset.EnableMainLightShadows)
             {
+                RecordDebugState(
+                    NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.Disabled
+                );
                 if (isGameCamera)
                 {
                     _cacheState?.Clear();
                 }
                 renderer.EnqueuePass(_mainLightShadowDisabledPass);
+                EnqueueDebugOverlayPass(renderer, ref frameData);
                 return;
             }
 
             if (!asset.EnableCachedMainLightShadows)
             {
+                RecordDebugState(
+                    NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.RealtimeAtlas
+                );
                 if (isGameCamera)
                 {
                     _cacheState?.Clear();
                 }
                 renderer.EnqueuePass(_mainLightShadowPass);
+                EnqueueDebugOverlayPass(renderer, ref frameData);
                 return;
             }
 
             if (!isGameCamera)
             {
+                RecordDebugState(
+                    NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.RealtimeAtlas
+                );
                 renderer.EnqueuePass(_mainLightShadowPass);
                 return;
             }
+
+            RecordDebugState(
+                MainLightShadowPassUtils.ShouldRenderDynamicOverlay(asset)
+                    ? NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.CachedStaticPlusDynamicOverlay
+                    : NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.CachedStatic
+            );
 
             renderer.EnqueuePass(_staticCachePass);
 
@@ -70,6 +89,8 @@ namespace NWRP
             {
                 renderer.EnqueuePass(_dynamicOverlayPass);
             }
+
+            EnqueueDebugOverlayPass(renderer, ref frameData);
         }
 
         public void MarkCacheDirty()
@@ -94,6 +115,29 @@ namespace NWRP
             _mainLightShadowDisabledPass = null;
             _staticCachePass = null;
             _dynamicOverlayPass = null;
+            _debugOverlayPass?.Dispose();
+            _debugOverlayPass = null;
+            _lastExecutionPath = NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.Unknown;
+        }
+
+        private void EnqueueDebugOverlayPass(NWRPRenderer renderer, ref NWRPFrameData frameData)
+        {
+            if (renderer == null || _debugOverlayPass == null)
+            {
+                return;
+            }
+
+            if (!MainLightShadowPassUtils.ShouldRenderShadowDebugView(frameData.asset, frameData.camera))
+            {
+                return;
+            }
+
+            renderer.EnqueuePass(_debugOverlayPass);
+        }
+
+        private void RecordDebugState(NewWorldRenderPipelineAsset.MainLightShadowExecutionPath executionPath)
+        {
+            _lastExecutionPath = executionPath;
         }
     }
 }

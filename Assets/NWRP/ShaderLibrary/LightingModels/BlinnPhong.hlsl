@@ -21,6 +21,12 @@
 half3 EvaluateBlinnPhong(Light light, half3 normalWS, half3 viewDirWS,
                          half3 albedo, half3 specColor, half shininess)
 {
+    half3 debugColor;
+    if (TryGetMainLightShadowDebugOverride(light, debugColor))
+    {
+        return debugColor;
+    }
+
     half NdotL = saturate(dot(normalWS, light.direction));
     half3 atten = light.color * light.distanceAttenuation * light.shadowAttenuation;
 

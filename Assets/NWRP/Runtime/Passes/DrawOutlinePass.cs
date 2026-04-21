@@ -5,7 +5,7 @@ namespace NWRP.Runtime.Passes
         private readonly NWRPRenderer _renderer;
 
         public DrawOutlinePass(NWRPRenderer renderer)
-            : base(NWRPPassEvent.Opaque)
+            : base(NWRPPassEvent.Opaque, "Draw Outline Objects")
         {
             _renderer = renderer;
         }

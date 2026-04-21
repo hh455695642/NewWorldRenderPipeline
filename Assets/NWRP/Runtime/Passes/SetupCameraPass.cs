@@ -5,7 +5,7 @@ namespace NWRP.Runtime.Passes
         private readonly NWRPRenderer _renderer;
 
         public SetupCameraPass(NWRPRenderer renderer)
-            : base(NWRPPassEvent.BeforeShadowMap)
+            : base(NWRPPassEvent.BeforeShadowMap, "Camera Properties")
         {
             _renderer = renderer;
         }

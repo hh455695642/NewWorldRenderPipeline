@@ -19,6 +19,7 @@ namespace NWRP.Editor
         private SerializedProperty _mainLightShadowAtlasProperty;
         private SerializedProperty _mainLightShadowBiasProperty;
         private SerializedProperty _mainLightShadowCachedProperty;
+        private SerializedProperty _mainLightShadowDebugProperty;
 
         private SerializedProperty _enableMainLightShadowsProperty;
         private SerializedProperty _enableCachedMainLightShadowsProperty;
@@ -39,6 +40,7 @@ namespace NWRP.Editor
         private SerializedProperty _cameraPositionInvalidationThresholdProperty;
         private SerializedProperty _cameraRotationInvalidationThresholdProperty;
         private SerializedProperty _lightDirectionInvalidationThresholdProperty;
+        private SerializedProperty _mainLightShadowDebugViewModeProperty;
 
         private void OnEnable()
         {
@@ -52,6 +54,7 @@ namespace NWRP.Editor
             _mainLightShadowAtlasProperty = _mainLightShadowsProperty.FindPropertyRelative("atlas");
             _mainLightShadowBiasProperty = _mainLightShadowsProperty.FindPropertyRelative("bias");
             _mainLightShadowCachedProperty = _mainLightShadowsProperty.FindPropertyRelative("cached");
+            _mainLightShadowDebugProperty = _mainLightShadowsProperty.FindPropertyRelative("debug");
 
             _enableMainLightShadowsProperty = _mainLightShadowTogglesProperty.FindPropertyRelative("enableMainLightShadows");
             _enableCachedMainLightShadowsProperty = _mainLightShadowCachedProperty.FindPropertyRelative("enableCachedMainLightShadows");
@@ -76,6 +79,7 @@ namespace NWRP.Editor
             _cameraPositionInvalidationThresholdProperty = _mainLightShadowCachedProperty.FindPropertyRelative("cameraPositionInvalidationThreshold");
             _cameraRotationInvalidationThresholdProperty = _mainLightShadowCachedProperty.FindPropertyRelative("cameraRotationInvalidationThreshold");
             _lightDirectionInvalidationThresholdProperty = _mainLightShadowCachedProperty.FindPropertyRelative("lightDirectionInvalidationThreshold");
+            _mainLightShadowDebugViewModeProperty = _mainLightShadowDebugProperty.FindPropertyRelative("debugViewMode");
         }
 
         public override void OnInspectorGUI()
@@ -159,6 +163,12 @@ namespace NWRP.Editor
                 }
             }
 
+            EditorGUILayout.Space(2f);
+            DrawSubsectionLabel("Debug View");
+            EditorGUILayout.PropertyField(
+                _mainLightShadowDebugViewModeProperty,
+                new GUIContent("Final Shadow Source Tint"));
+
             DrawMainLightShadowInfo(useMediumPCF);
         }
 
@@ -167,29 +177,50 @@ namespace NWRP.Editor
             if (!_enableCachedMainLightShadowsProperty.boolValue)
             {
                 EditorGUILayout.HelpBox(
-                    "Cached shadow is disabled. The full main light shadow atlas is updated every frame for all cameras.",
+                    "Cached shadow 当前已关闭，完整的主光阴影 Atlas 会对所有相机逐帧更新。",
                     MessageType.None
                 );
                 return;
             }
 
             EditorGUILayout.HelpBox(
-                "Cached main light shadow is only used by Game Cameras. SceneView and Preview cameras fall back to realtime main light shadows.",
+                "Cached main light shadow 只对 Game Camera 生效。SceneView 和 Preview 相机会回退到实时主光阴影。",
                 MessageType.None
             );
 
             if (useMediumPCF && _enableDynamicShadowOverlayProperty.boolValue)
             {
                 EditorGUILayout.HelpBox(
-                    "Medium PCF with dynamic shadow overlay can evaluate two 9-tap compare filters on the receiver path. Mobile cost is higher than static-only Medium PCF.",
+                    "当 Medium PCF 与动态阴影叠加同时开启时，接收端可能会执行两次 9-tap compare filter。相比仅使用静态 Medium PCF，这条路径在移动端的开销会更高。",
                     MessageType.Info
                 );
             }
 
             EditorGUILayout.HelpBox(
-                "Static caster movement does not rebuild the cached atlas automatically. Rebuild it by calling MarkMainLightShadowCacheDirty() or by exceeding the Game Camera / main light invalidation thresholds.",
+                "静态投影物体移动后不会自动重建 cached atlas。需要主动调用 MarkMainLightShadowCacheDirty()，或者让 Game Camera / 主光方向超过设定的失效阈值，才会触发重建。",
                 MessageType.Info
             );
+
+            if (_mainLightShadowDebugViewModeProperty.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.MainLightShadowDebugViewMode.FinalShadowSourceTint)
+            {
+                EditorGUILayout.HelpBox(
+                    "Final Shadow Source Tint 说明：蓝色 = 动态投影物体表面，绿色 = 静态投影物体表面。接收面的阴影保持原本的黑色，不再显示黄色重叠调试。",
+                    MessageType.None
+                );
+                EditorGUILayout.HelpBox(
+                    "Final Shadow Source Tint 仅对 Game Camera 生效。SceneView 和 Preview 相机会保持正常渲染，不参与这个调试视图。",
+                    MessageType.Info
+                );
+                EditorGUILayout.HelpBox(
+                    "Upload Main Light Cached Globals 不是阴影绘制 Pass。它只是把 cached shadow 用到的纹理和矩阵上传给后续材质采样，真正的采样发生在 Draw Opaque Objects 和 Draw Transparent Objects 阶段。",
+                    MessageType.None
+                );
+                EditorGUILayout.HelpBox(
+                    "可见投影物体的着色会遵循当前配置的 Static Caster Layer Mask 和 Dynamic Caster Layer Mask，但只对真正参与 ShadowCaster 路径的渲染器生效。没有投射阴影的 Unlit 物体会保持原来的 shader 表现。",
+                    MessageType.None
+                );
+            }
         }
 
         private static void DrawFoldoutSection(string stateKey, string label, System.Action drawContent)

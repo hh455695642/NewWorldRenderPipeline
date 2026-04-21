@@ -5,7 +5,7 @@ namespace NWRP.Runtime.Passes
         private readonly NWRPRenderer _renderer;
 
         public DrawOpaquePass(NWRPRenderer renderer)
-            : base(NWRPPassEvent.Opaque)
+            : base(NWRPPassEvent.Opaque, "Draw Opaque Objects")
         {
             _renderer = renderer;
         }
