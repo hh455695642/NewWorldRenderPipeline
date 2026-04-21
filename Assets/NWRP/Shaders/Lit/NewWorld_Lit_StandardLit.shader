@@ -23,6 +23,10 @@ Shader "NewWorld/Lit/StandardLit"
         _EmissiveMap    ("Emissive Map", 2D)            = "black" {}
         [HDR]
         _EmissiveColor  ("Emissive Color", Color)       = (0, 0, 0, 1)
+        [ToggleUI]
+        _ReceiveShadows ("Receive Realtime Shadows", Float) = 1.0
+        [ToggleUI]
+        _CastShadows    ("Cast Realtime Shadows", Float) = 1.0
     }
 
     SubShader
@@ -40,9 +44,6 @@ Shader "NewWorld/Lit/StandardLit"
             #pragma multi_compile_instancing
 
             #include "../../ShaderLibrary/Core.hlsl"
-            #include "../../ShaderLibrary/Lighting.hlsl"
-            #include "../../ShaderLibrary/BRDF.hlsl"
-            #include "../../ShaderLibrary/GlobalIllumination.hlsl"
 
             struct Attributes
             {
@@ -71,7 +72,14 @@ Shader "NewWorld/Lit/StandardLit"
                 half   _OcclusionStrength;
                 half   _NormalStrength;
                 half4  _EmissiveColor;
+                half   _ReceiveShadows;
             CBUFFER_END
+
+            #define NWRP_MATERIAL_RECEIVE_SHADOWS _ReceiveShadows
+            #include "../../ShaderLibrary/Lighting.hlsl"
+            #undef NWRP_MATERIAL_RECEIVE_SHADOWS
+            #include "../../ShaderLibrary/BRDF.hlsl"
+            #include "../../ShaderLibrary/GlobalIllumination.hlsl"
 
             TEXTURE2D(_BaseMap);        SAMPLER(sampler_BaseMap);
             TEXTURE2D(_MaskMap);        SAMPLER(sampler_MaskMap);
@@ -221,7 +229,15 @@ Shader "NewWorld/Lit/StandardLit"
             #pragma fragment ShadowCasterFrag
             #pragma multi_compile_instancing
 
+            #include "../../ShaderLibrary/Core.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                half _CastShadows;
+            CBUFFER_END
+
+            #define NWRP_MATERIAL_CAST_SHADOWS _CastShadows
             #include "Includes/ShadowCasterPass.hlsl"
+            #undef NWRP_MATERIAL_CAST_SHADOWS
             ENDHLSL
         }
 

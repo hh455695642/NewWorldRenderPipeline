@@ -13,6 +13,7 @@ Shader "NewWorld/Lit/HalfLambert"
     Properties
     {
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
+        [ToggleUI] _ReceiveShadows ("Receive Realtime Shadows", Float) = 1.0
     }
 
     SubShader
@@ -29,7 +30,6 @@ Shader "NewWorld/Lit/HalfLambert"
             #pragma fragment frag
 
             #include "../../ShaderLibrary/Core.hlsl"
-            #include "../../ShaderLibrary/Lighting.hlsl"
 
             struct Attributes
             {
@@ -41,17 +41,25 @@ Shader "NewWorld/Lit/HalfLambert"
             {
                 float4 positionHCS : SV_POSITION;
                 float3 normalWS    : TEXCOORD0;
+                float3 positionWS  : TEXCOORD1;
             };
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _BaseColor;
+                half  _ReceiveShadows;
             CBUFFER_END
+
+            #define NWRP_MATERIAL_RECEIVE_SHADOWS _ReceiveShadows
+            #include "../../ShaderLibrary/Lighting.hlsl"
+            #undef NWRP_MATERIAL_RECEIVE_SHADOWS
 
             Varyings vert(Attributes IN)
             {
                 Varyings OUT;
-                OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
+                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                OUT.positionHCS = TransformWorldToHClip(positionWS);
                 OUT.normalWS    = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.positionWS  = positionWS;
                 return OUT;
             }
 
@@ -59,13 +67,14 @@ Shader "NewWorld/Lit/HalfLambert"
             {
                 half3 normalWS = normalize(IN.normalWS);
 
-                Light light = GetMainLight();
+                Light light = GetMainLight(IN.positionWS, normalWS);
+                half3 lightColor = light.color * light.distanceAttenuation * light.shadowAttenuation;
 
                 // Half-Lambert: 把 [-1,1] 映射到 [0.5, 1]，再平方
                 half NdotL = dot(normalWS, light.direction);
                 half halfLambert = pow(NdotL * 0.5 + 0.5, 2.0);
 
-                half3 diffuse = _BaseColor.rgb * light.color * halfLambert;
+                half3 diffuse = _BaseColor.rgb * lightColor * halfLambert;
 
                 return half4(diffuse, 1.0);
             }

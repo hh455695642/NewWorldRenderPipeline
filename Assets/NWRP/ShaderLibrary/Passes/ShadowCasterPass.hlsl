@@ -17,6 +17,15 @@ struct ShadowCasterVaryings
 float4 _ShadowBias;
 float4 _ShadowLightDirection;
 
+#ifndef NWRP_MATERIAL_CAST_SHADOWS
+#define NWRP_MATERIAL_CAST_SHADOWS 1.0h
+#endif
+
+half GetMaterialRealtimeShadowCasterState()
+{
+    return saturate((half)NWRP_MATERIAL_CAST_SHADOWS);
+}
+
 float3 ApplyShadowBias(float3 positionWS, float3 normalWS, float3 lightDirectionWS)
 {
     float invNdotL = 1.0 - saturate(dot(lightDirectionWS, normalWS));
@@ -47,6 +56,7 @@ ShadowCasterVaryings ShadowCasterVert(ShadowCasterAttributes input)
 
 half4 ShadowCasterFrag(ShadowCasterVaryings input) : SV_Target
 {
+    clip(GetMaterialRealtimeShadowCasterState() - 0.5h);
     return 0;
 }
 

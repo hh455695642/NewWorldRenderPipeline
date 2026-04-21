@@ -12,6 +12,7 @@ Shader "NewWorld/Lit/Phong"
         _BaseColor     ("Base Color", Color)          = (1, 1, 1, 1)
         _SpecularColor ("Specular Color", Color)      = (1, 1, 1, 1)
         _Smoothness    ("Smoothness", Range(0, 1))    = 0.5
+        [ToggleUI] _ReceiveShadows ("Receive Realtime Shadows", Float) = 1.0
     }
 
     SubShader
@@ -28,8 +29,6 @@ Shader "NewWorld/Lit/Phong"
             #pragma fragment frag
 
             #include "../../ShaderLibrary/Core.hlsl"
-            #include "../../ShaderLibrary/Lighting.hlsl"
-            #include "../../ShaderLibrary/BRDF.hlsl"
 
             struct Attributes
             {
@@ -42,13 +41,20 @@ Shader "NewWorld/Lit/Phong"
                 float4 positionHCS : SV_POSITION;
                 float3 normalWS    : TEXCOORD0;
                 float3 viewWS      : TEXCOORD1;
+                float3 positionWS  : TEXCOORD2;
             };
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _BaseColor;
                 half4 _SpecularColor;
                 half  _Smoothness;
+                half  _ReceiveShadows;
             CBUFFER_END
+
+            #define NWRP_MATERIAL_RECEIVE_SHADOWS _ReceiveShadows
+            #include "../../ShaderLibrary/Lighting.hlsl"
+            #undef NWRP_MATERIAL_RECEIVE_SHADOWS
+            #include "../../ShaderLibrary/BRDF.hlsl"
 
             Varyings vert(Attributes IN)
             {
@@ -57,6 +63,7 @@ Shader "NewWorld/Lit/Phong"
                 OUT.positionHCS   = TransformWorldToHClip(positionWS);
                 OUT.normalWS      = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.viewWS        = GetWorldSpaceViewDir(positionWS);
+                OUT.positionWS    = positionWS;
                 return OUT;
             }
 
@@ -65,8 +72,8 @@ Shader "NewWorld/Lit/Phong"
                 half3 normalWS = normalize(IN.normalWS);
                 half3 viewWS   = SafeNormalize(IN.viewWS);
 
-                Light light = GetMainLight();
-                half3 lightColor = light.color * light.distanceAttenuation;
+                Light light = GetMainLight(IN.positionWS, normalWS);
+                half3 lightColor = light.color * light.distanceAttenuation * light.shadowAttenuation;
 
                 // Smoothness → 指数映射，和 URP 示例保持一致
                 half shininess = exp2(10.0 * _Smoothness + 1.0);

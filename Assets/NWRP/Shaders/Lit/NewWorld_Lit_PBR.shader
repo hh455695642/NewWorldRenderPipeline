@@ -23,6 +23,7 @@ Shader "NewWorld/Lit/PBR"
         _Albedo    ("Albedo", Color)             = (1, 1, 1, 1)
         _Metallic  ("Metallic", Range(0, 1))     = 0.0
         _Roughness ("Roughness", Range(0, 1))    = 0.5
+        [ToggleUI] _ReceiveShadows ("Receive Realtime Shadows", Float) = 1.0
     }
 
     SubShader
@@ -39,7 +40,6 @@ Shader "NewWorld/Lit/PBR"
             #pragma fragment frag
 
             #include "../../ShaderLibrary/Core.hlsl"
-            #include "../../ShaderLibrary/LightingModels/StandardPBR.hlsl"
 
             struct Attributes
             {
@@ -59,7 +59,12 @@ Shader "NewWorld/Lit/PBR"
                 half3 _Albedo;
                 half  _Metallic;
                 half  _Roughness;
+                half  _ReceiveShadows;
             CBUFFER_END
+
+            #define NWRP_MATERIAL_RECEIVE_SHADOWS _ReceiveShadows
+            #include "../../ShaderLibrary/LightingModels/StandardPBR.hlsl"
+            #undef NWRP_MATERIAL_RECEIVE_SHADOWS
 
             Varyings vert(Attributes IN)
             {

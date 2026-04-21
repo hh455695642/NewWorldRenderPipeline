@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace NWRP.Editor
 {
@@ -37,6 +38,8 @@ namespace NWRP.Editor
             bool hasNormalMap  = FindProperty("_NormalMap", properties, false) != null;
             bool hasEmissive   = FindProperty("_EmissiveMap", properties, false) != null;
             bool hasSpecular   = FindProperty("_SpecularColor", properties, false) != null;
+            bool hasReceiveShadows = FindProperty("_ReceiveShadows", properties, false) != null;
+            bool hasCastShadows = FindProperty("_CastShadows", properties, false) != null;
 
             // ── Surface ─────────────────────────────────────────
             _surfaceFoldout = EditorGUILayout.BeginFoldoutHeaderGroup(_surfaceFoldout, "Surface");
@@ -51,9 +54,10 @@ namespace NWRP.Editor
                     if (hasBaseMap)
                     {
                         var baseMap = FindProperty("_BaseMap", properties);
+                        materialEditor.ShaderProperty(baseColor, "Base Color");
                         materialEditor.TexturePropertySingleLine(
                             new GUIContent("Base Map", "RGB = Albedo"),
-                            baseMap, baseColor
+                            baseMap
                         );
                         materialEditor.TextureScaleOffsetProperty(baseMap);
                     }
@@ -67,6 +71,17 @@ namespace NWRP.Editor
                 var albedo = FindProperty("_Albedo", properties, false);
                 if (albedo != null)
                     materialEditor.ShaderProperty(albedo, "Albedo");
+
+                if (hasReceiveShadows)
+                    materialEditor.ShaderProperty(FindProperty("_ReceiveShadows", properties), "Receive Realtime Shadows");
+
+                if (hasCastShadows)
+                {
+                    EditorGUI.BeginChangeCheck();
+                    materialEditor.ShaderProperty(FindProperty("_CastShadows", properties), "Cast Realtime Shadows");
+                    if (EditorGUI.EndChangeCheck())
+                        MarkMainLightShadowCacheDirty();
+                }
 
                 EditorGUI.indentLevel--;
             }
@@ -205,6 +220,8 @@ namespace NWRP.Editor
                 case "_NormalStrength":
                 case "_EmissiveMap":
                 case "_EmissiveColor":
+                case "_ReceiveShadows":
+                case "_CastShadows":
                     return true;
                 default:
                     return false;
@@ -212,7 +229,7 @@ namespace NWRP.Editor
         }
 
         // 查找属性（带静默失败选项）
-        private static MaterialProperty FindProperty(string name, MaterialProperty[] props, bool mandatory)
+        private static new MaterialProperty FindProperty(string name, MaterialProperty[] props, bool mandatory)
         {
             foreach (var prop in props)
             {
@@ -222,6 +239,15 @@ namespace NWRP.Editor
             if (mandatory)
                 throw new System.ArgumentException($"Property '{name}' not found in material properties.");
             return null;
+        }
+
+        private static void MarkMainLightShadowCacheDirty()
+        {
+            if (GraphicsSettings.currentRenderPipeline is not NewWorldRenderPipelineAsset pipelineAsset)
+                return;
+
+            pipelineAsset.MarkMainLightShadowCacheDirty();
+            EditorUtility.SetDirty(pipelineAsset);
         }
     }
 }

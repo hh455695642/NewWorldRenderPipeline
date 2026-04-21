@@ -1,29 +1,29 @@
-# Phase7 Main Light Cached Shadow
+# Phase7 主光 Cached Shadow
 
 Date: `2026-04-15`
 
-## Summary
+## 概要
 
-This phase extends the Phase6 hard-shadow-only baseline with a cached main light shadow path for NWRP.
+这个阶段在 Phase6 的硬阴影基线之上，为 NWRP 增加了主方向光 cached shadow 路径。
 
-The goal is not to reproduce the plugin architecture. The goal is to keep the default realtime path intact while adding a mobile-first cached path inside NWRP:
+目标不是复刻插件架构，而是在保持默认 realtime 路径不变的前提下，为 NWRP 增加一条移动端优先的 cached shadow 实现：
 
 - static main light shadow atlas cache
-- optional per-frame dynamic shadow overlay
-- no fullscreen combine pass
-- no new shader keywords
+- 可选的逐帧 dynamic shadow overlay
+- 不引入 fullscreen combine pass
+- 不增加新的 shader keyword
 
-`Phase6_MainLightShadow_HardOnly_Stabilization.md` remains the hard-shadow correctness baseline. This phase records the cached shadow integration and the follow-up fixes needed to make it stable in the editor.
+`Phase6_MainLightShadow_HardOnly_Stabilization.md` 仍然是硬阴影正确性基线。本阶段记录 cached shadow 的接入，以及为了让它在编辑器环境中稳定工作所做的后续修复。
 
-## Public Controls
+## 对外控制项
 
-The pipeline asset now exposes three layered controls for the main light shadow path:
+pipeline asset 现在为主光阴影路径提供三层控制：
 
 - `Enable Main Light Shadow`
 - `Enable Cached Shadow`
 - `Enable Dynamic Shadow`
 
-Cached shadow controls also include:
+cached shadow 相关控制还包括：
 
 - `Static Caster Layer Mask`
 - `Dynamic Caster Layer Mask`
@@ -31,92 +31,92 @@ Cached shadow controls also include:
 - `Camera Rotation Invalidation Threshold`
 - `Light Direction Invalidation Threshold`
 
-Runtime API:
+运行时 API：
 
 - `MarkMainLightShadowCacheDirty()`
 - `ClearMainLightShadowCache()`
 
-Current update policy is `OnDirty`. This is not the plugin's `Manual` or `EverySecond` mode.
+当前更新策略是 `OnDirty`，并不是插件里的 `Manual` 或 `EverySecond`。
 
-## Runtime Structure
+## 运行时结构
 
-Main light cached shadow runtime code now lives under:
+主光 cached shadow 的运行时代码现在位于：
 
-| Path | Responsibility |
+| 路径 | 职责 |
 |------|------|
-| `Assets/NWRP/Runtime/MainLightShadows/MainLightShadowFeature.cs` | Chooses disabled / realtime / static cache / dynamic overlay path |
-| `Assets/NWRP/Runtime/MainLightShadows/MainLightShadowCacheState.cs` | Long-lived cached atlas state, cascade data, invalidation signature |
-| `Assets/NWRP/Runtime/MainLightShadows/MainLightShadowPassUtils.cs` | Shared atlas sizing, culling, cascade setup, shadow global upload helpers |
-| `Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowCasterPass.cs` | Legacy realtime full-atlas update path |
-| `Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowStaticCachePass.cs` | Static atlas rebuild on dirty frames |
-| `Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowDynamicOverlayPass.cs` | Per-frame dynamic caster overlay atlas |
-| `Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowDisabledPass.cs` | Explicit shadow-disabled global upload |
+| `Assets/NWRP/Runtime/MainLightShadows/MainLightShadowFeature.cs` | 选择 disabled / realtime / static cache / dynamic overlay 路径 |
+| `Assets/NWRP/Runtime/MainLightShadows/MainLightShadowCacheState.cs` | 维护长生命周期 atlas 状态、cascade 数据与 invalidation 签名 |
+| `Assets/NWRP/Runtime/MainLightShadows/MainLightShadowPassUtils.cs` | 共享 atlas 尺寸、剔除、cascade 构建与 shadow global 上传辅助逻辑 |
+| `Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowCasterPass.cs` | 传统 realtime 全图集更新路径 |
+| `Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowStaticCachePass.cs` | dirty 帧上的 static atlas 重建 |
+| `Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowDynamicOverlayPass.cs` | 逐帧 dynamic caster overlay atlas |
+| `Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowDisabledPass.cs` | 显式上传 shadow-disabled globals |
 
-Receiver-side sampling remains in `Assets/NWRP/ShaderLibrary/Shadows.hlsl`:
+receiver 侧采样仍然位于 `Assets/NWRP/ShaderLibrary/Shadows.hlsl`：
 
-- `_MainLightShadowmapTexture` for static or realtime atlas
-- `_MainLightDynamicShadowmapTexture` for dynamic overlay atlas
-- dual-sample result combined with `min(static, dynamic)`
+- `_MainLightShadowmapTexture` 用于 static 或 realtime atlas
+- `_MainLightDynamicShadowmapTexture` 用于 dynamic overlay atlas
+- 双采样结果通过 `min(static, dynamic)` 合并
 
-Behavior rules in the current implementation:
+当前实现中的行为规则：
 
-- cached shadow is only used by `Game Camera`
-- `SceneView` and `Preview` cameras fall back to realtime main light shadows
-- when cached shadow is disabled, NWRP uses the original realtime main light shadow pass
-- when cached shadow is enabled and dynamic shadow is disabled, only the static atlas is sampled
+- cached shadow 只对 `Game Camera` 生效
+- `SceneView` 和 `Preview` camera 会回退到 realtime main light shadow
+- 关闭 cached shadow 时，NWRP 继续走原有的 realtime 主光阴影 pass
+- 开启 cached shadow 且关闭 dynamic shadow 时，只采样 static atlas
 
-The pipeline asset currently has `FeatureCount = 0`, so this system runs through `NewWorldRenderPipelineAsset`'s runtime fallback `MainLightShadowFeature` instead of a serialized feature asset.
+当前 pipeline asset 的 `FeatureCount = 0`，因此该系统通过 `NewWorldRenderPipelineAsset` 的 runtime fallback `MainLightShadowFeature` 运行，而不是依赖序列化的 feature asset。
 
-## Fixes Completed In This Phase
+## 本阶段修复的问题
 
-This phase resolved three concrete issues in the initial cached shadow integration:
+这个阶段修掉了 cached shadow 初始接入中的三个具体问题：
 
-1. Static cache first frame could build an empty atlas
+1. Static cache 首帧可能构建出空 atlas
 
-- Root cause: atlas rendering used cached `CascadeCount` before `CommitStaticCache()` had written it.
-- Fix: render helpers now take the current frame's `cascadeCount` explicitly, and static cache is committed only after at least one cascade is actually rendered.
+- 根因：atlas 渲染阶段读取了 cacheState 里的 `CascadeCount`，但此时 `CommitStaticCache()` 还没有把本帧值写进去
+- 修复：渲染辅助函数改为显式接收本帧 `cascadeCount`，并且只有在至少一个 cascade 真正渲染成功后才提交 static cache
 
-2. Editor multi-camera rendering could keep the Game View cache dirty
+2. 编辑器多相机渲染会让 Game View cache 长时间保持 dirty
 
-- Root cause: `Game Camera`, `SceneView`, and `Preview` shared one cached state, while invalidation also depended on camera pose.
-- Fix: cached shadow is now limited to `Game Camera`; editor helper cameras use realtime fallback and do not overwrite the shared cache state.
+- 根因：`Game Camera`、`SceneView` 和 `Preview` 共享同一个 cached state，而 invalidation 又依赖 camera pose
+- 修复：cached shadow 现在只对 `Game Camera` 启用；编辑器辅助相机会走 realtime fallback，不再覆盖共享 cache state
 
-3. Dynamic overlay could disappear because it was running on top of an invalid static cache
+3. Dynamic overlay 可能因为依附无效 static cache 而消失
 
-- Root cause: dynamic overlay required `HasValidCache`, but the previous initialization path could leave the static atlas invalid.
-- Fix: `HasValidCache` is now only set after the static atlas has really been rendered, and dynamic overlay cleanly falls back to the empty shadowmap when no valid static cache exists.
+- 根因：dynamic overlay 依赖 `HasValidCache`，但此前初始化路径可能留下一个无效 static atlas
+- 修复：`HasValidCache` 只会在 static atlas 真正渲染成功后置位；当 static cache 无效时，dynamic overlay 会干净地回退到空 shadowmap
 
-## Current Limits
+## 当前限制
 
-This checkpoint is intentionally narrow:
+这个检查点的范围是刻意收窄的：
 
-- only one main directional light
-- only `1-2` cascades
-- hard shadow only
-- cached path only for `Game Camera`
-- static caster transform changes do not auto-refresh the cache
-- static cache rebuild still depends on Game Camera pose, because current cascade matrices are camera-relative
+- 只支持一个主方向光
+- 只支持 `1-2` 个 cascades
+- 只支持 hard shadow
+- cached path 只对 `Game Camera` 开启
+- static caster 的 transform 改变不会自动刷新 cache
+- static cache 重建仍然依赖 Game Camera pose，因为当前 cascade matrix 仍然是 camera-relative
 
-Expected consequence:
+预期结果：
 
-- moving a static-layer caster will not immediately update its shadow
-- cache rebuild happens after `MarkMainLightShadowCacheDirty()` or when the main light / Game Camera exceeds the configured invalidation thresholds
+- 移动 static layer 上的 caster 时，阴影不会立即更新
+- cache 会在调用 `MarkMainLightShadowCacheDirty()` 后，或者主光 / Game Camera 超过 invalidation threshold 时重建
 
-## Validation Notes
+## 验证记录
 
-Current validation result for this checkpoint:
+当前检查点的验证结果：
 
-- Unity Console: `0` error / `0` warning
-- `Enable Cached Shadow = false`: realtime main light shadow path still works
-- `Enable Cached Shadow = true` + `Enable Dynamic Shadow = true`: dynamic layer casters recover per-frame shadow projection
-- `SceneView` no longer dirties the shared `Game Camera` cached atlas
-- shader globals remain aligned between `NWRPShaderIds` and `Shadows.hlsl`
+- Unity Console：`0` error / `0` warning
+- `Enable Cached Shadow = false`：realtime 主光阴影路径仍然正常工作
+- `Enable Cached Shadow = true` + `Enable Dynamic Shadow = true`：dynamic layer caster 可以恢复逐帧阴影投射
+- `SceneView` 不再污染共享的 `Game Camera` cached atlas
+- shader globals 在 `NWRPShaderIds` 与 `Shadows.hlsl` 之间保持一致
 
-## Next Candidates
+## 后续候选项
 
-Not part of this commit, but valid follow-up directions:
+不属于这次提交，但合理的后续方向包括：
 
 - `Manual` cached update mode
 - `ThrottledOnDirty` cached update mode
 
-`EverySecond` is intentionally not part of this phase.
+`EverySecond` 被有意排除在本阶段之外。

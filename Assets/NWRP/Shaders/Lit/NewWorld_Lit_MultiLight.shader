@@ -11,6 +11,7 @@ Shader "NewWorld/Lit/MultiLight"
         _BaseColor     ("Base Color", Color)       = (1, 1, 1, 1)
         _SpecularColor ("Specular Color", Color)   = (1, 1, 1, 1)
         _Smoothness    ("Smoothness", Range(0, 1)) = 0.5
+        [ToggleUI] _ReceiveShadows ("Receive Realtime Shadows", Float) = 1.0
     }
 
     SubShader
@@ -27,8 +28,6 @@ Shader "NewWorld/Lit/MultiLight"
             #pragma fragment frag
 
             #include "../../ShaderLibrary/Core.hlsl"
-            #include "../../ShaderLibrary/Lighting.hlsl"
-            #include "../../ShaderLibrary/BRDF.hlsl"
 
             struct Attributes
             {
@@ -48,7 +47,13 @@ Shader "NewWorld/Lit/MultiLight"
                 half4 _BaseColor;
                 half4 _SpecularColor;
                 half  _Smoothness;
+                half  _ReceiveShadows;
             CBUFFER_END
+
+            #define NWRP_MATERIAL_RECEIVE_SHADOWS _ReceiveShadows
+            #include "../../ShaderLibrary/Lighting.hlsl"
+            #undef NWRP_MATERIAL_RECEIVE_SHADOWS
+            #include "../../ShaderLibrary/BRDF.hlsl"
 
             Varyings vert(Attributes IN)
             {
@@ -71,8 +76,8 @@ Shader "NewWorld/Lit/MultiLight"
                 half3 specular = half3(0, 0, 0);
 
                 // Main directional light
-                Light mainLight = GetMainLight();
-                half3 mainLightColor = mainLight.color * mainLight.distanceAttenuation;
+                Light mainLight = GetMainLight(IN.positionWS, normalWS);
+                half3 mainLightColor = mainLight.color * mainLight.distanceAttenuation * mainLight.shadowAttenuation;
                 half mainNdotL = saturate(dot(normalWS, mainLight.direction));
 
                 diffuse  += _BaseColor.rgb * mainLightColor * mainNdotL;

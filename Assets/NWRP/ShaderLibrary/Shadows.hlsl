@@ -21,6 +21,15 @@ float4 _CascadeShadowSplitSpheres0;
 float4 _CascadeShadowSplitSpheres1;
 float4 _CascadeShadowSplitSphereRadii;
 
+#ifndef NWRP_MATERIAL_RECEIVE_SHADOWS
+#define NWRP_MATERIAL_RECEIVE_SHADOWS 1.0h
+#endif
+
+half GetMaterialRealtimeShadowReceiverState()
+{
+    return saturate((half)NWRP_MATERIAL_RECEIVE_SHADOWS);
+}
+
 int GetMainLightShadowCascadeIndex(float3 positionWS)
 {
     if (_MainLightShadowCascadeCount <= 0)
@@ -190,6 +199,14 @@ half SampleMainLightShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
 
 half SampleMainLightShadowInternal(float3 positionWS, float3 normalWS, float3 lightDirectionWS, bool applyReceiverBias)
 {
+    // Material-side realtime shadow receiver toggle. The current main-light path
+    // covers both fully realtime sampling and cached-shadow receiver sampling.
+    // Additional realtime shadow paths can reuse the same uniform later.
+    if (GetMaterialRealtimeShadowReceiverState() <= 0.5h)
+    {
+        return 1.0h;
+    }
+
     if (_MainLightShadowParams.x <= 0.0h || _MainLightShadowCascadeCount <= 0)
     {
         return 1.0h;

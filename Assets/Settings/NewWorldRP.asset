@@ -15,16 +15,50 @@ MonoBehaviour:
   useSRPBatcher: 1
   useGPUInstancing: 1
   mainLightShadows:
+    toggles:
+      enableMainLightShadows: 1
+    distance:
+      mainLightShadowDistance: 40
+      mainLightShadowCascadeCount: 2
+      mainLightShadowCascadeSplit: 0.333
+    atlas:
+      mainLightShadowResolution: 2048
+      mainLightShadowFilterMode: 1
+      mainLightShadowFilterRadius: 1
+    bias:
+      mainLightShadowBias: 1
+      mainLightShadowNormalBias: 0
+      mainLightShadowReceiverDepthBias: 0
+      mainLightShadowReceiverNormalBias: 0
+      mainLightShadowCasterCullMode: 2
+    cached:
+      enableCachedMainLightShadows: 1
+      enableDynamicShadowOverlay: 1
+      staticCasterLayerMask:
+        serializedVersion: 2
+        m_Bits: 55
+      dynamicCasterLayerMask:
+        serializedVersion: 2
+        m_Bits: 262144
+      cameraPositionInvalidationThreshold: 0.25
+      cameraRotationInvalidationThreshold: 0.5
+      lightDirectionInvalidationThreshold: 0.5
+    serializedVersion: 1
     enableMainLightShadows: 1
     enableCachedMainLightShadows: 1
-    shadowMode: 0
+    shadowMode: 1
     cachedShadowSettingsMigrated: 1
     mainLightShadowResolution: 2048
     mainLightShadowDistance: 40
     mainLightShadowCascadeCount: 2
     mainLightShadowCascadeSplit: 0.333
     mainLightShadowBias: 1
-    mainLightShadowNormalBias: 1
+    mainLightShadowNormalBias: 0
+    mainLightShadowFilterMode: 1
+    mainLightShadowFilterRadius: 1
+    mainLightShadowReceiverDepthBias: 0
+    mainLightShadowReceiverNormalBias: 0
+    mainLightShadowCasterCullMode: 2
     enableDynamicShadowOverlay: 1
     staticCasterLayerMask:
       serializedVersion: 2

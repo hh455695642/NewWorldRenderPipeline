@@ -15,6 +15,7 @@ Shader "NewWorld/Lit/Ambient"
     Properties
     {
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
+        [ToggleUI] _ReceiveShadows ("Receive Realtime Shadows", Float) = 1.0
     }
 
     SubShader
@@ -31,7 +32,6 @@ Shader "NewWorld/Lit/Ambient"
             #pragma fragment frag
 
             #include "../../ShaderLibrary/Core.hlsl"
-            #include "../../ShaderLibrary/Lighting.hlsl"
 
             struct Attributes
             {
@@ -47,7 +47,12 @@ Shader "NewWorld/Lit/Ambient"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _BaseColor;
+                half  _ReceiveShadows;
             CBUFFER_END
+
+            #define NWRP_MATERIAL_RECEIVE_SHADOWS _ReceiveShadows
+            #include "../../ShaderLibrary/Lighting.hlsl"
+            #undef NWRP_MATERIAL_RECEIVE_SHADOWS
 
             // 球谐光照 L0+L1+L2 求值（适用于所有环境光模式）
             // Unity 将环境光数据编码到 SH 系数中，

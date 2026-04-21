@@ -88,7 +88,7 @@ half3 EvaluateStandardPBR(
     half3 color = half3(0, 0, 0);
 
     // ── 直接光：主光源 ────────────────────────────────────
-    Light mainLight = GetMainLight();
+    Light mainLight = GetMainLight(positionWS, normalWS);
     color += DirectBRDF_StandardPBR(mainLight, normalWS, viewDirWS,
                                      albedo, metallic, perceptualRoughness);
 
