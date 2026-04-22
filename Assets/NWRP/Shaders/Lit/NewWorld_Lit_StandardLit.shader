@@ -73,6 +73,7 @@ Shader "NewWorld/Lit/StandardLit"
                 half   _NormalStrength;
                 half4  _EmissiveColor;
                 half   _ReceiveShadows;
+                half   _CastShadows;
             CBUFFER_END
 
             #define NWRP_MATERIAL_RECEIVE_SHADOWS _ReceiveShadows
@@ -244,7 +245,15 @@ Shader "NewWorld/Lit/StandardLit"
             #include "../../ShaderLibrary/Core.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
-                half _CastShadows;
+                half4  _BaseColor;
+                float4 _BaseMap_ST;
+                half   _Metallic;
+                half   _Smoothness;
+                half   _OcclusionStrength;
+                half   _NormalStrength;
+                half4  _EmissiveColor;
+                half   _ReceiveShadows;
+                half   _CastShadows;
             CBUFFER_END
 
             #define NWRP_MATERIAL_CAST_SHADOWS _CastShadows
@@ -267,6 +276,20 @@ Shader "NewWorld/Lit/StandardLit"
             #pragma vertex DepthOnlyVert
             #pragma fragment DepthOnlyFrag
             #pragma multi_compile_instancing
+
+            #include "../../ShaderLibrary/Core.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                half4  _BaseColor;
+                float4 _BaseMap_ST;
+                half   _Metallic;
+                half   _Smoothness;
+                half   _OcclusionStrength;
+                half   _NormalStrength;
+                half4  _EmissiveColor;
+                half   _ReceiveShadows;
+                half   _CastShadows;
+            CBUFFER_END
 
             #include "Includes/DepthOnlyPass.hlsl"
             ENDHLSL

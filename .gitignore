@@ -3,6 +3,7 @@
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
 .utmp/
+.idea/
 /[Ll]ibrary/
 /[Tt]emp/
 /[Oo]bj/
@@ -102,6 +103,7 @@ InitTestScene*.unity*
 .claude/
 .codex/
 .vscode/
+.agents/
 
 # Keep AGENTS.md
 !AGENTS.md
