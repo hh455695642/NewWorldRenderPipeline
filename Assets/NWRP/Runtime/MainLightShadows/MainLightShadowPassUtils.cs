@@ -290,7 +290,15 @@ namespace NWRP.Runtime.Passes
         {
             CommandBuffer cmd = frameData.cmd;
 
-            ShadowDrawingSettings shadowDrawingSettings = new ShadowDrawingSettings(cullResults, shadowLightIndex)
+            if (!cullResults.GetShadowCasterBounds(shadowLightIndex, out Bounds _))
+            {
+                return false;
+            }
+
+            ShadowDrawingSettings shadowDrawingSettings = new ShadowDrawingSettings(
+                cullResults,
+                shadowLightIndex,
+                BatchCullingProjectionType.Orthographic)
             {
                 useRenderingLayerMaskTest = true
             };

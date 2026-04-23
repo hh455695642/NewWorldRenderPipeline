@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using NWRP.Runtime.Lighting;
 using NWRP.Runtime.Passes;
 using Unity.Collections;
 using UnityEngine;
@@ -23,15 +24,19 @@ namespace NWRP
         private static readonly ShaderTagId s_NewWorldForwardTagId = new ShaderTagId("NewWorldForward");
         private static readonly ShaderTagId s_NewWorldOutlineTagId = new ShaderTagId("NewWorldOutline");
 
-        private const int kMaxAdditionalLights = 8;
-
         private static readonly Comparison<QueuedPass> s_QueuedPassComparer = CompareQueuedPass;
 
         // Pre-allocated light arrays to avoid per-frame GC.
-        private readonly Vector4[] _additionalLightsPosition = new Vector4[kMaxAdditionalLights];
-        private readonly Vector4[] _additionalLightsColor = new Vector4[kMaxAdditionalLights];
-        private readonly Vector4[] _additionalLightsAttenuation = new Vector4[kMaxAdditionalLights];
-        private readonly Vector4[] _additionalLightsSpotDir = new Vector4[kMaxAdditionalLights];
+        private readonly AdditionalLightData[] _additionalLightData =
+            new AdditionalLightData[AdditionalLightUtils.MaxAdditionalLights];
+        private readonly Vector4[] _additionalLightsPosition =
+            new Vector4[AdditionalLightUtils.MaxAdditionalLights];
+        private readonly Vector4[] _additionalLightsColor =
+            new Vector4[AdditionalLightUtils.MaxAdditionalLights];
+        private readonly Vector4[] _additionalLightsAttenuation =
+            new Vector4[AdditionalLightUtils.MaxAdditionalLights];
+        private readonly Vector4[] _additionalLightsSpotDir =
+            new Vector4[AdditionalLightUtils.MaxAdditionalLights];
 
         private readonly List<QueuedPass> _activePasses = new List<QueuedPass>(32);
 
@@ -135,78 +140,36 @@ namespace NWRP
         {
             Vector4 mainLightPosition = Vector4.zero;
             Vector4 mainLightColor = Vector4.zero;
-            int mainLightIndex = -1;
 
             NativeArray<VisibleLight> visibleLights = frameData.cullingResults.visibleLights;
-            for (int i = 0; i < visibleLights.Length; i++)
-            {
-                if (visibleLights[i].lightType != LightType.Directional)
-                {
-                    continue;
-                }
+            int additionalCount = AdditionalLightUtils.CollectAdditionalLights(
+                ref frameData,
+                _additionalLightData,
+                out int mainLightIndex);
 
-                VisibleLight visibleLight = visibleLights[i];
+            if (mainLightIndex >= 0 && mainLightIndex < visibleLights.Length)
+            {
+                VisibleLight visibleLight = visibleLights[mainLightIndex];
                 Vector4 mainLightDirection = -visibleLight.localToWorldMatrix.GetColumn(2);
                 mainLightDirection = mainLightDirection.normalized;
                 mainLightDirection.w = 0f;
                 mainLightPosition = mainLightDirection;
                 mainLightColor = visibleLight.finalColor;
-                mainLightIndex = i;
-                break;
             }
 
             frameData.cmd.SetGlobalVector(NWRPShaderIds.MainLightPosition, mainLightPosition);
             frameData.cmd.SetGlobalVector(NWRPShaderIds.MainLightColor, mainLightColor);
 
-            int additionalCount = 0;
-            int limit = kMaxAdditionalLights;
-
-            for (int i = 0; i < visibleLights.Length && additionalCount < limit; i++)
+            for (int i = 0; i < additionalCount; i++)
             {
-                if (i == mainLightIndex)
-                {
-                    continue;
-                }
-
-                VisibleLight visibleLight = visibleLights[i];
-                if (visibleLight.lightType != LightType.Point && visibleLight.lightType != LightType.Spot)
-                {
-                    continue;
-                }
-
-                Vector4 position = visibleLight.localToWorldMatrix.GetColumn(3);
-                position.w = 1f;
-                _additionalLightsPosition[additionalCount] = position;
-                _additionalLightsColor[additionalCount] = visibleLight.finalColor;
-
-                float range = visibleLight.range;
-                float invRangeSqr = 1f / Mathf.Max(range * range, 0.00001f);
-
-                float spotScale = 0f;
-                float spotOffset = 1f;
-
-                if (visibleLight.lightType == LightType.Spot)
-                {
-                    float outerRad = Mathf.Deg2Rad * visibleLight.spotAngle * 0.5f;
-                    float outerCos = Mathf.Cos(outerRad);
-                    float innerCos = Mathf.Cos(outerRad * 0.8f);
-                    float angleRange = Mathf.Max(innerCos - outerCos, 0.001f);
-                    spotScale = 1f / angleRange;
-                    spotOffset = -outerCos * spotScale;
-                }
-
-                _additionalLightsAttenuation[additionalCount] = new Vector4(
-                    invRangeSqr, 0f, spotScale, spotOffset
-                );
-
-                Vector4 spotDirection = -visibleLight.localToWorldMatrix.GetColumn(2);
-                spotDirection.w = 0f;
-                _additionalLightsSpotDir[additionalCount] = spotDirection;
-
-                additionalCount++;
+                AdditionalLightData additionalLight = _additionalLightData[i];
+                _additionalLightsPosition[i] = additionalLight.position;
+                _additionalLightsColor[i] = additionalLight.color;
+                _additionalLightsAttenuation[i] = additionalLight.attenuation;
+                _additionalLightsSpotDir[i] = additionalLight.spotDirection;
             }
 
-            for (int i = additionalCount; i < kMaxAdditionalLights; i++)
+            for (int i = additionalCount; i < AdditionalLightUtils.MaxAdditionalLights; i++)
             {
                 _additionalLightsPosition[i] = Vector4.zero;
                 _additionalLightsColor[i] = Vector4.zero;
@@ -326,27 +289,31 @@ namespace NWRP
         {
             ExecuteStage(ref frameData, NWRPProfiling.SetupCamera, IsSetupCameraPass);
             ExecuteStage(ref frameData, NWRPProfiling.SetupLights, IsSetupLightsPass);
-            ExecuteMainLightShadowStage(ref frameData);
+            ExecuteShadowStage(ref frameData, NWRPProfiling.MainLightShadow, IsMainLightShadowPass);
+            ExecuteShadowStage(ref frameData, NWRPProfiling.AdditionalLightShadow, IsAdditionalLightShadowPass);
             ExecuteStage(ref frameData, NWRPProfiling.BeforeRendering, IsBeforeRenderingPass);
             ExecuteStage(ref frameData, NWRPProfiling.MainRenderingOpaque, IsMainRenderingOpaquePass);
             ExecuteStage(ref frameData, NWRPProfiling.MainRenderingTransparent, IsMainRenderingTransparentPass);
             ExecuteStage(ref frameData, NWRPProfiling.Submit, IsSubmitStagePass);
         }
 
-        private void ExecuteMainLightShadowStage(ref NWRPFrameData frameData)
+        private void ExecuteShadowStage(
+            ref NWRPFrameData frameData,
+            ProfilingSampler stageSampler,
+            Func<QueuedPass, bool> predicate)
         {
-            if (!HasMatchingPass(IsMainLightShadowPass))
+            if (!HasMatchingPass(predicate))
             {
                 return;
             }
 
-            using (new ProfilingScope(frameData.cmd, NWRPProfiling.MainLightShadow))
+            using (new ProfilingScope(frameData.cmd, stageSampler))
             {
                 ExecuteBuffer(ref frameData);
 
                 for (int passIndex = 0; passIndex < _activePasses.Count; passIndex++)
                 {
-                    if (!IsMainLightShadowPass(_activePasses[passIndex]))
+                    if (!predicate(_activePasses[passIndex]))
                     {
                         continue;
                     }
@@ -463,13 +430,25 @@ namespace NWRP
         {
             return !IsSetupCameraPass(queuedPass)
                 && !IsSetupLightsPass(queuedPass)
-                && !IsMainLightShadowPass(queuedPass)
+                && !IsShadowPass(queuedPass)
                 && queuedPass.pass.passEvent <= NWRPPassEvent.ShadowMap;
         }
 
         private static bool IsMainLightShadowPass(QueuedPass queuedPass)
         {
             return ReferenceEquals(queuedPass.pass.profilingGroupSampler, NWRPProfiling.MainLightShadow);
+        }
+
+        private static bool IsAdditionalLightShadowPass(QueuedPass queuedPass)
+        {
+            return ReferenceEquals(
+                queuedPass.pass.profilingGroupSampler,
+                NWRPProfiling.AdditionalLightShadow);
+        }
+
+        private static bool IsShadowPass(QueuedPass queuedPass)
+        {
+            return IsMainLightShadowPass(queuedPass) || IsAdditionalLightShadowPass(queuedPass);
         }
 
         private static bool IsMainRenderingOpaquePass(QueuedPass queuedPass)
@@ -493,6 +472,7 @@ namespace NWRP
         {
             List<NWRPFeature> features = frameData.asset.Features;
             bool hasSerializedMainLightShadowFeature = false;
+            bool hasSerializedAdditionalLightShadowFeature = false;
             for (int i = 0; i < features.Count; i++)
             {
                 NWRPFeature feature = features[i];
@@ -504,6 +484,11 @@ namespace NWRP
                 if (feature is MainLightShadowFeature)
                 {
                     hasSerializedMainLightShadowFeature = true;
+                }
+
+                if (feature is AdditionalLightShadowFeature)
+                {
+                    hasSerializedAdditionalLightShadowFeature = true;
                 }
 
                 feature.EnsureCreated();
@@ -518,6 +503,17 @@ namespace NWRP
                 {
                     runtimeMainLightShadowFeature.EnsureCreated();
                     runtimeMainLightShadowFeature.AddPasses(this, ref frameData);
+                }
+            }
+
+            if (!hasSerializedAdditionalLightShadowFeature)
+            {
+                AdditionalLightShadowFeature runtimeAdditionalLightShadowFeature =
+                    frameData.asset.GetOrCreateAdditionalLightShadowFeature();
+                if (runtimeAdditionalLightShadowFeature != null && runtimeAdditionalLightShadowFeature.IsEnabled)
+                {
+                    runtimeAdditionalLightShadowFeature.EnsureCreated();
+                    runtimeAdditionalLightShadowFeature.AddPasses(this, ref frameData);
                 }
             }
         }
@@ -542,9 +538,24 @@ namespace NWRP
         {
             if (camera.TryGetCullingParameters(out ScriptableCullingParameters cullingParameters))
             {
-                float shadowDistance = asset != null && asset.EnableMainLightShadows
-                    ? Mathf.Min(asset.MainLightShadowDistance, camera.farClipPlane)
-                    : 0f;
+                float shadowDistance = 0f;
+                if (asset != null)
+                {
+                    if (asset.EnableMainLightShadows)
+                    {
+                        shadowDistance = Mathf.Max(
+                            shadowDistance,
+                            Mathf.Min(asset.MainLightShadowDistance, camera.farClipPlane));
+                    }
+
+                    if (asset.EnableAdditionalLightShadows)
+                    {
+                        shadowDistance = Mathf.Max(
+                            shadowDistance,
+                            Mathf.Min(asset.AdditionalLightShadowDistance, camera.farClipPlane));
+                    }
+                }
+
                 cullingParameters.shadowDistance = Mathf.Max(0f, shadowDistance);
 
                 cullingResults = context.Cull(ref cullingParameters);

@@ -108,7 +108,7 @@ half3 EvaluateStandardPBR(
     int count = GetAdditionalLightsCount();
     for (int i = 0; i < count; i++)
     {
-        Light addLight = GetAdditionalLight(i, positionWS);
+        Light addLight = GetAdditionalLight(i, positionWS, normalWS);
         color += DirectBRDF_StandardPBR(addLight, normalWS, viewDirWS,
                                          albedo, metallic, perceptualRoughness);
     }

@@ -24,6 +24,7 @@ Shader "NewWorld/Lit/PBR"
         _Metallic  ("Metallic", Range(0, 1))     = 0.0
         _Roughness ("Roughness", Range(0, 1))    = 0.5
         [ToggleUI] _ReceiveShadows ("Receive Realtime Shadows", Float) = 1.0
+        [ToggleUI] _CastShadows ("Cast Realtime Shadows", Float) = 1.0
     }
 
     SubShader
@@ -38,6 +39,7 @@ Shader "NewWorld/Lit/PBR"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_instancing
 
             #include "../../ShaderLibrary/Core.hlsl"
 
@@ -60,6 +62,7 @@ Shader "NewWorld/Lit/PBR"
                 half  _Metallic;
                 half  _Roughness;
                 half  _ReceiveShadows;
+                half  _CastShadows;
             CBUFFER_END
 
             #define NWRP_MATERIAL_RECEIVE_SHADOWS _ReceiveShadows
@@ -91,6 +94,66 @@ Shader "NewWorld/Lit/PBR"
                 return half4(color, 1.0);
             }
 
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+
+            Cull [_MainLightShadowCasterCull]
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+
+            HLSLPROGRAM
+            #pragma vertex ShadowCasterVert
+            #pragma fragment ShadowCasterFrag
+            #pragma multi_compile_instancing
+
+            #include "../../ShaderLibrary/Core.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                half3 _Albedo;
+                half  _Metallic;
+                half  _Roughness;
+                half  _ReceiveShadows;
+                half  _CastShadows;
+            CBUFFER_END
+
+            #define NWRP_MATERIAL_CAST_SHADOWS _CastShadows
+            #include "Includes/ShadowCasterPass.hlsl"
+            #undef NWRP_MATERIAL_CAST_SHADOWS
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode" = "DepthOnly" }
+
+            Cull Back
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+
+            HLSLPROGRAM
+            #pragma vertex DepthOnlyVert
+            #pragma fragment DepthOnlyFrag
+            #pragma multi_compile_instancing
+
+            #include "../../ShaderLibrary/Core.hlsl"
+
+            CBUFFER_START(UnityPerMaterial)
+                half3 _Albedo;
+                half  _Metallic;
+                half  _Roughness;
+                half  _ReceiveShadows;
+                half  _CastShadows;
+            CBUFFER_END
+
+            #include "Includes/DepthOnlyPass.hlsl"
             ENDHLSL
         }
     }

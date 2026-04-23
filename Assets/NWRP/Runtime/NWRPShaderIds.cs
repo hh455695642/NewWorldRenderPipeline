@@ -15,6 +15,12 @@ namespace NWRP
         public static readonly int AdditionalLightsColor = Shader.PropertyToID("_AdditionalLightsColor");
         public static readonly int AdditionalLightsAttenuation = Shader.PropertyToID("_AdditionalLightsAttenuation");
         public static readonly int AdditionalLightsSpotDir = Shader.PropertyToID("_AdditionalLightsSpotDir");
+        public static readonly int AdditionalLightsShadowmapTexture = Shader.PropertyToID("_AdditionalLightsShadowmapTexture");
+        public static readonly int AdditionalLightsWorldToShadow = Shader.PropertyToID("_AdditionalLightsWorldToShadow");
+        public static readonly int AdditionalLightsShadowParams = Shader.PropertyToID("_AdditionalLightsShadowParams");
+        public static readonly int AdditionalLightsShadowAtlasRects = Shader.PropertyToID("_AdditionalLightsShadowAtlasRects");
+        public static readonly int AdditionalLightsShadowAtlasSize = Shader.PropertyToID("_AdditionalLightsShadowAtlasSize");
+        public static readonly int AdditionalLightsShadowGlobalParams = Shader.PropertyToID("_AdditionalLightsShadowGlobalParams");
 
         // Main light shadow globals
         public static readonly int MainLightShadowmapTexture = Shader.PropertyToID("_MainLightShadowmapTexture");

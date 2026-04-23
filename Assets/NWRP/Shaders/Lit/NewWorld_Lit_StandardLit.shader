@@ -200,7 +200,7 @@ Shader "NewWorld/Lit/StandardLit"
                 int additionalCount = GetAdditionalLightsCount();
                 for (int i = 0; i < additionalCount; i++)
                 {
-                    Light addLight = GetAdditionalLight(i, input.positionWS);
+                    Light addLight = GetAdditionalLight(i, input.positionWS, normalWS);
                     directColor += EvaluateDirectPBR(
                         addLight,
                         normalWS,

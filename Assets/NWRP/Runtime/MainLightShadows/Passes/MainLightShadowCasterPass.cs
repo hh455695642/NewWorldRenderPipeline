@@ -53,6 +53,12 @@ namespace NWRP.Runtime.Passes
                 return;
             }
 
+            if (!frameData.cullingResults.GetShadowCasterBounds(mainLightIndex, out Bounds _))
+            {
+                UploadDisabledGlobals(ref frameData);
+                return;
+            }
+
             int cascadeCount = Mathf.Clamp(asset.MainLightShadowCascadeCount, 1, 2);
             int requestedResolution = Mathf.ClosestPowerOfTwo(
                 Mathf.Clamp(asset.MainLightShadowResolution, 256, 4096));
@@ -75,7 +81,10 @@ namespace NWRP.Runtime.Passes
                 MainLightShadowPassUtils.ClearShadowAtlas(ref frameData, _shadowmapTexture);
                 CommandBuffer cmd = frameData.cmd;
                 ShadowDrawingSettings shadowDrawingSettings =
-                    new ShadowDrawingSettings(frameData.cullingResults, mainLightIndex);
+                    new ShadowDrawingSettings(
+                        frameData.cullingResults,
+                        mainLightIndex,
+                        BatchCullingProjectionType.Orthographic);
                 Vector4 shadowLightDirection = GetShadowLightDirection(ref frameData, mainLightIndex);
                 cmd.SetGlobalFloat(
                     NWRPShaderIds.MainLightShadowCasterCull,

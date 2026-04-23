@@ -13,8 +13,13 @@
 #define NWRP_MAIN_LIGHT_SHADOW_PATH_CACHED_STATIC 3
 #define NWRP_MAIN_LIGHT_SHADOW_PATH_CACHED_STATIC_DYNAMIC 4
 
+#ifndef MAX_ADDITIONAL_LIGHTS
+#define MAX_ADDITIONAL_LIGHTS 8
+#endif
+
 TEXTURE2D_SHADOW(_MainLightShadowmapTexture);
 TEXTURE2D_SHADOW(_MainLightDynamicShadowmapTexture);
+TEXTURE2D_SHADOW(_AdditionalLightsShadowmapTexture);
 SAMPLER_CMP(sampler_LinearClampCompare);
 
 float4x4 _MainLightWorldToShadow[2];
@@ -31,6 +36,11 @@ float4 _MainLightShadowAtlasTexelSize;
 float4 _CascadeShadowSplitSpheres0;
 float4 _CascadeShadowSplitSpheres1;
 float4 _CascadeShadowSplitSphereRadii;
+float4x4 _AdditionalLightsWorldToShadow[MAX_ADDITIONAL_LIGHTS];
+half4 _AdditionalLightsShadowParams[MAX_ADDITIONAL_LIGHTS];
+float4 _AdditionalLightsShadowAtlasRects[MAX_ADDITIONAL_LIGHTS];
+float4 _AdditionalLightsShadowAtlasSize;
+float4 _AdditionalLightsShadowGlobalParams;
 
 struct MainLightShadowResult
 {
@@ -139,6 +149,79 @@ bool IsMainLightShadowCoordOutOfBounds(float3 shadowCoordUVW)
         || shadowCoordUVW.z < 0.0 || shadowCoordUVW.z > 1.0;
 }
 
+bool AreAdditionalLightShadowsEnabled()
+{
+    return _AdditionalLightsShadowGlobalParams.x > 0.5h;
+}
+
+half GetAdditionalLightReceiverShadowFade(float3 positionWS)
+{
+    float maxDistance = _AdditionalLightsShadowGlobalParams.y;
+    float invFadeRange = _AdditionalLightsShadowGlobalParams.z;
+    if (maxDistance <= 0.0)
+    {
+        return 0.0h;
+    }
+
+    float distanceToCamera = distance(positionWS, _WorldSpaceCameraPos.xyz);
+    return saturate((maxDistance - distanceToCamera) * invFadeRange);
+}
+
+float2 ClampAdditionalLightShadowSampleUV(float2 uv, int lightIndex, float paddingScale)
+{
+    float4 tileBounds = _AdditionalLightsShadowAtlasRects[lightIndex];
+    float2 padding = _AdditionalLightsShadowAtlasSize.xy * paddingScale;
+    return clamp(uv, tileBounds.xy + padding, tileBounds.zw - padding);
+}
+
+half SampleAdditionalLightShadowTextureHard(float3 shadowCoordUVW, int lightIndex)
+{
+    shadowCoordUVW.xy = ClampAdditionalLightShadowSampleUV(shadowCoordUVW.xy, lightIndex, 0.5);
+    return SAMPLE_TEXTURE2D_SHADOW(
+        _AdditionalLightsShadowmapTexture,
+        sampler_LinearClampCompare,
+        shadowCoordUVW
+    );
+}
+
+half SampleAdditionalLightShadow(float3 positionWS, int lightIndex)
+{
+    if (!AreAdditionalLightShadowsEnabled())
+    {
+        return 1.0h;
+    }
+
+    half4 shadowParams = _AdditionalLightsShadowParams[lightIndex];
+    if (shadowParams.x <= 0.5h)
+    {
+        return 1.0h;
+    }
+
+    float4 shadowCoord = mul(_AdditionalLightsWorldToShadow[lightIndex], float4(positionWS, 1.0));
+    if (shadowCoord.w <= 0.0)
+    {
+        return 1.0h;
+    }
+
+    // Additional spot lights use perspective shadow matrices, so receiver coordinates must
+    // be projected back to normalized atlas UVW before comparison sampling.
+    float3 shadowCoordUVW = shadowCoord.xyz / shadowCoord.w;
+    if (IsMainLightShadowCoordOutOfBounds(shadowCoordUVW))
+    {
+        return 1.0h;
+    }
+
+    half visibility = SampleAdditionalLightShadowTextureHard(shadowCoordUVW, lightIndex);
+    half fade = GetAdditionalLightReceiverShadowFade(positionWS);
+    visibility = lerp(1.0h, visibility, fade);
+    return lerp(1.0h, visibility, shadowParams.y);
+}
+
+half SampleAdditionalLightShadow(float3 positionWS, float3 normalWS, float3 lightDirectionWS, int lightIndex)
+{
+    return SampleAdditionalLightShadow(positionWS, lightIndex);
+}
+
 half SampleMainLightShadowTextureHard(float3 shadowCoordUVW, int cascadeIndex)
 {
     shadowCoordUVW.xy = ClampMainLightShadowSampleUV(shadowCoordUVW.xy, cascadeIndex, 0.5);
@@ -197,22 +280,24 @@ half SampleMainLightDynamicShadowTextureMediumTent(float3 shadowCoordUVW, int ca
 
 half SampleMainLightStaticShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
 {
+    half visibility = SampleMainLightShadowTextureHard(shadowCoordUVW, cascadeIndex);
     if (_MainLightShadowFilterMode == NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
     {
-        return SampleMainLightShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
+        visibility = SampleMainLightShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
     }
 
-    return SampleMainLightShadowTextureHard(shadowCoordUVW, cascadeIndex);
+    return visibility;
 }
 
 half SampleMainLightDynamicShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
 {
+    half visibility = SampleMainLightDynamicShadowTextureHard(shadowCoordUVW, cascadeIndex);
     if (_MainLightShadowFilterMode == NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
     {
-        return SampleMainLightDynamicShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
+        visibility = SampleMainLightDynamicShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
     }
 
-    return SampleMainLightDynamicShadowTextureHard(shadowCoordUVW, cascadeIndex);
+    return visibility;
 }
 
 MainLightShadowResult SampleMainLightShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
@@ -359,5 +444,6 @@ half SampleMainLightShadow(float3 positionWS, float3 normalWS, float3 lightDirec
 }
 
 #undef NWRP_SAMPLE_MAIN_LIGHT_TENT9
+#undef MAX_ADDITIONAL_LIGHTS
 
 #endif // NEWWORLD_SHADOWS_INCLUDED

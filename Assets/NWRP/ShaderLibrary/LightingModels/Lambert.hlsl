@@ -43,7 +43,7 @@ half3 EvaluateLambertAllLights(half3 normalWS, float3 positionWS, half3 albedo)
     int count = GetAdditionalLightsCount();
     for (int i = 0; i < count; i++)
     {
-        Light addLight = GetAdditionalLight(i, positionWS);
+        Light addLight = GetAdditionalLight(i, positionWS, normalWS);
         color += EvaluateLambert(addLight, normalWS, albedo);
     }
 

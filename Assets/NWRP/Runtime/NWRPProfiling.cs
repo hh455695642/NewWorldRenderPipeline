@@ -27,6 +27,8 @@ namespace NWRP
             new ProfilingSampler("Submit");
         public static readonly ProfilingSampler MainLightShadow =
             new ProfilingSampler("Main Light Shadows");
+        public static readonly ProfilingSampler AdditionalLightShadow =
+            new ProfilingSampler("Additional Spot Light Shadows");
 
         public static ProfilingSampler TryGetOrAddCameraSampler(Camera camera)
         {

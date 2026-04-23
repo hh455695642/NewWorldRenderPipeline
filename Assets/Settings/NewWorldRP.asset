@@ -43,6 +43,8 @@ MonoBehaviour:
       cameraPositionInvalidationThreshold: 0.25
       cameraRotationInvalidationThreshold: 0.5
       lightDirectionInvalidationThreshold: 0.5
+    debug:
+      debugViewMode: 0
     serializedVersion: 1
     enableMainLightShadows: 1
     enableCachedMainLightShadows: 1
@@ -69,5 +71,17 @@ MonoBehaviour:
     cameraPositionInvalidationThreshold: 0.25
     cameraRotationInvalidationThreshold: 0.5
     lightDirectionInvalidationThreshold: 0.5
+  additionalLightShadows:
+    toggles:
+      enableAdditionalLightShadows: 1
+    budget:
+      maxShadowedAdditionalLights: 1
+    atlas:
+      additionalLightShadowResolution: 512
+      additionalLightShadowDistance: 100
+    bias:
+      additionalLightShadowBias: 0.8
+      additionalLightShadowNormalBias: 0.6
+      additionalLightShadowCasterCullMode: 2
   featureSettings:
     features: []

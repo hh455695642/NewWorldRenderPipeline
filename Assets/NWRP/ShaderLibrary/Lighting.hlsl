@@ -77,7 +77,7 @@ int GetAdditionalLightsCount()
     return _AdditionalLightsCount;
 }
 
-Light GetAdditionalLight(int index, float3 positionWS)
+Light GetAdditionalLight(int index, float3 positionWS, float3 normalWS)
 {
     Light light;
 
@@ -101,9 +101,18 @@ Light GetAdditionalLight(int index, float3 positionWS)
     spotAttenuation *= spotAttenuation;
     light.distanceAttenuation *= spotAttenuation;
 
-    light.shadowAttenuation = 1.0h;
+    light.shadowAttenuation = SampleAdditionalLightShadow(
+        positionWS,
+        normalWS,
+        light.direction,
+        index);
     InitializeLightDebugData(light);
     return light;
+}
+
+Light GetAdditionalLight(int index, float3 positionWS)
+{
+    return GetAdditionalLight(index, positionWS, 0.0.xxx);
 }
 
 #endif // NEWWORLD_LIGHTING_INCLUDED

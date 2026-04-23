@@ -46,6 +46,80 @@ namespace NWRP
         }
 
         [System.Serializable]
+        public sealed class AdditionalLightShadowToggleSettings
+        {
+            [Tooltip("Enable realtime additional spot light shadows. The mobile baseline only selects a small spot light budget per frame.")]
+            public bool enableAdditionalLightShadows = false;
+        }
+
+        [System.Serializable]
+        public sealed class AdditionalLightShadowBudgetSettings
+        {
+            [Tooltip("Maximum number of additional spot lights that can render realtime shadows this frame.")]
+            [Range(0, 4)]
+            public int maxShadowedAdditionalLights = 1;
+        }
+
+        [System.Serializable]
+        public sealed class AdditionalLightShadowAtlasSettings
+        {
+            [Tooltip("Per-light spot shadow tile resolution. Atlas size scales with the number of selected shadowed spot lights.")]
+            [Range(128, 1024)]
+            public int additionalLightShadowResolution = 512;
+
+            [Tooltip("Maximum camera distance that receives additional spot light realtime shadows.")]
+            [Range(1f, 100f)]
+            public float additionalLightShadowDistance = 30f;
+        }
+
+        [System.Serializable]
+        public sealed class AdditionalLightShadowBiasSettings
+        {
+            [InspectorName("Additional Light Shadow Depth Bias")]
+            [Range(0f, 5f)]
+            public float additionalLightShadowBias = 0.8f;
+
+            [InspectorName("Additional Light Shadow Normal Bias")]
+            [Range(0f, 3f)]
+            public float additionalLightShadowNormalBias = 0.6f;
+
+            [Tooltip("Caster cull mode used by project shadow caster passes while rendering additional spot light shadows.")]
+            public MainLightShadowCasterCullMode additionalLightShadowCasterCullMode = MainLightShadowCasterCullMode.Back;
+        }
+
+        [System.Serializable]
+        public sealed class AdditionalLightShadowSettings
+        {
+            public AdditionalLightShadowToggleSettings toggles = new AdditionalLightShadowToggleSettings();
+            public AdditionalLightShadowBudgetSettings budget = new AdditionalLightShadowBudgetSettings();
+            public AdditionalLightShadowAtlasSettings atlas = new AdditionalLightShadowAtlasSettings();
+            public AdditionalLightShadowBiasSettings bias = new AdditionalLightShadowBiasSettings();
+
+            public void EnsureInitialized()
+            {
+                if (toggles == null)
+                {
+                    toggles = new AdditionalLightShadowToggleSettings();
+                }
+
+                if (budget == null)
+                {
+                    budget = new AdditionalLightShadowBudgetSettings();
+                }
+
+                if (atlas == null)
+                {
+                    atlas = new AdditionalLightShadowAtlasSettings();
+                }
+
+                if (bias == null)
+                {
+                    bias = new AdditionalLightShadowBiasSettings();
+                }
+            }
+        }
+
+        [System.Serializable]
         public sealed class FeatureSettings
         {
             public List<NWRPFeature> features = new List<NWRPFeature>();
@@ -270,11 +344,17 @@ namespace NWRP
         [Header("Main Light Shadows")]
         public MainLightShadowSettings mainLightShadows = new MainLightShadowSettings();
 
+        [Header("Additional Spot Light Shadows")]
+        public AdditionalLightShadowSettings additionalLightShadows = new AdditionalLightShadowSettings();
+
         [Header("Feature Settings")]
         public FeatureSettings featureSettings = new FeatureSettings();
 
         [System.NonSerialized]
         private MainLightShadowFeature _runtimeMainLightShadowFeature;
+
+        [System.NonSerialized]
+        private AdditionalLightShadowFeature _runtimeAdditionalLightShadowFeature;
 
         private MainLightShadowSettings MainLightShadowSettingsData
         {
@@ -282,6 +362,15 @@ namespace NWRP
             {
                 EnsureMainLightShadowSettings(allowAssetFileMigration: true);
                 return mainLightShadows;
+            }
+        }
+
+        private AdditionalLightShadowSettings AdditionalLightShadowSettingsData
+        {
+            get
+            {
+                EnsureAdditionalLightShadowSettings();
+                return additionalLightShadows;
             }
         }
 
@@ -328,6 +417,14 @@ namespace NWRP
         public float LightDirectionInvalidationThreshold => MainLightShadowSettingsData.cached.lightDirectionInvalidationThreshold;
         public MainLightShadowDebugViewMode MainLightShadowDebugViewModeSetting =>
             MainLightShadowSettingsData.debug.debugViewMode;
+        public bool EnableAdditionalLightShadows => AdditionalLightShadowSettingsData.toggles.enableAdditionalLightShadows;
+        public int MaxShadowedAdditionalLights => AdditionalLightShadowSettingsData.budget.maxShadowedAdditionalLights;
+        public int AdditionalLightShadowResolution => AdditionalLightShadowSettingsData.atlas.additionalLightShadowResolution;
+        public float AdditionalLightShadowDistance => AdditionalLightShadowSettingsData.atlas.additionalLightShadowDistance;
+        public float AdditionalLightShadowBias => AdditionalLightShadowSettingsData.bias.additionalLightShadowBias;
+        public float AdditionalLightShadowNormalBias => AdditionalLightShadowSettingsData.bias.additionalLightShadowNormalBias;
+        public MainLightShadowCasterCullMode AdditionalLightShadowCasterCullModeSetting =>
+            AdditionalLightShadowSettingsData.bias.additionalLightShadowCasterCullMode;
 
         /// <summary>
         /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,
@@ -402,10 +499,24 @@ namespace NWRP
             return _runtimeMainLightShadowFeature;
         }
 
+        internal AdditionalLightShadowFeature GetOrCreateAdditionalLightShadowFeature()
+        {
+            if (_runtimeAdditionalLightShadowFeature != null)
+            {
+                return _runtimeAdditionalLightShadowFeature;
+            }
+
+            _runtimeAdditionalLightShadowFeature = ScriptableObject.CreateInstance<AdditionalLightShadowFeature>();
+            _runtimeAdditionalLightShadowFeature.hideFlags = HideFlags.HideAndDontSave;
+            _runtimeAdditionalLightShadowFeature.name = "NWRP Runtime AdditionalSpotLightShadowFeature";
+            return _runtimeAdditionalLightShadowFeature;
+        }
+
         internal void DisposeRuntimeFeatures()
         {
             if (_runtimeMainLightShadowFeature == null)
             {
+                DisposeAdditionalRuntimeFeature();
                 return;
             }
 
@@ -419,6 +530,26 @@ namespace NWRP
             }
 
             _runtimeMainLightShadowFeature = null;
+            DisposeAdditionalRuntimeFeature();
+        }
+
+        private void DisposeAdditionalRuntimeFeature()
+        {
+            if (_runtimeAdditionalLightShadowFeature == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_runtimeAdditionalLightShadowFeature);
+            }
+            else
+            {
+                DestroyImmediate(_runtimeAdditionalLightShadowFeature);
+            }
+
+            _runtimeAdditionalLightShadowFeature = null;
         }
 
         protected override RenderPipeline CreatePipeline()
@@ -445,12 +576,14 @@ namespace NWRP
         void ISerializationCallbackReceiver.OnAfterDeserialize()
         {
             EnsureMainLightShadowSettings(allowAssetFileMigration: false);
+            EnsureAdditionalLightShadowSettings();
         }
 
 #if UNITY_EDITOR
         protected override void OnValidate()
         {
             EnsureMainLightShadowSettings(allowAssetFileMigration: true);
+            EnsureAdditionalLightShadowSettings();
 
             MainLightShadowSettings settings = mainLightShadows;
             settings.atlas.mainLightShadowResolution = Mathf.ClosestPowerOfTwo(
@@ -467,6 +600,19 @@ namespace NWRP
             settings.cached.cameraPositionInvalidationThreshold = Mathf.Max(0f, settings.cached.cameraPositionInvalidationThreshold);
             settings.cached.cameraRotationInvalidationThreshold = Mathf.Max(0f, settings.cached.cameraRotationInvalidationThreshold);
             settings.cached.lightDirectionInvalidationThreshold = Mathf.Max(0f, settings.cached.lightDirectionInvalidationThreshold);
+
+            AdditionalLightShadowSettings additionalSettings = additionalLightShadows;
+            additionalSettings.atlas.additionalLightShadowResolution = Mathf.ClosestPowerOfTwo(
+                Mathf.Clamp(additionalSettings.atlas.additionalLightShadowResolution, 128, 1024)
+            );
+            additionalSettings.budget.maxShadowedAdditionalLights =
+                Mathf.Clamp(additionalSettings.budget.maxShadowedAdditionalLights, 0, 4);
+            additionalSettings.atlas.additionalLightShadowDistance =
+                Mathf.Max(0f, additionalSettings.atlas.additionalLightShadowDistance);
+            additionalSettings.bias.additionalLightShadowBias =
+                Mathf.Max(0f, additionalSettings.bias.additionalLightShadowBias);
+            additionalSettings.bias.additionalLightShadowNormalBias =
+                Mathf.Max(0f, additionalSettings.bias.additionalLightShadowNormalBias);
 
             SyncMainLightShadowLegacyBridge(settings);
         }
@@ -488,6 +634,16 @@ namespace NWRP
 #endif
             MigrateMainLightShadowLegacyData(mainLightShadows);
             SyncMainLightShadowLegacyBridge(mainLightShadows);
+        }
+
+        private void EnsureAdditionalLightShadowSettings()
+        {
+            if (additionalLightShadows == null)
+            {
+                additionalLightShadows = new AdditionalLightShadowSettings();
+            }
+
+            additionalLightShadows.EnsureInitialized();
         }
 
         private static void MigrateMainLightShadowLegacyData(MainLightShadowSettings settings)
