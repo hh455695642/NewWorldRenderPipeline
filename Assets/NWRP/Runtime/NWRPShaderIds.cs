@@ -38,6 +38,8 @@ namespace NWRP
         public static readonly int MainLightShadowDebugExecutionPath = Shader.PropertyToID("_MainLightShadowDebugExecutionPath");
         public static readonly int ShadowBias = Shader.PropertyToID("_ShadowBias");
         public static readonly int ShadowLightDirection = Shader.PropertyToID("_ShadowLightDirection");
+        public static readonly int ShadowLightPosition = Shader.PropertyToID("_ShadowLightPosition");
+        public static readonly int ShadowLightParams = Shader.PropertyToID("_ShadowLightParams");
         public static readonly int MainLightShadowCascadeCount = Shader.PropertyToID("_MainLightShadowCascadeCount");
         public static readonly int CascadeShadowSplitSpheres0 = Shader.PropertyToID("_CascadeShadowSplitSpheres0");
         public static readonly int CascadeShadowSplitSpheres1 = Shader.PropertyToID("_CascadeShadowSplitSpheres1");

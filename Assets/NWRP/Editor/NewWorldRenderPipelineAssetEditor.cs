@@ -49,7 +49,8 @@ namespace NWRP.Editor
         private SerializedProperty _lightDirectionInvalidationThresholdProperty;
         private SerializedProperty _mainLightShadowDebugViewModeProperty;
         private SerializedProperty _enableAdditionalLightShadowsProperty;
-        private SerializedProperty _maxShadowedAdditionalLightsProperty;
+        private SerializedProperty _maxShadowedAdditionalSpotLightsProperty;
+        private SerializedProperty _maxShadowedAdditionalPointLightsProperty;
         private SerializedProperty _additionalLightShadowResolutionProperty;
         private SerializedProperty _additionalLightShadowDistanceProperty;
         private SerializedProperty _additionalLightShadowBiasValueProperty;
@@ -121,8 +122,10 @@ namespace NWRP.Editor
                 _mainLightShadowDebugProperty.FindPropertyRelative("debugViewMode");
             _enableAdditionalLightShadowsProperty =
                 _additionalLightShadowTogglesProperty.FindPropertyRelative("enableAdditionalLightShadows");
-            _maxShadowedAdditionalLightsProperty =
-                _additionalLightShadowBudgetProperty.FindPropertyRelative("maxShadowedAdditionalLights");
+            _maxShadowedAdditionalSpotLightsProperty =
+                _additionalLightShadowBudgetProperty.FindPropertyRelative("maxShadowedAdditionalSpotLights");
+            _maxShadowedAdditionalPointLightsProperty =
+                _additionalLightShadowBudgetProperty.FindPropertyRelative("maxShadowedAdditionalPointLights");
             _additionalLightShadowResolutionProperty =
                 _additionalLightShadowAtlasProperty.FindPropertyRelative("additionalLightShadowResolution");
             _additionalLightShadowDistanceProperty =
@@ -161,7 +164,7 @@ namespace NWRP.Editor
             DrawFoldoutSection(kMainLightSectionStateKey, "Main Light", DrawMainLightShadowSettings);
             DrawFoldoutSection(
                 kAdditionalLightSectionStateKey,
-                "Additional Spot Light",
+                "Additional Spot / Point Light",
                 DrawAdditionalLightShadowSettings);
         }
 
@@ -289,23 +292,28 @@ namespace NWRP.Editor
             DrawSubsectionLabel("Toggle");
             EditorGUILayout.PropertyField(
                 _enableAdditionalLightShadowsProperty,
-                new GUIContent("Enable Additional Spot Light Shadows"));
+                new GUIContent("Enable Additional Spot / Point Light Shadows"));
 
             if (!_enableAdditionalLightShadowsProperty.boolValue)
             {
                 EditorGUILayout.HelpBox(
-                    "Additional spot light realtime shadows are disabled.",
+                    "Additional spot / point light realtime shadows are disabled.",
                     MessageType.Info);
                 return;
             }
 
             DrawSubsectionLabel("Budget");
             EditorGUILayout.PropertyField(
-                _maxShadowedAdditionalLightsProperty,
+                _maxShadowedAdditionalSpotLightsProperty,
                 new GUIContent("Max Shadowed Spot Lights"));
+            EditorGUILayout.PropertyField(
+                _maxShadowedAdditionalPointLightsProperty,
+                new GUIContent("Max Shadowed Point Lights"));
 
             DrawSubsectionLabel("Atlas / Distance");
-            EditorGUILayout.PropertyField(_additionalLightShadowResolutionProperty);
+            EditorGUILayout.PropertyField(
+                _additionalLightShadowResolutionProperty,
+                new GUIContent("Shadow Tile Resolution"));
             EditorGUILayout.PropertyField(
                 _additionalLightShadowDistanceProperty,
                 new GUIContent("Max Shadow Distance"));
@@ -318,7 +326,7 @@ namespace NWRP.Editor
                 new GUIContent("Shadow Caster Cull Mode"));
 
             EditorGUILayout.HelpBox(
-                "Mobile baseline currently renders a small additional spot light realtime shadow budget in a shared atlas. Point light realtime shadows remain intentionally disabled in this path.",
+                "Additional punctual light shadows use one shared 2D atlas. Each shadowed spot light consumes 1 slice and each shadowed point light consumes 6 slices, so point-light budget increases atlas cost much faster on mobile.",
                 MessageType.None);
         }
 

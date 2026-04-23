@@ -11,10 +11,10 @@ namespace NWRP.Runtime.Passes
         private static readonly Vector4[] s_DisabledShadowParams =
             new Vector4[AdditionalLightUtils.MaxAdditionalLights];
         private static readonly Vector4[] s_DisabledAtlasRects =
-            new Vector4[AdditionalLightUtils.MaxAdditionalLights];
+            new Vector4[AdditionalLightUtils.MaxAdditionalShadowSlices];
 
         internal static readonly ProfilingSampler RenderRealtimeShadowAtlasSampler =
-            new ProfilingSampler("Render Additional Spot Light Realtime Atlas");
+            new ProfilingSampler("Render Additional Spot / Point Light Realtime Atlas");
 
         public static void UploadDisabledGlobals(ref NWRPFrameData frameData)
         {
@@ -40,8 +40,8 @@ namespace NWRP.Runtime.Passes
             ref NWRPFrameData frameData,
             Texture shadowmapTexture,
             Matrix4x4[] worldToShadowMatrices,
-            Vector4[] shadowParams,
-            Vector4[] atlasRects,
+            Vector4[] lightShadowParams,
+            Vector4[] sliceAtlasRects,
             int atlasWidth,
             int atlasHeight)
         {
@@ -52,8 +52,8 @@ namespace NWRP.Runtime.Passes
 
             cmd.SetGlobalTexture(NWRPShaderIds.AdditionalLightsShadowmapTexture, shadowmapTexture);
             cmd.SetGlobalMatrixArray(NWRPShaderIds.AdditionalLightsWorldToShadow, worldToShadowMatrices);
-            cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsShadowParams, shadowParams);
-            cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsShadowAtlasRects, atlasRects);
+            cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsShadowParams, lightShadowParams);
+            cmd.SetGlobalVectorArray(NWRPShaderIds.AdditionalLightsShadowAtlasRects, sliceAtlasRects);
             cmd.SetGlobalVector(
                 NWRPShaderIds.AdditionalLightsShadowAtlasSize,
                 new Vector4(
@@ -69,7 +69,7 @@ namespace NWRP.Runtime.Passes
 
         private static Matrix4x4[] CreateDisabledWorldToShadowMatrices()
         {
-            Matrix4x4[] matrices = new Matrix4x4[AdditionalLightUtils.MaxAdditionalLights];
+            Matrix4x4[] matrices = new Matrix4x4[AdditionalLightUtils.MaxAdditionalShadowSlices];
             for (int i = 0; i < matrices.Length; i++)
             {
                 matrices[i] = Matrix4x4.identity;

@@ -3,7 +3,7 @@
 //
 // Demonstration shader for main light plus additional point/spot lighting.
 // The mobile shadow baseline supports main light realtime shadows and
-// additional spot light realtime shadows.
+// additional spot / point light realtime shadows through one shared atlas.
 // ============================================================
 Shader "NewWorld/Lit/MultiLight"
 {

@@ -75,7 +75,8 @@ MonoBehaviour:
     toggles:
       enableAdditionalLightShadows: 1
     budget:
-      maxShadowedAdditionalLights: 1
+      maxShadowedAdditionalSpotLights: 2
+      maxShadowedAdditionalPointLights: 1
     atlas:
       additionalLightShadowResolution: 512
       additionalLightShadowDistance: 100

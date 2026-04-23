@@ -17,12 +17,6 @@ struct Light
     half shadowDebugActive;
 };
 
-float4 _AdditionalLightsPosition[MAX_ADDITIONAL_LIGHTS];
-half4 _AdditionalLightsColor[MAX_ADDITIONAL_LIGHTS];
-half4 _AdditionalLightsAttenuation[MAX_ADDITIONAL_LIGHTS];
-half4 _AdditionalLightsSpotDir[MAX_ADDITIONAL_LIGHTS];
-int _AdditionalLightsCount;
-
 void InitializeLightDebugData(inout Light light)
 {
     light.shadowDebugColor = 0.0h.xxx;

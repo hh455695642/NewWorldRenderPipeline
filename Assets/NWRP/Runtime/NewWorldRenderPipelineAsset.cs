@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Serialization;
 
 namespace NWRP
 {
@@ -48,26 +49,31 @@ namespace NWRP
         [System.Serializable]
         public sealed class AdditionalLightShadowToggleSettings
         {
-            [Tooltip("Enable realtime additional spot light shadows. The mobile baseline only selects a small spot light budget per frame.")]
+            [Tooltip("Enable realtime additional spot and point light shadows. The mobile baseline only selects a very small punctual-light shadow budget per frame.")]
             public bool enableAdditionalLightShadows = false;
         }
 
         [System.Serializable]
         public sealed class AdditionalLightShadowBudgetSettings
         {
-            [Tooltip("Maximum number of additional spot lights that can render realtime shadows this frame.")]
-            [Range(0, 4)]
-            public int maxShadowedAdditionalLights = 1;
+            [Tooltip("Maximum number of additional spot lights that can render realtime shadows this frame. Each selected spot light consumes 1 shadow atlas slice.")]
+            [Range(0, 3)]
+            [FormerlySerializedAs("maxShadowedAdditionalLights")]
+            public int maxShadowedAdditionalSpotLights = 1;
+
+            [Tooltip("Maximum number of additional point lights that can render realtime shadows this frame. Each selected point light consumes 6 shadow atlas slices.")]
+            [Range(0, 3)]
+            public int maxShadowedAdditionalPointLights = 1;
         }
 
         [System.Serializable]
         public sealed class AdditionalLightShadowAtlasSettings
         {
-            [Tooltip("Per-light spot shadow tile resolution. Atlas size scales with the number of selected shadowed spot lights.")]
+            [Tooltip("Per-slice shadow tile resolution. Spot lights consume 1 tile and point lights consume 6 tiles in the shared atlas.")]
             [Range(128, 1024)]
             public int additionalLightShadowResolution = 512;
 
-            [Tooltip("Maximum camera distance that receives additional spot light realtime shadows.")]
+            [Tooltip("Maximum camera distance that receives additional spot or point light realtime shadows.")]
             [Range(1f, 100f)]
             public float additionalLightShadowDistance = 30f;
         }
@@ -83,7 +89,7 @@ namespace NWRP
             [Range(0f, 3f)]
             public float additionalLightShadowNormalBias = 0.6f;
 
-            [Tooltip("Caster cull mode used by project shadow caster passes while rendering additional spot light shadows.")]
+            [Tooltip("Caster cull mode used by project shadow caster passes while rendering additional spot or point light shadows.")]
             public MainLightShadowCasterCullMode additionalLightShadowCasterCullMode = MainLightShadowCasterCullMode.Back;
         }
 
@@ -344,7 +350,7 @@ namespace NWRP
         [Header("Main Light Shadows")]
         public MainLightShadowSettings mainLightShadows = new MainLightShadowSettings();
 
-        [Header("Additional Spot Light Shadows")]
+        [Header("Additional Spot / Point Light Shadows")]
         public AdditionalLightShadowSettings additionalLightShadows = new AdditionalLightShadowSettings();
 
         [Header("Feature Settings")]
@@ -418,7 +424,9 @@ namespace NWRP
         public MainLightShadowDebugViewMode MainLightShadowDebugViewModeSetting =>
             MainLightShadowSettingsData.debug.debugViewMode;
         public bool EnableAdditionalLightShadows => AdditionalLightShadowSettingsData.toggles.enableAdditionalLightShadows;
-        public int MaxShadowedAdditionalLights => AdditionalLightShadowSettingsData.budget.maxShadowedAdditionalLights;
+        public int MaxShadowedAdditionalSpotLights => AdditionalLightShadowSettingsData.budget.maxShadowedAdditionalSpotLights;
+        public int MaxShadowedAdditionalPointLights => AdditionalLightShadowSettingsData.budget.maxShadowedAdditionalPointLights;
+        public int MaxShadowedAdditionalLights => MaxShadowedAdditionalSpotLights;
         public int AdditionalLightShadowResolution => AdditionalLightShadowSettingsData.atlas.additionalLightShadowResolution;
         public float AdditionalLightShadowDistance => AdditionalLightShadowSettingsData.atlas.additionalLightShadowDistance;
         public float AdditionalLightShadowBias => AdditionalLightShadowSettingsData.bias.additionalLightShadowBias;
@@ -508,7 +516,7 @@ namespace NWRP
 
             _runtimeAdditionalLightShadowFeature = ScriptableObject.CreateInstance<AdditionalLightShadowFeature>();
             _runtimeAdditionalLightShadowFeature.hideFlags = HideFlags.HideAndDontSave;
-            _runtimeAdditionalLightShadowFeature.name = "NWRP Runtime AdditionalSpotLightShadowFeature";
+            _runtimeAdditionalLightShadowFeature.name = "NWRP Runtime AdditionalSpotPointLightShadowFeature";
             return _runtimeAdditionalLightShadowFeature;
         }
 
@@ -605,8 +613,10 @@ namespace NWRP
             additionalSettings.atlas.additionalLightShadowResolution = Mathf.ClosestPowerOfTwo(
                 Mathf.Clamp(additionalSettings.atlas.additionalLightShadowResolution, 128, 1024)
             );
-            additionalSettings.budget.maxShadowedAdditionalLights =
-                Mathf.Clamp(additionalSettings.budget.maxShadowedAdditionalLights, 0, 4);
+            additionalSettings.budget.maxShadowedAdditionalSpotLights =
+                Mathf.Clamp(additionalSettings.budget.maxShadowedAdditionalSpotLights, 0, 4);
+            additionalSettings.budget.maxShadowedAdditionalPointLights =
+                Mathf.Clamp(additionalSettings.budget.maxShadowedAdditionalPointLights, 0, 2);
             additionalSettings.atlas.additionalLightShadowDistance =
                 Mathf.Max(0f, additionalSettings.atlas.additionalLightShadowDistance);
             additionalSettings.bias.additionalLightShadowBias =

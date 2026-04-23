@@ -18,13 +18,34 @@ namespace NWRP.Editor
         private static readonly GUIContent s_RangeLabel = new GUIContent("Range");
         private static readonly GUIContent s_SpotAngleLabel = new GUIContent("Spot Angle");
         private static readonly GUIContent s_InnerSpotAngleLabel = new GUIContent("Inner Spot Angle");
-        private static readonly GUIContent s_CullingMaskLabel = new GUIContent("Culling Mask");
+        private static readonly GUIContent s_DirectionalShadowsLabel = new GUIContent("Shadows");
         private static readonly GUIContent s_ShadowTypeLabel = new GUIContent("Shadow Type");
         private static readonly GUIContent s_ShadowStrengthLabel = new GUIContent("Shadow Strength");
-        private static readonly GUIContent s_ShadowBiasLabel = new GUIContent("Shadow Bias");
-        private static readonly GUIContent s_ShadowNormalBiasLabel = new GUIContent("Shadow Normal Bias");
         private static readonly GUIContent s_ShadowNearPlaneLabel = new GUIContent("Shadow Near Plane");
         private static readonly GUIContent s_ShapeLabel = new GUIContent("Shape");
+        private static readonly GUIContent[] s_DirectionalShadowOptions =
+        {
+            new GUIContent("Off"),
+            new GUIContent("On")
+        };
+
+        private static readonly int[] s_DirectionalShadowOptionValues =
+        {
+            0,
+            1
+        };
+
+        private static readonly GUIContent[] s_ShadowTypeOptions =
+        {
+            new GUIContent("No Shadows"),
+            new GUIContent("Hard Shadows")
+        };
+
+        private static readonly int[] s_ShadowTypeOptionValues =
+        {
+            (int)LightShadows.None,
+            (int)LightShadows.Hard
+        };
 
         private UnityEditor.Editor _fallbackEditor;
 
@@ -35,11 +56,8 @@ namespace NWRP.Editor
         private SerializedProperty _rangeProperty;
         private SerializedProperty _spotAngleProperty;
         private SerializedProperty _innerSpotAngleProperty;
-        private SerializedProperty _cullingMaskProperty;
         private SerializedProperty _shadowTypeProperty;
         private SerializedProperty _shadowStrengthProperty;
-        private SerializedProperty _shadowBiasProperty;
-        private SerializedProperty _shadowNormalBiasProperty;
         private SerializedProperty _shadowNearPlaneProperty;
 
         private void OnEnable()
@@ -59,7 +77,7 @@ namespace NWRP.Editor
 
         public override void OnInspectorGUI()
         {
-            if (!ShouldUseSimplifiedSpotInspector())
+            if (!ShouldUseSimplifiedSupportedLightInspector())
             {
                 DrawFallbackInspector();
                 return;
@@ -67,11 +85,8 @@ namespace NWRP.Editor
 
             serializedObject.Update();
 
-            EditorGUILayout.LabelField("NWRP Spot Light", EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(
-                "This simplified inspector only exposes properties currently consumed by the NWRP mobile spot-light path. " +
-                "Cookie, flare, halo, baking, render mode, rendering layers, per-light shadow resolution, soft-shadow shape settings, and custom culling overrides are hidden to avoid misleading artists.",
-                MessageType.None);
+            EditorGUILayout.LabelField(GetInspectorTitle(), EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(GetInspectorDescription(), MessageType.None);
 
             DrawLightSection();
             EditorGUILayout.Space();
@@ -84,7 +99,7 @@ namespace NWRP.Editor
 
         public override bool RequiresConstantRepaint()
         {
-            if (ShouldUseSimplifiedSpotInspector())
+            if (ShouldUseSimplifiedSupportedLightInspector())
             {
                 return false;
             }
@@ -102,38 +117,49 @@ namespace NWRP.Editor
             EditorGUILayout.LabelField("Light", EditorStyles.miniBoldLabel);
             EditorGUILayout.PropertyField(_typeProperty, s_TypeLabel);
 
-            if (!IsSpotTypeSelected())
+            if (!IsSupportedTypeSelected())
             {
                 EditorGUILayout.HelpBox(
-                    "Switching away from Spot Light will restore the Unity default inspector on the next repaint.",
+                    "Switching away from Directional, Spot, or Point Light will restore the Unity default inspector on the next repaint.",
                     MessageType.Info);
                 return;
             }
 
-            using (new EditorGUI.DisabledScope(true))
+            if (IsSpotTypeSelected())
             {
-                EditorGUILayout.PropertyField(_shapeProperty, s_ShapeLabel);
+                using (new EditorGUI.DisabledScope(true))
+                {
+                    EditorGUILayout.PropertyField(_shapeProperty, s_ShapeLabel);
+                }
             }
 
             EditorGUILayout.PropertyField(_colorProperty, s_ColorLabel);
             EditorGUILayout.PropertyField(_intensityProperty, s_IntensityLabel);
-            EditorGUILayout.PropertyField(_rangeProperty, s_RangeLabel);
-            EditorGUILayout.PropertyField(_spotAngleProperty, s_SpotAngleLabel);
-            EditorGUILayout.PropertyField(_innerSpotAngleProperty, s_InnerSpotAngleLabel);
-            EditorGUILayout.PropertyField(_cullingMaskProperty, s_CullingMaskLabel);
 
-            if (!IsConeShape())
+            if (IsLocalTypeSelected())
             {
-                EditorGUILayout.HelpBox(
-                    "The current additional spot-light implementation only supports cone-shaped spot lights. Other spot shapes are intentionally hidden from normal authoring.",
-                    MessageType.Warning);
+                EditorGUILayout.PropertyField(_rangeProperty, s_RangeLabel);
+            }
+
+            if (IsSpotTypeSelected())
+            {
+                EditorGUILayout.PropertyField(_spotAngleProperty, s_SpotAngleLabel);
+                EditorGUILayout.PropertyField(_innerSpotAngleProperty, s_InnerSpotAngleLabel);
+
+                if (!IsConeShape())
+                {
+                    EditorGUILayout.HelpBox(
+                        "The current additional spot-light implementation only supports cone-shaped spot lights. Other spot shapes are intentionally hidden from normal authoring.",
+                        MessageType.Warning);
+                }
             }
         }
 
         private void DrawShadowSection()
         {
             EditorGUILayout.LabelField("Shadows", EditorStyles.miniBoldLabel);
-            EditorGUILayout.PropertyField(_shadowTypeProperty, s_ShadowTypeLabel);
+            NormalizeUnsupportedShadowTypes();
+            DrawShadowControl();
 
             if (_shadowTypeProperty.hasMultipleDifferentValues
                 || _shadowTypeProperty.enumValueIndex == (int)LightShadows.None)
@@ -143,9 +169,70 @@ namespace NWRP.Editor
 
             EditorGUILayout.PropertyField(_shadowStrengthProperty, s_ShadowStrengthLabel);
             EditorGUILayout.HelpBox(
-                "Shadow Bias and Shadow Normal Bias are controlled globally on the active NWRP pipeline asset. Per-light bias overrides are not supported in the current implementation.",
+                IsDirectionalTypeSelected()
+                    ? "Main-light bias and receiver filtering are controlled globally on the active NWRP pipeline asset. This light only controls whether the main light casts shadows."
+                    : "Shadow Bias and Shadow Normal Bias are controlled globally on the active NWRP pipeline asset. Per-light bias overrides are not supported in the current implementation.",
                 MessageType.Info);
             EditorGUILayout.PropertyField(_shadowNearPlaneProperty, s_ShadowNearPlaneLabel);
+        }
+
+        private void DrawShadowControl()
+        {
+            if (IsDirectionalTypeSelected())
+            {
+                DrawDirectionalShadowToggle();
+                return;
+            }
+
+            DrawLocalShadowTypePopup();
+        }
+
+        private void DrawDirectionalShadowToggle()
+        {
+            bool previousMixedValue = EditorGUI.showMixedValue;
+            EditorGUI.showMixedValue = _shadowTypeProperty.hasMultipleDifferentValues;
+
+            int currentShadowEnabled = _shadowTypeProperty.enumValueIndex == (int)LightShadows.None ? 0 : 1;
+
+            EditorGUI.BeginChangeCheck();
+            int selectedShadowEnabled = EditorGUILayout.IntPopup(
+                s_DirectionalShadowsLabel,
+                currentShadowEnabled,
+                s_DirectionalShadowOptions,
+                s_DirectionalShadowOptionValues);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                _shadowTypeProperty.enumValueIndex = selectedShadowEnabled == 0
+                    ? (int)LightShadows.None
+                    : (int)LightShadows.Hard;
+            }
+
+            EditorGUI.showMixedValue = previousMixedValue;
+        }
+
+        private void DrawLocalShadowTypePopup()
+        {
+            bool previousMixedValue = EditorGUI.showMixedValue;
+            EditorGUI.showMixedValue = _shadowTypeProperty.hasMultipleDifferentValues;
+
+            int currentShadowType = _shadowTypeProperty.enumValueIndex == (int)LightShadows.None
+                ? (int)LightShadows.None
+                : (int)LightShadows.Hard;
+
+            EditorGUI.BeginChangeCheck();
+            int selectedShadowType = EditorGUILayout.IntPopup(
+                s_ShadowTypeLabel,
+                currentShadowType,
+                s_ShadowTypeOptions,
+                s_ShadowTypeOptionValues);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                _shadowTypeProperty.enumValueIndex = selectedShadowType;
+            }
+
+            EditorGUI.showMixedValue = previousMixedValue;
         }
 
         private void DrawPipelineInfo()
@@ -154,13 +241,15 @@ namespace NWRP.Editor
             if (pipelineAsset == null)
             {
                 EditorGUILayout.HelpBox(
-                    "No active NWRP pipeline asset was found. The simplified spot-light inspector is intended for the active NewWorld render pipeline.",
+                    "No active NWRP pipeline asset was found. The simplified local-light inspector is intended for the active NewWorld render pipeline.",
                     MessageType.Warning);
                 return;
             }
 
             EditorGUILayout.HelpBox(
-                "Shadow atlas resolution and the maximum number of shadowed additional spot lights are controlled on the active NWRP pipeline asset, not per light.",
+                IsDirectionalTypeSelected()
+                    ? "Cascade setup, shadow distance, atlas resolution, and main-light shadow bias settings are controlled on the active NWRP pipeline asset, not per light."
+                    : "Shadow tile resolution, atlas budget, and additional-light shadow bias settings are controlled on the active NWRP pipeline asset, not per light.",
                 MessageType.Info);
 
             using (new EditorGUILayout.HorizontalScope())
@@ -200,11 +289,8 @@ namespace NWRP.Editor
             _rangeProperty = serializedObject.FindProperty("m_Range");
             _spotAngleProperty = serializedObject.FindProperty("m_SpotAngle");
             _innerSpotAngleProperty = serializedObject.FindProperty("m_InnerSpotAngle");
-            _cullingMaskProperty = serializedObject.FindProperty("m_CullingMask");
             _shadowTypeProperty = serializedObject.FindProperty("m_Shadows.m_Type");
             _shadowStrengthProperty = serializedObject.FindProperty("m_Shadows.m_Strength");
-            _shadowBiasProperty = serializedObject.FindProperty("m_Shadows.m_Bias");
-            _shadowNormalBiasProperty = serializedObject.FindProperty("m_Shadows.m_NormalBias");
             _shadowNearPlaneProperty = serializedObject.FindProperty("m_Shadows.m_NearPlane");
         }
 
@@ -230,7 +316,7 @@ namespace NWRP.Editor
             method?.Invoke(_fallbackEditor, null);
         }
 
-        private bool ShouldUseSimplifiedSpotInspector()
+        private bool ShouldUseSimplifiedSupportedLightInspector()
         {
             if (targets == null || targets.Length == 0)
             {
@@ -242,15 +328,47 @@ namespace NWRP.Editor
                 return false;
             }
 
+            LightType? supportedLightType = null;
             for (int i = 0; i < targets.Length; i++)
             {
-                if (targets[i] is not Light light || light.type != LightType.Spot)
+                if (targets[i] is not Light light
+                    || !SupportsSimplifiedInspector(light.type))
+                {
+                    return false;
+                }
+
+                if (supportedLightType == null)
+                {
+                    supportedLightType = light.type;
+                    continue;
+                }
+
+                if (supportedLightType.Value != light.type)
                 {
                     return false;
                 }
             }
 
             return true;
+        }
+
+        private bool IsLocalTypeSelected()
+        {
+            return _typeProperty.hasMultipleDifferentValues
+                || _typeProperty.enumValueIndex == (int)LightType.Spot
+                || _typeProperty.enumValueIndex == (int)LightType.Point;
+        }
+
+        private bool IsDirectionalTypeSelected()
+        {
+            return _typeProperty.hasMultipleDifferentValues
+                || _typeProperty.enumValueIndex == (int)LightType.Directional;
+        }
+
+        private bool IsSupportedTypeSelected()
+        {
+            return _typeProperty.hasMultipleDifferentValues
+                || SupportsSimplifiedInspector((LightType)_typeProperty.enumValueIndex);
         }
 
         private bool IsSpotTypeSelected()
@@ -264,6 +382,70 @@ namespace NWRP.Editor
             return _shapeProperty == null
                 || _shapeProperty.hasMultipleDifferentValues
                 || _shapeProperty.enumValueIndex == 0;
+        }
+
+        private void NormalizeUnsupportedShadowTypes()
+        {
+            Light[] lightsToNormalize = null;
+            int lightCount = 0;
+
+            for (int i = 0; i < targets.Length; i++)
+            {
+                if (targets[i] is not Light light || light.shadows != LightShadows.Soft)
+                {
+                    continue;
+                }
+
+                lightsToNormalize ??= new Light[targets.Length];
+                lightsToNormalize[lightCount++] = light;
+            }
+
+            if (lightCount == 0)
+            {
+                return;
+            }
+
+            Object[] undoTargets = new Object[lightCount];
+            for (int i = 0; i < lightCount; i++)
+            {
+                undoTargets[i] = lightsToNormalize[i];
+            }
+
+            Undo.RecordObjects(undoTargets, "Clamp Unsupported NWRP Light Shadow Type");
+            for (int i = 0; i < lightCount; i++)
+            {
+                Light light = lightsToNormalize[i];
+                light.shadows = LightShadows.Hard;
+                EditorUtility.SetDirty(light);
+            }
+
+            serializedObject.Update();
+        }
+
+        private string GetInspectorTitle()
+        {
+            return IsDirectionalTypeSelected()
+                ? "NWRP Directional Light"
+                : "NWRP Local Light";
+        }
+
+        private string GetInspectorDescription()
+        {
+            if (IsDirectionalTypeSelected())
+            {
+                return "This simplified inspector only exposes properties currently consumed by the NWRP mobile main-light path. " +
+                    "Cookie, flare, halo, baking, render mode, culling mask, rendering layers, indirect multiplier, per-light shadow bias, soft-shadow settings, and custom culling overrides are hidden to avoid misleading artists.";
+            }
+
+            return "This simplified inspector only exposes properties currently consumed by the NWRP mobile local-light path. " +
+                "Cookie, flare, halo, baking, render mode, culling mask, rendering layers, indirect multiplier, per-light shadow resolution, soft-shadow settings, and custom culling overrides are hidden to avoid misleading artists.";
+        }
+
+        private static bool SupportsSimplifiedInspector(LightType lightType)
+        {
+            return lightType == LightType.Directional
+                || lightType == LightType.Spot
+                || lightType == LightType.Point;
         }
 
         private static NewWorldRenderPipelineAsset GetActivePipelineAsset()
