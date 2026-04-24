@@ -90,6 +90,7 @@ namespace NWRP.Runtime.Passes
                     NWRPShaderIds.MainLightShadowCasterCull,
                     (float)asset.MainLightShadowCasterCullModeSetting);
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, shadowLightDirection);
+                cmd.SetGlobalVector(NWRPShaderIds.ShadowLightPosition, Vector4.zero);
                 cmd.SetGlobalDepthBias(kRasterDepthBias, kRasterSlopeBias);
                 ExecuteBuffer(ref frameData);
 
@@ -146,6 +147,7 @@ namespace NWRP.Runtime.Passes
                 cmd.SetGlobalDepthBias(0.0f, 0.0f);
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
+                cmd.SetGlobalVector(NWRPShaderIds.ShadowLightPosition, Vector4.zero);
                 cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
                 ExecuteBuffer(ref frameData);
             }

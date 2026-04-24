@@ -17,8 +17,12 @@
 #define MAX_ADDITIONAL_LIGHTS 8
 #endif
 
+#ifndef MAX_SHADOWED_ADDITIONAL_LIGHTS
+#define MAX_SHADOWED_ADDITIONAL_LIGHTS 4
+#endif
+
 #ifndef MAX_ADDITIONAL_LIGHT_SHADOW_SLICES
-#define MAX_ADDITIONAL_LIGHT_SHADOW_SLICES 48
+#define MAX_ADDITIONAL_LIGHT_SHADOW_SLICES (MAX_SHADOWED_ADDITIONAL_LIGHTS * 6)
 #endif
 
 TEXTURE2D_SHADOW(_MainLightShadowmapTexture);
@@ -40,14 +44,9 @@ float4 _MainLightShadowAtlasTexelSize;
 float4 _CascadeShadowSplitSpheres0;
 float4 _CascadeShadowSplitSpheres1;
 float4 _CascadeShadowSplitSphereRadii;
-float4 _AdditionalLightsPosition[MAX_ADDITIONAL_LIGHTS];
-half4 _AdditionalLightsColor[MAX_ADDITIONAL_LIGHTS];
-half4 _AdditionalLightsAttenuation[MAX_ADDITIONAL_LIGHTS];
-half4 _AdditionalLightsSpotDir[MAX_ADDITIONAL_LIGHTS];
-int _AdditionalLightsCount;
-float4x4 _AdditionalLightsWorldToShadow[MAX_ADDITIONAL_LIGHT_SHADOW_SLICES];
-float4 _AdditionalLightsShadowParams[MAX_ADDITIONAL_LIGHTS];
-float4 _AdditionalLightsShadowAtlasRects[MAX_ADDITIONAL_LIGHT_SHADOW_SLICES];
+float4x4 _AdditionalLightsShadowSliceWorldToShadow[MAX_ADDITIONAL_LIGHT_SHADOW_SLICES];
+half4 _AdditionalLightsShadowParams[MAX_ADDITIONAL_LIGHTS];
+float4 _AdditionalLightsShadowSliceAtlasRects[MAX_ADDITIONAL_LIGHT_SHADOW_SLICES];
 float4 _AdditionalLightsShadowAtlasSize;
 float4 _AdditionalLightsShadowGlobalParams;
 
@@ -163,6 +162,23 @@ bool AreAdditionalLightShadowsEnabled()
     return _AdditionalLightsShadowGlobalParams.x > 0.5h;
 }
 
+int GetPointLightShadowFaceIndex(float3 lightToReceiverDirectionWS)
+{
+    float3 absDirection = abs(lightToReceiverDirectionWS);
+
+    if (absDirection.x >= absDirection.y && absDirection.x >= absDirection.z)
+    {
+        return lightToReceiverDirectionWS.x >= 0.0 ? 0 : 1;
+    }
+
+    if (absDirection.y >= absDirection.z)
+    {
+        return lightToReceiverDirectionWS.y >= 0.0 ? 2 : 3;
+    }
+
+    return lightToReceiverDirectionWS.z >= 0.0 ? 4 : 5;
+}
+
 half GetAdditionalLightReceiverShadowFade(float3 positionWS)
 {
     float maxDistance = _AdditionalLightsShadowGlobalParams.y;
@@ -176,16 +192,16 @@ half GetAdditionalLightReceiverShadowFade(float3 positionWS)
     return saturate((maxDistance - distanceToCamera) * invFadeRange);
 }
 
-float2 ClampAdditionalLightShadowSampleUV(float2 uv, int lightIndex, float paddingScale)
+float2 ClampAdditionalLightShadowSampleUV(float2 uv, int shadowSliceIndex, float paddingScale)
 {
-    float4 tileBounds = _AdditionalLightsShadowAtlasRects[lightIndex];
+    float4 tileBounds = _AdditionalLightsShadowSliceAtlasRects[shadowSliceIndex];
     float2 padding = _AdditionalLightsShadowAtlasSize.xy * paddingScale;
     return clamp(uv, tileBounds.xy + padding, tileBounds.zw - padding);
 }
 
-half SampleAdditionalLightShadowTextureHard(float3 shadowCoordUVW, int sliceIndex)
+half SampleAdditionalLightShadowTextureHard(float3 shadowCoordUVW, int shadowSliceIndex)
 {
-    shadowCoordUVW.xy = ClampAdditionalLightShadowSampleUV(shadowCoordUVW.xy, sliceIndex, 0.5);
+    shadowCoordUVW.xy = ClampAdditionalLightShadowSampleUV(shadowCoordUVW.xy, shadowSliceIndex, 0.5);
     return SAMPLE_TEXTURE2D_SHADOW(
         _AdditionalLightsShadowmapTexture,
         sampler_LinearClampCompare,
@@ -193,71 +209,40 @@ half SampleAdditionalLightShadowTextureHard(float3 shadowCoordUVW, int sliceInde
     );
 }
 
-int GetAdditionalLightShadowFirstSliceIndex(int lightIndex)
-{
-    return (int)(_AdditionalLightsShadowParams[lightIndex].z + 0.5);
-}
-
-int GetAdditionalLightShadowSliceCount(int lightIndex)
-{
-    return (int)(_AdditionalLightsShadowParams[lightIndex].w + 0.5);
-}
-
-bool IsAdditionalLightPointShadow(int lightIndex)
-{
-    return GetAdditionalLightShadowSliceCount(lightIndex) > 1;
-}
-
-int GetPointLightShadowFaceIndex(float3 lightToReceiverWS)
-{
-    float3 absDirection = abs(lightToReceiverWS);
-
-    if (absDirection.x >= absDirection.y && absDirection.x >= absDirection.z)
-    {
-        return lightToReceiverWS.x >= 0.0 ? 0 : 1;
-    }
-
-    if (absDirection.y >= absDirection.z)
-    {
-        return lightToReceiverWS.y >= 0.0 ? 2 : 3;
-    }
-
-    return lightToReceiverWS.z >= 0.0 ? 4 : 5;
-}
-
-half SampleAdditionalLightShadowFromSlice(float3 positionWS, int lightIndex, int sliceIndex)
+half SampleAdditionalLightShadowInternal(float3 positionWS, float3 lightDirectionWS, int lightIndex)
 {
     if (!AreAdditionalLightShadowsEnabled())
     {
         return 1.0h;
     }
 
-    float4 shadowParams = _AdditionalLightsShadowParams[lightIndex];
+    half4 shadowParams = _AdditionalLightsShadowParams[lightIndex];
     if (shadowParams.x <= 0.5h)
     {
         return 1.0h;
     }
 
-    if (sliceIndex < 0 || sliceIndex >= MAX_ADDITIONAL_LIGHT_SHADOW_SLICES)
+    int shadowSliceIndex = (int)shadowParams.w;
+    if (shadowParams.z > 0.5h)
     {
-        return 1.0h;
+        shadowSliceIndex += GetPointLightShadowFaceIndex(-lightDirectionWS);
     }
 
-    float4 shadowCoord = mul(_AdditionalLightsWorldToShadow[sliceIndex], float4(positionWS, 1.0));
+    float4 shadowCoord = mul(_AdditionalLightsShadowSliceWorldToShadow[shadowSliceIndex], float4(positionWS, 1.0));
     if (shadowCoord.w <= 0.0)
     {
         return 1.0h;
     }
 
-    // Additional spot and point lights use perspective shadow matrices, so receiver coordinates must
-    // be projected back to normalized atlas UVW before comparison sampling.
+    // Additional punctual lights use perspective shadow matrices, so receiver coordinates
+    // must be projected back to normalized atlas UVW before comparison sampling.
     float3 shadowCoordUVW = shadowCoord.xyz / shadowCoord.w;
     if (IsMainLightShadowCoordOutOfBounds(shadowCoordUVW))
     {
         return 1.0h;
     }
 
-    half visibility = SampleAdditionalLightShadowTextureHard(shadowCoordUVW, sliceIndex);
+    half visibility = SampleAdditionalLightShadowTextureHard(shadowCoordUVW, shadowSliceIndex);
     half fade = GetAdditionalLightReceiverShadowFade(positionWS);
     visibility = lerp(1.0h, visibility, fade);
     return lerp(1.0h, visibility, shadowParams.y);
@@ -265,30 +250,12 @@ half SampleAdditionalLightShadowFromSlice(float3 positionWS, int lightIndex, int
 
 half SampleAdditionalLightShadow(float3 positionWS, int lightIndex)
 {
-    if (!AreAdditionalLightShadowsEnabled())
-    {
-        return 1.0h;
-    }
-
-    float4 shadowParams = _AdditionalLightsShadowParams[lightIndex];
-    if (shadowParams.x <= 0.5h)
-    {
-        return 1.0h;
-    }
-
-    int sliceIndex = GetAdditionalLightShadowFirstSliceIndex(lightIndex);
-    if (IsAdditionalLightPointShadow(lightIndex))
-    {
-        float3 lightToReceiverWS = positionWS - _AdditionalLightsPosition[lightIndex].xyz;
-        sliceIndex += GetPointLightShadowFaceIndex(lightToReceiverWS);
-    }
-
-    return SampleAdditionalLightShadowFromSlice(positionWS, lightIndex, sliceIndex);
+    return SampleAdditionalLightShadowInternal(positionWS, float3(0.0, 0.0, -1.0), lightIndex);
 }
 
 half SampleAdditionalLightShadow(float3 positionWS, float3 normalWS, float3 lightDirectionWS, int lightIndex)
 {
-    return SampleAdditionalLightShadow(positionWS, lightIndex);
+    return SampleAdditionalLightShadowInternal(positionWS, lightDirectionWS, lightIndex);
 }
 
 half SampleMainLightShadowTextureHard(float3 shadowCoordUVW, int cascadeIndex)
@@ -514,6 +481,7 @@ half SampleMainLightShadow(float3 positionWS, float3 normalWS, float3 lightDirec
 
 #undef NWRP_SAMPLE_MAIN_LIGHT_TENT9
 #undef MAX_ADDITIONAL_LIGHT_SHADOW_SLICES
+#undef MAX_SHADOWED_ADDITIONAL_LIGHTS
 #undef MAX_ADDITIONAL_LIGHTS
 
 #endif // NEWWORLD_SHADOWS_INCLUDED

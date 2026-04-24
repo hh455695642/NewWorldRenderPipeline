@@ -49,9 +49,9 @@ namespace NWRP.Editor
         private SerializedProperty _lightDirectionInvalidationThresholdProperty;
         private SerializedProperty _mainLightShadowDebugViewModeProperty;
         private SerializedProperty _enableAdditionalLightShadowsProperty;
-        private SerializedProperty _maxShadowedAdditionalSpotLightsProperty;
-        private SerializedProperty _maxShadowedAdditionalPointLightsProperty;
+        private SerializedProperty _maxShadowedAdditionalLightsProperty;
         private SerializedProperty _additionalLightShadowResolutionProperty;
+        private SerializedProperty _additionalLightShadowAtlasMaxSizeProperty;
         private SerializedProperty _additionalLightShadowDistanceProperty;
         private SerializedProperty _additionalLightShadowBiasValueProperty;
         private SerializedProperty _additionalLightShadowNormalBiasProperty;
@@ -122,12 +122,12 @@ namespace NWRP.Editor
                 _mainLightShadowDebugProperty.FindPropertyRelative("debugViewMode");
             _enableAdditionalLightShadowsProperty =
                 _additionalLightShadowTogglesProperty.FindPropertyRelative("enableAdditionalLightShadows");
-            _maxShadowedAdditionalSpotLightsProperty =
-                _additionalLightShadowBudgetProperty.FindPropertyRelative("maxShadowedAdditionalSpotLights");
-            _maxShadowedAdditionalPointLightsProperty =
-                _additionalLightShadowBudgetProperty.FindPropertyRelative("maxShadowedAdditionalPointLights");
+            _maxShadowedAdditionalLightsProperty =
+                _additionalLightShadowBudgetProperty.FindPropertyRelative("maxShadowedAdditionalLights");
             _additionalLightShadowResolutionProperty =
                 _additionalLightShadowAtlasProperty.FindPropertyRelative("additionalLightShadowResolution");
+            _additionalLightShadowAtlasMaxSizeProperty =
+                _additionalLightShadowAtlasProperty.FindPropertyRelative("additionalLightShadowAtlasMaxSize");
             _additionalLightShadowDistanceProperty =
                 _additionalLightShadowAtlasProperty.FindPropertyRelative("additionalLightShadowDistance");
             _additionalLightShadowBiasValueProperty =
@@ -164,7 +164,7 @@ namespace NWRP.Editor
             DrawFoldoutSection(kMainLightSectionStateKey, "Main Light", DrawMainLightShadowSettings);
             DrawFoldoutSection(
                 kAdditionalLightSectionStateKey,
-                "Additional Spot / Point Light",
+                "Additional Punctual Light",
                 DrawAdditionalLightShadowSettings);
         }
 
@@ -292,28 +292,28 @@ namespace NWRP.Editor
             DrawSubsectionLabel("Toggle");
             EditorGUILayout.PropertyField(
                 _enableAdditionalLightShadowsProperty,
-                new GUIContent("Enable Additional Spot / Point Light Shadows"));
+                new GUIContent("Enable Additional Punctual Light Shadows"));
 
             if (!_enableAdditionalLightShadowsProperty.boolValue)
             {
                 EditorGUILayout.HelpBox(
-                    "Additional spot / point light realtime shadows are disabled.",
+                    "Additional punctual light realtime shadows are disabled.",
                     MessageType.Info);
                 return;
             }
 
             DrawSubsectionLabel("Budget");
             EditorGUILayout.PropertyField(
-                _maxShadowedAdditionalSpotLightsProperty,
-                new GUIContent("Max Shadowed Spot Lights"));
-            EditorGUILayout.PropertyField(
-                _maxShadowedAdditionalPointLightsProperty,
-                new GUIContent("Max Shadowed Point Lights"));
+                _maxShadowedAdditionalLightsProperty,
+                new GUIContent("Max Shadowed Punctual Lights"));
 
             DrawSubsectionLabel("Atlas / Distance");
             EditorGUILayout.PropertyField(
+                _additionalLightShadowAtlasMaxSizeProperty,
+                new GUIContent("Atlas Max Size"));
+            EditorGUILayout.PropertyField(
                 _additionalLightShadowResolutionProperty,
-                new GUIContent("Shadow Tile Resolution"));
+                new GUIContent("Requested Tile Resolution"));
             EditorGUILayout.PropertyField(
                 _additionalLightShadowDistanceProperty,
                 new GUIContent("Max Shadow Distance"));
@@ -326,7 +326,7 @@ namespace NWRP.Editor
                 new GUIContent("Shadow Caster Cull Mode"));
 
             EditorGUILayout.HelpBox(
-                "Additional punctual light shadows use one shared 2D atlas. Each shadowed spot light consumes 1 slice and each shadowed point light consumes 6 slices, so point-light budget increases atlas cost much faster on mobile.",
+                "Spot lights consume one shadow slice and point lights consume six shadow slices in the shared atlas. Requested Tile Resolution controls per-slice quality; Atlas Max Size caps the total mobile shadow texture budget. The additional punctual light path is hard-shadow only in this branch.",
                 MessageType.None);
         }
 

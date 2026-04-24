@@ -17,7 +17,6 @@ struct ShadowCasterVaryings
 float4 _ShadowBias;
 float4 _ShadowLightDirection;
 float4 _ShadowLightPosition;
-float4 _ShadowLightParams;
 
 #ifndef NWRP_MATERIAL_CAST_SHADOWS
 #define NWRP_MATERIAL_CAST_SHADOWS 1.0h
@@ -38,22 +37,14 @@ float3 ApplyShadowBias(float3 positionWS, float3 normalWS, float3 lightDirection
     return positionWS;
 }
 
-float3 GetShadowLightDirectionWS(float3 positionWS)
-{
-    if (_ShadowLightParams.x > 0.5)
-    {
-        return normalize(_ShadowLightPosition.xyz - positionWS);
-    }
-
-    return normalize(_ShadowLightDirection.xyz);
-}
-
 ShadowCasterVaryings ShadowCasterVert(ShadowCasterAttributes input)
 {
     ShadowCasterVaryings output;
     float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
     float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
-    float3 lightDirectionWS = GetShadowLightDirectionWS(positionWS);
+    float3 lightDirectionWS = _ShadowLightPosition.w > 0.5
+        ? normalize(_ShadowLightPosition.xyz - positionWS)
+        : normalize(_ShadowLightDirection.xyz);
     float3 biasedPositionWS = ApplyShadowBias(positionWS, normalWS, lightDirectionWS);
     output.positionCS = TransformWorldToHClip(biasedPositionWS);
 

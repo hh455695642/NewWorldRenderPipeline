@@ -19,8 +19,21 @@ namespace NWRP.Runtime.Lighting
     internal static class AdditionalLightUtils
     {
         public const int MaxAdditionalLights = 8;
-        public const int PointLightFaceCount = 6;
-        public const int MaxAdditionalShadowSlices = MaxAdditionalLights * PointLightFaceCount;
+        public const int MaxShadowedAdditionalLights = 4;
+        public const int PointLightShadowFaceCount = 6;
+        public const int MaxAdditionalLightShadowSlices = MaxShadowedAdditionalLights * PointLightShadowFaceCount;
+        public const float SpotLightShadowTypeId = 0f;
+        public const float PointLightShadowTypeId = 1f;
+
+        public static int GetShadowSliceCount(LightType lightType)
+        {
+            return lightType switch
+            {
+                LightType.Spot => 1,
+                LightType.Point => PointLightShadowFaceCount,
+                _ => 0
+            };
+        }
 
         public static int CollectAdditionalLights(
             ref NWRPFrameData frameData,

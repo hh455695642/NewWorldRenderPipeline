@@ -8,31 +8,20 @@ namespace NWRP.Runtime.Passes
     {
         private const float kRasterDepthBias = 1.0f;
         private const float kRasterSlopeBias = 2.5f;
-
-        private readonly struct ShadowedAdditionalLight
-        {
-            public readonly int additionalLightIndex;
-            public readonly int firstSliceIndex;
-            public readonly int sliceCount;
-
-            public ShadowedAdditionalLight(int additionalLightIndex, int firstSliceIndex, int sliceCount)
-            {
-                this.additionalLightIndex = additionalLightIndex;
-                this.firstSliceIndex = firstSliceIndex;
-                this.sliceCount = sliceCount;
-            }
-        }
+        private const int kMinimumShadowTileResolution = 128;
 
         private readonly AdditionalLightData[] _additionalLights =
             new AdditionalLightData[AdditionalLightUtils.MaxAdditionalLights];
-        private readonly ShadowedAdditionalLight[] _shadowedLights =
-            new ShadowedAdditionalLight[AdditionalLightUtils.MaxAdditionalLights];
         private readonly Matrix4x4[] _worldToShadow =
             CreateWorldToShadowBuffer();
-        private readonly Vector4[] _lightShadowParams =
+        private readonly Vector4[] _shadowParams =
             new Vector4[AdditionalLightUtils.MaxAdditionalLights];
         private readonly Vector4[] _atlasRects =
-            new Vector4[AdditionalLightUtils.MaxAdditionalShadowSlices];
+            new Vector4[AdditionalLightUtils.MaxAdditionalLightShadowSlices];
+        private readonly int[] _shadowCandidateIndices =
+            new int[AdditionalLightUtils.MaxAdditionalLights];
+        private readonly float[] _shadowCandidateDistances =
+            new float[AdditionalLightUtils.MaxAdditionalLights];
 
         private RenderTexture _shadowmapTexture;
         private int _shadowmapWidth;
@@ -41,7 +30,7 @@ namespace NWRP.Runtime.Passes
         public AdditionalLightShadowCasterPass()
             : base(
                 NWRPPassEvent.ShadowMap,
-                "Render Additional Spot / Point Light Realtime Atlas",
+                "Render Additional Punctual Light Realtime Atlas",
                 NWRPProfiling.AdditionalLightShadow,
                 usePassProfilingScope: false)
         {
@@ -55,10 +44,7 @@ namespace NWRP.Runtime.Passes
         public override void Execute(ref NWRPFrameData frameData)
         {
             NewWorldRenderPipelineAsset asset = frameData.asset;
-            if (asset == null
-                || !asset.EnableAdditionalLightShadows
-                || (asset.MaxShadowedAdditionalSpotLights <= 0
-                    && asset.MaxShadowedAdditionalPointLights <= 0))
+            if (asset == null || !asset.EnableAdditionalLightShadows || asset.MaxShadowedAdditionalLights <= 0)
             {
                 UploadDisabledGlobals(ref frameData);
                 return;
@@ -68,26 +54,26 @@ namespace NWRP.Runtime.Passes
                 ref frameData,
                 _additionalLights,
                 out _);
-            int shadowedLightCount = CollectShadowedLights(
-                ref frameData,
-                additionalCount,
-                asset.MaxShadowedAdditionalSpotLights,
-                asset.MaxShadowedAdditionalPointLights,
-                out int totalSliceCount);
-            if (shadowedLightCount <= 0 || totalSliceCount <= 0)
+            int candidateCount = CollectShadowCandidates(ref frameData, additionalCount);
+            if (candidateCount <= 0)
             {
                 UploadDisabledGlobals(ref frameData);
                 return;
             }
 
-            int tileResolution = Mathf.ClosestPowerOfTwo(
-                Mathf.Clamp(asset.AdditionalLightShadowResolution, 128, 1024));
-            GetAtlasLayout(
-                totalSliceCount,
-                tileResolution,
-                out int atlasWidth,
-                out int atlasHeight,
-                out int tileColumns);
+            int selectedLightBudget = GetSelectedShadowLightBudget(asset, candidateCount);
+            if (!TryGetShadowAtlasLayout(
+                    asset,
+                    selectedLightBudget,
+                    out int selectedLightCount,
+                    out int tileResolution,
+                    out int atlasWidth,
+                    out int atlasHeight,
+                    out int tileColumns))
+            {
+                UploadDisabledGlobals(ref frameData);
+                return;
+            }
 
             if (!EnsureShadowmap(atlasWidth, atlasHeight))
             {
@@ -97,7 +83,7 @@ namespace NWRP.Runtime.Passes
 
             ResetShadowMetadata();
 
-            int renderedShadowSliceCount = 0;
+            int renderedLightCount = 0;
             using (new ProfilingScope(
                        frameData.cmd,
                        AdditionalLightShadowPassUtils.RenderRealtimeShadowAtlasSampler))
@@ -111,55 +97,35 @@ namespace NWRP.Runtime.Passes
                 cmd.SetGlobalDepthBias(kRasterDepthBias, kRasterSlopeBias);
                 MainLightShadowPassUtils.ExecuteBuffer(ref frameData);
 
-                for (int shadowedLightIndex = 0;
-                    shadowedLightIndex < shadowedLightCount;
-                    shadowedLightIndex++)
+                int shadowSliceIndex = 0;
+                for (int candidateIndex = 0; candidateIndex < selectedLightCount; candidateIndex++)
                 {
-                    ShadowedAdditionalLight shadowedLight = _shadowedLights[shadowedLightIndex];
-                    AdditionalLightData lightData = _additionalLights[shadowedLight.additionalLightIndex];
+                    AdditionalLightData lightData = _additionalLights[_shadowCandidateIndices[candidateIndex]];
+                    int sliceCount = AdditionalLightUtils.GetShadowSliceCount(lightData.visibleLight.lightType);
+                    int firstSliceIndex = shadowSliceIndex;
 
-                    if (lightData.visibleLight.lightType == LightType.Spot)
-                    {
-                        if (RenderSpotLightShadow(
-                                ref frameData,
-                                lightData,
-                                shadowedLight.firstSliceIndex,
-                                tileColumns,
-                                tileResolution,
-                                atlasWidth,
-                                atlasHeight))
-                        {
-                            _lightShadowParams[lightData.compactIndex] = new Vector4(
-                                1f,
-                                GetShadowStrength(lightData),
-                                shadowedLight.firstSliceIndex,
-                                1f);
-                            renderedShadowSliceCount++;
-                        }
-
-                        continue;
-                    }
-
-                    if (lightData.visibleLight.lightType == LightType.Point)
-                    {
-                        int renderedFaceCount = RenderPointLightShadow(
+                    if (!RenderShadowedLight(
                             ref frameData,
                             lightData,
-                            shadowedLight.firstSliceIndex,
+                            firstSliceIndex,
                             tileColumns,
                             tileResolution,
                             atlasWidth,
-                            atlasHeight);
-                        if (renderedFaceCount == AdditionalLightUtils.PointLightFaceCount)
-                        {
-                            _lightShadowParams[lightData.compactIndex] = new Vector4(
-                                1f,
-                                GetShadowStrength(lightData),
-                                shadowedLight.firstSliceIndex,
-                                AdditionalLightUtils.PointLightFaceCount);
-                            renderedShadowSliceCount += renderedFaceCount;
-                        }
+                            atlasHeight))
+                    {
+                        continue;
                     }
+
+                    // Commit receiver metadata only after all slices for this light rendered.
+                    _shadowParams[lightData.compactIndex] = new Vector4(
+                        1f,
+                        lightData.light != null ? lightData.light.shadowStrength : 1f,
+                        lightData.visibleLight.lightType == LightType.Point
+                            ? AdditionalLightUtils.PointLightShadowTypeId
+                            : AdditionalLightUtils.SpotLightShadowTypeId,
+                        firstSliceIndex);
+                    shadowSliceIndex += sliceCount;
+                    renderedLightCount++;
                 }
 
                 cmd.SetGlobalDepthBias(0f, 0f);
@@ -167,11 +133,10 @@ namespace NWRP.Runtime.Passes
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
                 cmd.SetGlobalVector(NWRPShaderIds.ShadowLightPosition, Vector4.zero);
-                cmd.SetGlobalVector(NWRPShaderIds.ShadowLightParams, Vector4.zero);
                 MainLightShadowPassUtils.ExecuteBuffer(ref frameData);
             }
 
-            if (renderedShadowSliceCount <= 0)
+            if (renderedLightCount <= 0)
             {
                 UploadDisabledGlobals(ref frameData);
                 frameData.context.SetupCameraProperties(frameData.camera);
@@ -183,7 +148,7 @@ namespace NWRP.Runtime.Passes
                 ref frameData,
                 _shadowmapTexture,
                 _worldToShadow,
-                _lightShadowParams,
+                _shadowParams,
                 _atlasRects,
                 atlasWidth,
                 atlasHeight);
@@ -191,7 +156,7 @@ namespace NWRP.Runtime.Passes
 
         private static Matrix4x4[] CreateWorldToShadowBuffer()
         {
-            Matrix4x4[] matrices = new Matrix4x4[AdditionalLightUtils.MaxAdditionalShadowSlices];
+            Matrix4x4[] matrices = new Matrix4x4[AdditionalLightUtils.MaxAdditionalLightShadowSlices];
             for (int i = 0; i < matrices.Length; i++)
             {
                 matrices[i] = Matrix4x4.identity;
@@ -200,119 +165,199 @@ namespace NWRP.Runtime.Passes
             return matrices;
         }
 
-        private int CollectShadowedLights(
+        private int CollectShadowCandidates(
             ref NWRPFrameData frameData,
-            int additionalCount,
-            int spotBudget,
-            int pointBudget,
-            out int totalSliceCount)
+            int additionalCount)
         {
             Camera camera = frameData.camera;
             Vector3 cameraPosition = camera != null ? camera.transform.position : Vector3.zero;
             float maxReceiverDistance = Mathf.Max(frameData.asset.AdditionalLightShadowDistance, 0f);
-            int remainingSpotBudget = Mathf.Max(spotBudget, 0);
-            int remainingPointBudget = Mathf.Max(pointBudget, 0);
-            int shadowedCount = 0;
-            totalSliceCount = 0;
+            int candidateCount = 0;
 
-            for (int i = 0;
-                i < additionalCount && shadowedCount < AdditionalLightUtils.MaxAdditionalLights;
-                i++)
+            for (int i = 0; i < additionalCount; i++)
             {
                 AdditionalLightData lightData = _additionalLights[i];
-                if (!IsShadowedLightCandidate(
-                        ref frameData,
-                        lightData,
-                        cameraPosition,
-                        maxReceiverDistance))
+                int sliceCount = AdditionalLightUtils.GetShadowSliceCount(lightData.visibleLight.lightType);
+                if (sliceCount <= 0)
                 {
                     continue;
                 }
 
-                int sliceCount;
-                switch (lightData.visibleLight.lightType)
+                if (lightData.light == null
+                    || lightData.light.shadows == LightShadows.None
+                    || lightData.light.shadowStrength <= 0f)
                 {
-                    case LightType.Spot:
-                        if (remainingSpotBudget <= 0)
-                        {
-                            continue;
-                        }
-
-                        remainingSpotBudget--;
-                        sliceCount = 1;
-                        break;
-
-                    case LightType.Point:
-                        if (remainingPointBudget <= 0)
-                        {
-                            continue;
-                        }
-
-                        remainingPointBudget--;
-                        sliceCount = AdditionalLightUtils.PointLightFaceCount;
-                        break;
-
-                    default:
-                        continue;
+                    continue;
                 }
 
-                _shadowedLights[shadowedCount] = new ShadowedAdditionalLight(
-                    i,
-                    totalSliceCount,
-                    sliceCount);
-                totalSliceCount += sliceCount;
-                shadowedCount++;
+                if (!frameData.cullingResults.GetShadowCasterBounds(
+                        lightData.visibleLightIndex,
+                        out Bounds _))
+                {
+                    continue;
+                }
+
+                float range = Mathf.Max(lightData.visibleLight.range, 0f);
+                float maxLightDistance = maxReceiverDistance + range;
+                Vector3 lightPosition = new Vector3(
+                    lightData.position.x,
+                    lightData.position.y,
+                    lightData.position.z);
+                float cameraDistanceSqr = (lightPosition - cameraPosition).sqrMagnitude;
+                if (maxLightDistance > 0f
+                    && cameraDistanceSqr > maxLightDistance * maxLightDistance)
+                {
+                    continue;
+                }
+
+                _shadowCandidateIndices[candidateCount] = i;
+                _shadowCandidateDistances[i] = cameraDistanceSqr;
+                candidateCount++;
             }
 
-            return shadowedCount;
+            SortShadowCandidates(candidateCount);
+            return candidateCount;
         }
 
-        private static bool IsShadowedLightCandidate(
+        private static int GetSelectedShadowLightBudget(
+            NewWorldRenderPipelineAsset asset,
+            int candidateCount)
+        {
+            return Mathf.Min(
+                candidateCount,
+                Mathf.Clamp(
+                    asset.MaxShadowedAdditionalLights,
+                    0,
+                    AdditionalLightUtils.MaxShadowedAdditionalLights));
+        }
+
+        private void SortShadowCandidates(int candidateCount)
+        {
+            for (int i = 1; i < candidateCount; i++)
+            {
+                int candidateLightIndex = _shadowCandidateIndices[i];
+                int insertionIndex = i - 1;
+                while (insertionIndex >= 0
+                    && CompareShadowCandidates(
+                        candidateLightIndex,
+                        _shadowCandidateIndices[insertionIndex]) < 0)
+                {
+                    _shadowCandidateIndices[insertionIndex + 1] = _shadowCandidateIndices[insertionIndex];
+                    insertionIndex--;
+                }
+
+                _shadowCandidateIndices[insertionIndex + 1] = candidateLightIndex;
+            }
+        }
+
+        private int CompareShadowCandidates(int lhsLightIndex, int rhsLightIndex)
+        {
+            float lhsDistance = _shadowCandidateDistances[lhsLightIndex];
+            float rhsDistance = _shadowCandidateDistances[rhsLightIndex];
+            if (!Mathf.Approximately(lhsDistance, rhsDistance))
+            {
+                return lhsDistance < rhsDistance ? -1 : 1;
+            }
+
+            bool lhsIsSpot = _additionalLights[lhsLightIndex].visibleLight.lightType == LightType.Spot;
+            bool rhsIsSpot = _additionalLights[rhsLightIndex].visibleLight.lightType == LightType.Spot;
+            if (lhsIsSpot != rhsIsSpot)
+            {
+                return lhsIsSpot ? -1 : 1;
+            }
+
+            return _additionalLights[lhsLightIndex].visibleLightIndex.CompareTo(
+                _additionalLights[rhsLightIndex].visibleLightIndex);
+        }
+
+        private bool TryGetShadowAtlasLayout(
+            NewWorldRenderPipelineAsset asset,
+            int selectedLightBudget,
+            out int selectedLightCount,
+            out int tileResolution,
+            out int atlasWidth,
+            out int atlasHeight,
+            out int tileColumns)
+        {
+            selectedLightCount = selectedLightBudget;
+            int requestedTileResolution = Mathf.ClosestPowerOfTwo(
+                Mathf.Clamp(asset.AdditionalLightShadowResolution, 128, 1024));
+            int atlasMaxSize = Mathf.ClosestPowerOfTwo(
+                Mathf.Clamp(asset.AdditionalLightShadowAtlasMaxSize, 512, 2048));
+
+            while (selectedLightCount > 0)
+            {
+                int totalShadowSlices = GetSelectedShadowSliceCount(selectedLightCount);
+                GetAtlasLayout(
+                    totalShadowSlices,
+                    requestedTileResolution,
+                    atlasMaxSize,
+                    out tileResolution,
+                    out atlasWidth,
+                    out atlasHeight,
+                    out tileColumns);
+                if (tileResolution >= kMinimumShadowTileResolution)
+                {
+                    return true;
+                }
+
+                selectedLightCount--;
+            }
+
+            tileResolution = 0;
+            atlasWidth = 0;
+            atlasHeight = 0;
+            tileColumns = 0;
+            return false;
+        }
+
+        private int GetSelectedShadowSliceCount(int selectedLightCount)
+        {
+            int totalShadowSlices = 0;
+            for (int i = 0; i < selectedLightCount; i++)
+            {
+                AdditionalLightData lightData = _additionalLights[_shadowCandidateIndices[i]];
+                totalShadowSlices += AdditionalLightUtils.GetShadowSliceCount(lightData.visibleLight.lightType);
+            }
+
+            return totalShadowSlices;
+        }
+
+        private bool RenderShadowedLight(
             ref NWRPFrameData frameData,
             AdditionalLightData lightData,
-            Vector3 cameraPosition,
-            float maxReceiverDistance)
+            int firstSliceIndex,
+            int tileColumns,
+            int tileResolution,
+            int atlasWidth,
+            int atlasHeight)
         {
-            if (lightData.visibleLight.lightType != LightType.Spot
-                && lightData.visibleLight.lightType != LightType.Point)
+            return lightData.visibleLight.lightType switch
             {
-                return false;
-            }
-
-            if (lightData.light == null
-                || lightData.light.shadows == LightShadows.None
-                || lightData.light.shadowStrength <= 0f)
-            {
-                return false;
-            }
-
-            if (!frameData.cullingResults.GetShadowCasterBounds(
-                    lightData.visibleLightIndex,
-                    out Bounds _))
-            {
-                return false;
-            }
-
-            float range = Mathf.Max(lightData.visibleLight.range, 0f);
-            float maxLightDistance = maxReceiverDistance + range;
-            Vector3 lightPosition = new Vector3(
-                lightData.position.x,
-                lightData.position.y,
-                lightData.position.z);
-            if (maxLightDistance > 0f
-                && (lightPosition - cameraPosition).sqrMagnitude
-                > maxLightDistance * maxLightDistance)
-            {
-                return false;
-            }
-
-            return true;
+                LightType.Spot => RenderSpotLightShadow(
+                    ref frameData,
+                    lightData,
+                    firstSliceIndex,
+                    tileColumns,
+                    tileResolution,
+                    atlasWidth,
+                    atlasHeight),
+                LightType.Point => RenderPointLightShadow(
+                    ref frameData,
+                    lightData,
+                    firstSliceIndex,
+                    tileColumns,
+                    tileResolution,
+                    atlasWidth,
+                    atlasHeight),
+                _ => false
+            };
         }
 
         private bool RenderSpotLightShadow(
             ref NWRPFrameData frameData,
             AdditionalLightData lightData,
-            int sliceIndex,
+            int shadowSliceIndex,
             int tileColumns,
             int tileResolution,
             int atlasWidth,
@@ -338,92 +383,8 @@ namespace NWRP.Runtime.Passes
                     splitData = splitData
                 };
 
-            RenderShadowSlice(
-                ref frameData,
-                shadowDrawingSettings,
-                viewMatrix,
-                projectionMatrix,
-                sliceIndex,
-                tileColumns,
-                tileResolution,
-                atlasWidth,
-                atlasHeight,
-                lightData.spotDirection,
-                Vector4.zero,
-                Vector4.zero);
-            return true;
-        }
-
-        private int RenderPointLightShadow(
-            ref NWRPFrameData frameData,
-            AdditionalLightData lightData,
-            int firstSliceIndex,
-            int tileColumns,
-            int tileResolution,
-            int atlasWidth,
-            int atlasHeight)
-        {
-            int renderedFaceCount = 0;
-            for (int faceIndex = 0; faceIndex < AdditionalLightUtils.PointLightFaceCount; faceIndex++)
-            {
-                CubemapFace cubemapFace = GetCubemapFace(faceIndex);
-                if (!frameData.cullingResults.ComputePointShadowMatricesAndCullingPrimitives(
-                        lightData.visibleLightIndex,
-                        cubemapFace,
-                        0f,
-                        out Matrix4x4 viewMatrix,
-                        out Matrix4x4 projectionMatrix,
-                        out ShadowSplitData splitData))
-                {
-                    continue;
-                }
-
-                splitData.shadowCascadeBlendCullingFactor = 1.0f;
-                ShadowDrawingSettings shadowDrawingSettings =
-                    new ShadowDrawingSettings(
-                        frameData.cullingResults,
-                        lightData.visibleLightIndex,
-                        BatchCullingProjectionType.Perspective)
-                    {
-                        useRenderingLayerMaskTest = true,
-                        splitData = splitData
-                    };
-
-                RenderShadowSlice(
-                    ref frameData,
-                    shadowDrawingSettings,
-                    viewMatrix,
-                    projectionMatrix,
-                    firstSliceIndex + faceIndex,
-                    tileColumns,
-                    tileResolution,
-                    atlasWidth,
-                    atlasHeight,
-                    Vector4.zero,
-                    lightData.position,
-                    new Vector4(1f, 0f, 0f, 0f));
-                renderedFaceCount++;
-            }
-
-            return renderedFaceCount;
-        }
-
-        private void RenderShadowSlice(
-            ref NWRPFrameData frameData,
-            ShadowDrawingSettings shadowDrawingSettings,
-            Matrix4x4 viewMatrix,
-            Matrix4x4 projectionMatrix,
-            int sliceIndex,
-            int tileColumns,
-            int tileResolution,
-            int atlasWidth,
-            int atlasHeight,
-            Vector4 shadowLightDirection,
-            Vector4 shadowLightPosition,
-            Vector4 shadowLightParams)
-        {
             GetTileOffset(
-                sliceIndex,
+                shadowSliceIndex,
                 tileColumns,
                 tileResolution,
                 out int offsetX,
@@ -432,9 +393,8 @@ namespace NWRP.Runtime.Passes
             CommandBuffer cmd = frameData.cmd;
             cmd.SetViewport(new Rect(offsetX, offsetY, tileResolution, tileResolution));
             cmd.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, shadowLightDirection);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightPosition, shadowLightPosition);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightParams, shadowLightParams);
+            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, lightData.spotDirection);
+            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightPosition, Vector4.zero);
             cmd.SetGlobalVector(
                 NWRPShaderIds.ShadowBias,
                 MainLightShadowPassUtils.CalculateShadowBias(
@@ -445,8 +405,105 @@ namespace NWRP.Runtime.Passes
             MainLightShadowPassUtils.ExecuteBuffer(ref frameData);
 
             frameData.context.DrawShadows(ref shadowDrawingSettings);
+            RecordShadowSliceData(
+                shadowSliceIndex,
+                projectionMatrix,
+                viewMatrix,
+                offsetX,
+                offsetY,
+                tileResolution,
+                atlasWidth,
+                atlasHeight);
+            return true;
+        }
 
-            _worldToShadow[sliceIndex] =
+        private bool RenderPointLightShadow(
+            ref NWRPFrameData frameData,
+            AdditionalLightData lightData,
+            int firstSliceIndex,
+            int tileColumns,
+            int tileResolution,
+            int atlasWidth,
+            int atlasHeight)
+        {
+            ShadowDrawingSettings shadowDrawingSettings =
+                new ShadowDrawingSettings(
+                    frameData.cullingResults,
+                    lightData.visibleLightIndex,
+                    BatchCullingProjectionType.Perspective)
+                {
+                    useRenderingLayerMaskTest = true
+                };
+
+            Vector4 shadowBias = AdditionalLightShadowPassUtils.CalculatePointShadowBias(
+                frameData.asset.AdditionalLightShadowBias,
+                lightData.visibleLight.range,
+                tileResolution);
+            float fovBias = AdditionalLightShadowPassUtils.GetPointLightShadowFrustumFovBiasInDegrees(tileResolution);
+            CommandBuffer cmd = frameData.cmd;
+
+            for (int faceIndex = 0; faceIndex < AdditionalLightUtils.PointLightShadowFaceCount; faceIndex++)
+            {
+                CubemapFace cubemapFace = (CubemapFace)faceIndex;
+                if (!frameData.cullingResults.ComputePointShadowMatricesAndCullingPrimitives(
+                        lightData.visibleLightIndex,
+                        cubemapFace,
+                        fovBias,
+                        out Matrix4x4 viewMatrix,
+                        out Matrix4x4 projectionMatrix,
+                        out ShadowSplitData splitData))
+                {
+                    ResetShadowSliceData(firstSliceIndex, faceIndex);
+                    return false;
+                }
+
+                AdditionalLightShadowPassUtils.FixupPointShadowViewMatrix(ref viewMatrix);
+                splitData.shadowCascadeBlendCullingFactor = 1.0f;
+                shadowDrawingSettings.splitData = splitData;
+
+                int shadowSliceIndex = firstSliceIndex + faceIndex;
+                GetTileOffset(
+                    shadowSliceIndex,
+                    tileColumns,
+                    tileResolution,
+                    out int offsetX,
+                    out int offsetY);
+
+                cmd.SetViewport(new Rect(offsetX, offsetY, tileResolution, tileResolution));
+                cmd.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
+                cmd.SetGlobalVector(
+                    NWRPShaderIds.ShadowLightDirection,
+                    AdditionalLightShadowPassUtils.GetPointLightFaceDirection(cubemapFace));
+                cmd.SetGlobalVector(NWRPShaderIds.ShadowLightPosition, lightData.position);
+                cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, shadowBias);
+                MainLightShadowPassUtils.ExecuteBuffer(ref frameData);
+
+                frameData.context.DrawShadows(ref shadowDrawingSettings);
+                RecordShadowSliceData(
+                    shadowSliceIndex,
+                    projectionMatrix,
+                    viewMatrix,
+                    offsetX,
+                    offsetY,
+                    tileResolution,
+                    atlasWidth,
+                    atlasHeight);
+            }
+
+            return true;
+        }
+
+        private void RecordShadowSliceData(
+            int shadowSliceIndex,
+            Matrix4x4 projectionMatrix,
+            Matrix4x4 viewMatrix,
+            int offsetX,
+            int offsetY,
+            int tileResolution,
+            int atlasWidth,
+            int atlasHeight)
+        {
+            _worldToShadow[shadowSliceIndex] =
                 MainLightShadowPassUtils.BuildWorldToShadowMatrix(
                     projectionMatrix,
                     viewMatrix,
@@ -455,7 +512,7 @@ namespace NWRP.Runtime.Passes
                     tileResolution,
                     atlasWidth,
                     atlasHeight);
-            _atlasRects[sliceIndex] = new Vector4(
+            _atlasRects[shadowSliceIndex] = new Vector4(
                 (float)offsetX / atlasWidth,
                 (float)offsetY / atlasHeight,
                 (float)(offsetX + tileResolution) / atlasWidth,
@@ -464,15 +521,29 @@ namespace NWRP.Runtime.Passes
 
         private void ResetShadowMetadata()
         {
-            for (int i = 0; i < AdditionalLightUtils.MaxAdditionalLights; i++)
-            {
-                _lightShadowParams[i] = Vector4.zero;
-            }
-
-            for (int i = 0; i < AdditionalLightUtils.MaxAdditionalShadowSlices; i++)
+            for (int i = 0; i < _worldToShadow.Length; i++)
             {
                 _worldToShadow[i] = Matrix4x4.identity;
+            }
+
+            for (int i = 0; i < _shadowParams.Length; i++)
+            {
+                _shadowParams[i] = Vector4.zero;
+            }
+
+            for (int i = 0; i < _atlasRects.Length; i++)
+            {
                 _atlasRects[i] = Vector4.zero;
+            }
+        }
+
+        private void ResetShadowSliceData(int firstSliceIndex, int renderedSliceCount)
+        {
+            for (int i = 0; i < renderedSliceCount; i++)
+            {
+                int shadowSliceIndex = firstSliceIndex + i;
+                _worldToShadow[shadowSliceIndex] = Matrix4x4.identity;
+                _atlasRects[shadowSliceIndex] = Vector4.zero;
             }
         }
 
@@ -529,37 +600,53 @@ namespace NWRP.Runtime.Passes
         }
 
         private static void GetAtlasLayout(
-            int totalSliceCount,
-            int tileResolution,
+            int totalShadowSlices,
+            int requestedTileResolution,
+            int atlasMaxSize,
+            out int tileResolution,
             out int atlasWidth,
             out int atlasHeight,
             out int tileColumns)
         {
-            tileColumns = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(totalSliceCount)));
-            int tileRows = Mathf.Max(1, Mathf.CeilToInt((float)totalSliceCount / tileColumns));
+            if (totalShadowSlices <= 0)
+            {
+                tileResolution = 0;
+                atlasWidth = 0;
+                atlasHeight = 0;
+                tileColumns = 0;
+                return;
+            }
+
+            tileColumns = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(totalShadowSlices)));
+            int tileRows = Mathf.Max(1, Mathf.CeilToInt((float)totalShadowSlices / tileColumns));
+            int maxTileResolution = Mathf.Min(
+                Mathf.Max(1, atlasMaxSize / tileColumns),
+                Mathf.Max(1, atlasMaxSize / tileRows));
+            tileResolution = Mathf.Min(requestedTileResolution, FloorToPowerOfTwo(maxTileResolution));
             atlasWidth = tileResolution * tileColumns;
             atlasHeight = tileResolution * tileRows;
         }
 
+        private static int FloorToPowerOfTwo(int value)
+        {
+            if (value < 1)
+            {
+                return 0;
+            }
+
+            int power = Mathf.ClosestPowerOfTwo(value);
+            return power > value ? power >> 1 : power;
+        }
+
         private static void GetTileOffset(
-            int sliceIndex,
+            int shadowSliceIndex,
             int tileColumns,
             int tileResolution,
             out int offsetX,
             out int offsetY)
         {
-            offsetX = (sliceIndex % tileColumns) * tileResolution;
-            offsetY = (sliceIndex / tileColumns) * tileResolution;
-        }
-
-        private static CubemapFace GetCubemapFace(int faceIndex)
-        {
-            return (CubemapFace)faceIndex;
-        }
-
-        private static float GetShadowStrength(AdditionalLightData lightData)
-        {
-            return lightData.light != null ? lightData.light.shadowStrength : 1f;
+            offsetX = (shadowSliceIndex % tileColumns) * tileResolution;
+            offsetY = (shadowSliceIndex / tileColumns) * tileResolution;
         }
     }
 }

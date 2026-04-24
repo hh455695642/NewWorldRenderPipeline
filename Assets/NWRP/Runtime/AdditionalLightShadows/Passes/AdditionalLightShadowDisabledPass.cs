@@ -5,7 +5,7 @@ namespace NWRP.Runtime.Passes
         public AdditionalLightShadowDisabledPass()
             : base(
                 NWRPPassEvent.ShadowMap,
-                "Upload Additional Spot / Point Light Shadow Disabled Globals",
+                "Upload Additional Punctual Light Shadow Disabled Globals",
                 NWRPProfiling.AdditionalLightShadow,
                 usePassProfilingScope: false)
         {

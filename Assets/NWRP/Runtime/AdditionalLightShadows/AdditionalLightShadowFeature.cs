@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace NWRP
 {
-    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Additional Spot Point Light Shadow Feature")]
+    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Additional Punctual Light Shadow Feature")]
     public sealed class AdditionalLightShadowFeature : NWRPFeature
     {
         private AdditionalLightShadowDisabledPass _disabledPass;

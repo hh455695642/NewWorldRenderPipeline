@@ -16,9 +16,9 @@ namespace NWRP
         public static readonly int AdditionalLightsAttenuation = Shader.PropertyToID("_AdditionalLightsAttenuation");
         public static readonly int AdditionalLightsSpotDir = Shader.PropertyToID("_AdditionalLightsSpotDir");
         public static readonly int AdditionalLightsShadowmapTexture = Shader.PropertyToID("_AdditionalLightsShadowmapTexture");
-        public static readonly int AdditionalLightsWorldToShadow = Shader.PropertyToID("_AdditionalLightsWorldToShadow");
+        public static readonly int AdditionalLightsWorldToShadow = Shader.PropertyToID("_AdditionalLightsShadowSliceWorldToShadow");
         public static readonly int AdditionalLightsShadowParams = Shader.PropertyToID("_AdditionalLightsShadowParams");
-        public static readonly int AdditionalLightsShadowAtlasRects = Shader.PropertyToID("_AdditionalLightsShadowAtlasRects");
+        public static readonly int AdditionalLightsShadowAtlasRects = Shader.PropertyToID("_AdditionalLightsShadowSliceAtlasRects");
         public static readonly int AdditionalLightsShadowAtlasSize = Shader.PropertyToID("_AdditionalLightsShadowAtlasSize");
         public static readonly int AdditionalLightsShadowGlobalParams = Shader.PropertyToID("_AdditionalLightsShadowGlobalParams");
 
@@ -39,7 +39,6 @@ namespace NWRP
         public static readonly int ShadowBias = Shader.PropertyToID("_ShadowBias");
         public static readonly int ShadowLightDirection = Shader.PropertyToID("_ShadowLightDirection");
         public static readonly int ShadowLightPosition = Shader.PropertyToID("_ShadowLightPosition");
-        public static readonly int ShadowLightParams = Shader.PropertyToID("_ShadowLightParams");
         public static readonly int MainLightShadowCascadeCount = Shader.PropertyToID("_MainLightShadowCascadeCount");
         public static readonly int CascadeShadowSplitSpheres0 = Shader.PropertyToID("_CascadeShadowSplitSpheres0");
         public static readonly int CascadeShadowSplitSpheres1 = Shader.PropertyToID("_CascadeShadowSplitSpheres1");

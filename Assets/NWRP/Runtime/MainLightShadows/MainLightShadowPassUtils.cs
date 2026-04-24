@@ -309,7 +309,6 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, shadowCasterCullMode);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, GetShadowLightDirection(shadowVisibleLight));
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightPosition, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightParams, Vector4.zero);
             cmd.SetGlobalDepthBias(kRasterDepthBias, kRasterSlopeBias);
             ExecuteBuffer(ref frameData);
 
@@ -344,7 +343,6 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightPosition, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightParams, Vector4.zero);
             cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
             ExecuteBuffer(ref frameData);
             return anyCascadeRendered;
@@ -376,7 +374,6 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalVector(NWRPShaderIds.ShadowBias, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightDirection, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.ShadowLightPosition, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.ShadowLightParams, Vector4.zero);
             cmd.SetGlobalDepthBias(0.0f, 0.0f);
             cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowCascadeCount, 0);
             cmd.SetGlobalVector(NWRPShaderIds.CascadeShadowSplitSpheres0, Vector4.zero);
