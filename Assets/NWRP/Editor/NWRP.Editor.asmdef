@@ -2,7 +2,8 @@
     "name": "NWRP.Editor",
     "rootNamespace": "NWRP.Editor",
     "references": [
-        "NWRP.Runtime"
+        "NWRP.Runtime",
+        "Unity.RenderPipelines.Core.Editor"
     ],
     "includePlatforms": [
         "Editor"

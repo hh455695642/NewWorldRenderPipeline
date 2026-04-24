@@ -5,6 +5,9 @@ using NWRP.Runtime.Passes;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace NWRP
 {
@@ -46,6 +49,10 @@ namespace NWRP
         private readonly DrawOutlinePass _drawOutlinePass;
         private readonly DrawSkyboxPass _drawSkyboxPass;
         private readonly DrawTransparentPass _drawTransparentPass;
+#if UNITY_EDITOR
+        private readonly DrawGizmosPass _drawGizmosPreImageEffectsPass;
+        private readonly DrawGizmosPass _drawGizmosPostImageEffectsPass;
+#endif
         private readonly SubmitPass _submitPass;
 
         private int _enqueueCounter;
@@ -58,6 +65,18 @@ namespace NWRP
             _drawOutlinePass = new DrawOutlinePass(this);
             _drawSkyboxPass = new DrawSkyboxPass(this);
             _drawTransparentPass = new DrawTransparentPass(this);
+#if UNITY_EDITOR
+            _drawGizmosPreImageEffectsPass = new DrawGizmosPass(
+                this,
+                NWRPPassEvent.AfterTransparent,
+                GizmoSubset.PreImageEffects,
+                "Draw Gizmos Pre Image Effects");
+            _drawGizmosPostImageEffectsPass = new DrawGizmosPass(
+                this,
+                NWRPPassEvent.DebugOverlay,
+                GizmoSubset.PostImageEffects,
+                "Draw Gizmos Post Image Effects");
+#endif
             _submitPass = new SubmitPass(this);
         }
 
@@ -71,6 +90,10 @@ namespace NWRP
             NewWorldRenderPipelineAsset asset
         )
         {
+#if UNITY_EDITOR
+            EmitSceneViewGeometry(camera);
+#endif
+
             if (!TryCull(context, camera, asset, out CullingResults cullingResults))
             {
                 return;
@@ -260,6 +283,18 @@ namespace NWRP
             );
         }
 
+#if UNITY_EDITOR
+        internal void ExecuteDrawGizmos(ref NWRPFrameData frameData, GizmoSubset gizmoSubset)
+        {
+            if (!ShouldDrawGizmos(frameData.camera))
+            {
+                return;
+            }
+
+            frameData.context.DrawGizmos(frameData.camera, gizmoSubset);
+        }
+#endif
+
         internal void ExecuteSubmit(ref NWRPFrameData frameData)
         {
             ExecuteBuffer(ref frameData);
@@ -278,6 +313,10 @@ namespace NWRP
             EnqueuePass(_drawTransparentPass);
 
             EnqueueFeaturePasses(ref frameData);
+
+#if UNITY_EDITOR
+            EnqueueEditorGizmoPasses();
+#endif
 
             // Submit must stay last after all rendering/debug passes.
             EnqueuePass(_submitPass);
@@ -518,6 +557,14 @@ namespace NWRP
             }
         }
 
+#if UNITY_EDITOR
+        private void EnqueueEditorGizmoPasses()
+        {
+            EnqueuePass(_drawGizmosPreImageEffectsPass);
+            EnqueuePass(_drawGizmosPostImageEffectsPass);
+        }
+#endif
+
         private static int CompareQueuedPass(QueuedPass a, QueuedPass b)
         {
             int eventCompare = a.pass.passEvent.CompareTo(b.pass.passEvent);
@@ -565,6 +612,25 @@ namespace NWRP
             cullingResults = default;
             return false;
         }
+
+#if UNITY_EDITOR
+        private static void EmitSceneViewGeometry(Camera camera)
+        {
+            if (camera == null || camera.cameraType != CameraType.SceneView)
+            {
+                return;
+            }
+
+            ScriptableRenderContext.EmitWorldGeometryForSceneView(camera);
+        }
+
+        private static bool ShouldDrawGizmos(Camera camera)
+        {
+            return camera != null
+                && camera.sceneViewFilterMode != Camera.SceneViewFilterMode.ShowFiltered
+                && Handles.ShouldRenderGizmos();
+        }
+#endif
 
         private static void ExecuteBuffer(ref NWRPFrameData frameData)
         {

@@ -1,17 +1,14 @@
-using System.Reflection;
 using UnityEditor;
+using UnityEditor.Rendering;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace NWRP.Editor
 {
     [CanEditMultipleObjects]
-    [CustomEditor(typeof(Light))]
-    public sealed class NWRPLightEditor : UnityEditor.Editor
+    [CustomEditorForRenderPipeline(typeof(Light), typeof(NewWorldRenderPipelineAsset))]
+    public sealed class NWRPLightEditor : LightEditor
     {
-        private static readonly BindingFlags s_InstanceAnyVisibility =
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
         private static readonly GUIContent s_TypeLabel = new GUIContent("Type");
         private static readonly GUIContent s_ColorLabel = new GUIContent("Color");
         private static readonly GUIContent s_IntensityLabel = new GUIContent("Intensity");
@@ -37,10 +34,9 @@ namespace NWRP.Editor
         private SerializedProperty _shadowStrengthProperty;
         private SerializedProperty _shadowNearPlaneProperty;
 
-        private void OnEnable()
+        protected override void OnEnable()
         {
             CacheProperties();
-            CreateFallbackEditor();
         }
 
         private void OnDisable()
@@ -85,12 +81,28 @@ namespace NWRP.Editor
                 return false;
             }
 
+            CreateFallbackEditor();
             return _fallbackEditor != null && _fallbackEditor.RequiresConstantRepaint();
         }
 
-        private void OnSceneGUI()
+        protected override void OnSceneGUI()
         {
-            InvokeFallbackEditorMethod("OnSceneGUI");
+            if (GetActivePipelineAsset() == null)
+            {
+                base.OnSceneGUI();
+                return;
+            }
+
+            if (target is not Light light || light == null)
+            {
+                base.OnSceneGUI();
+                return;
+            }
+
+            if (!DrawSupportedLightGizmo(light))
+            {
+                base.OnSceneGUI();
+            }
         }
 
         private void DrawLightSection()
@@ -241,18 +253,6 @@ namespace NWRP.Editor
             _fallbackEditor = CreateEditor(targets, typeof(UnityEditor.LightEditor));
         }
 
-        private void InvokeFallbackEditorMethod(string methodName)
-        {
-            CreateFallbackEditor();
-            if (_fallbackEditor == null)
-            {
-                return;
-            }
-
-            MethodInfo method = _fallbackEditor.GetType().GetMethod(methodName, s_InstanceAnyVisibility);
-            method?.Invoke(_fallbackEditor, null);
-        }
-
         private void NormalizeShadowType()
         {
             if (_shadowTypeProperty == null
@@ -323,6 +323,42 @@ namespace NWRP.Editor
             return _shapeProperty == null
                 || _shapeProperty.hasMultipleDifferentValues
                 || _shapeProperty.enumValueIndex == 0;
+        }
+
+        private static bool DrawSupportedLightGizmo(Light light)
+        {
+            switch (light.type)
+            {
+                case LightType.Directional:
+                    using (new Handles.DrawingScope(
+                        Matrix4x4.TRS(light.transform.position, light.transform.rotation, Vector3.one)))
+                    {
+                        CoreLightEditorUtilities.DrawDirectionalLightGizmo(light);
+                    }
+
+                    return true;
+
+                case LightType.Point:
+                    using (new Handles.DrawingScope(
+                        Matrix4x4.TRS(light.transform.position, Quaternion.identity, Vector3.one)))
+                    {
+                        CoreLightEditorUtilities.DrawPointLightGizmo(light);
+                    }
+
+                    return true;
+
+                case LightType.Spot:
+                    using (new Handles.DrawingScope(
+                        Matrix4x4.TRS(light.transform.position, light.transform.rotation, Vector3.one)))
+                    {
+                        CoreLightEditorUtilities.DrawSpotLightGizmo(light);
+                    }
+
+                    return true;
+
+                default:
+                    return false;
+            }
         }
 
         private static string GetHeaderLabel(LightType lightType)
