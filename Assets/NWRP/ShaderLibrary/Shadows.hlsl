@@ -3,6 +3,8 @@
 
 #define NWRP_MAIN_LIGHT_SHADOW_FILTER_HARD 0
 #define NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF 1
+#define NWRP_ADDITIONAL_LIGHT_SHADOW_FILTER_HARD 0
+#define NWRP_ADDITIONAL_LIGHT_SHADOW_FILTER_MEDIUM_PCF 1
 
 #define NWRP_MAIN_LIGHT_SHADOW_DEBUG_OFF 0
 #define NWRP_MAIN_LIGHT_SHADOW_DEBUG_SOURCE_TINT 1
@@ -49,6 +51,8 @@ half4 _AdditionalLightsShadowParams[MAX_ADDITIONAL_LIGHTS];
 float4 _AdditionalLightsShadowSliceAtlasRects[MAX_ADDITIONAL_LIGHT_SHADOW_SLICES];
 float4 _AdditionalLightsShadowAtlasSize;
 float4 _AdditionalLightsShadowGlobalParams;
+int _AdditionalLightsShadowFilterMode;
+float _AdditionalLightsShadowFilterRadius;
 
 struct MainLightShadowResult
 {
@@ -209,6 +213,37 @@ half SampleAdditionalLightShadowTextureHard(float3 shadowCoordUVW, int shadowSli
     );
 }
 
+#define NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(offsetX, offsetY, weight) \
+    uv = ClampAdditionalLightShadowSampleUV( \
+        shadowCoordUVW.xy + texelSize * float2(offsetX, offsetY), \
+        shadowSliceIndex, \
+        paddingScale); \
+    visibility += SAMPLE_TEXTURE2D_SHADOW( \
+        _AdditionalLightsShadowmapTexture, \
+        sampler_LinearClampCompare, \
+        float3(uv, shadowCoordUVW.z)) * weight;
+
+half SampleAdditionalLightShadowTextureMediumTent(float3 shadowCoordUVW, int shadowSliceIndex)
+{
+    float radius = clamp(_AdditionalLightsShadowFilterRadius, 0.5, 1.5);
+    float paddingScale = max(radius, 1.0) * 0.5;
+    float2 texelSize = _AdditionalLightsShadowAtlasSize.xy * radius;
+    half visibility = 0.0h;
+    float2 uv;
+
+    NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(-1.0, -1.0, 1.0h)
+    NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(0.0, -1.0, 2.0h)
+    NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(1.0, -1.0, 1.0h)
+    NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(-1.0, 0.0, 2.0h)
+    NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(0.0, 0.0, 4.0h)
+    NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(1.0, 0.0, 2.0h)
+    NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(-1.0, 1.0, 1.0h)
+    NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(0.0, 1.0, 2.0h)
+    NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP(1.0, 1.0, 1.0h)
+
+    return visibility * (1.0h / 16.0h);
+}
+
 half SampleAdditionalLightShadowInternal(float3 positionWS, float3 lightDirectionWS, int lightIndex)
 {
     if (!AreAdditionalLightShadowsEnabled())
@@ -242,7 +277,16 @@ half SampleAdditionalLightShadowInternal(float3 positionWS, float3 lightDirectio
         return 1.0h;
     }
 
-    half visibility = SampleAdditionalLightShadowTextureHard(shadowCoordUVW, shadowSliceIndex);
+    half visibility;
+    if (_AdditionalLightsShadowFilterMode == NWRP_ADDITIONAL_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
+    {
+        visibility = SampleAdditionalLightShadowTextureMediumTent(shadowCoordUVW, shadowSliceIndex);
+    }
+    else
+    {
+        visibility = SampleAdditionalLightShadowTextureHard(shadowCoordUVW, shadowSliceIndex);
+    }
+
     half fade = GetAdditionalLightReceiverShadowFade(positionWS);
     visibility = lerp(1.0h, visibility, fade);
     return lerp(1.0h, visibility, shadowParams.y);
@@ -316,24 +360,22 @@ half SampleMainLightDynamicShadowTextureMediumTent(float3 shadowCoordUVW, int ca
 
 half SampleMainLightStaticShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
 {
-    half visibility = SampleMainLightShadowTextureHard(shadowCoordUVW, cascadeIndex);
     if (_MainLightShadowFilterMode == NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
     {
-        visibility = SampleMainLightShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
+        return SampleMainLightShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
     }
 
-    return visibility;
+    return SampleMainLightShadowTextureHard(shadowCoordUVW, cascadeIndex);
 }
 
 half SampleMainLightDynamicShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
 {
-    half visibility = SampleMainLightDynamicShadowTextureHard(shadowCoordUVW, cascadeIndex);
     if (_MainLightShadowFilterMode == NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
     {
-        visibility = SampleMainLightDynamicShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
+        return SampleMainLightDynamicShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
     }
 
-    return visibility;
+    return SampleMainLightDynamicShadowTextureHard(shadowCoordUVW, cascadeIndex);
 }
 
 MainLightShadowResult SampleMainLightShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
@@ -480,6 +522,7 @@ half SampleMainLightShadow(float3 positionWS, float3 normalWS, float3 lightDirec
 }
 
 #undef NWRP_SAMPLE_MAIN_LIGHT_TENT9
+#undef NWRP_ACCUM_ADDITIONAL_LIGHT_TENT_TAP
 #undef MAX_ADDITIONAL_LIGHT_SHADOW_SLICES
 #undef MAX_SHADOWED_ADDITIONAL_LIGHTS
 #undef MAX_ADDITIONAL_LIGHTS

@@ -33,6 +33,8 @@ namespace NWRP.Runtime.Passes
                 s_DisabledAtlasRects);
             cmd.SetGlobalVector(NWRPShaderIds.AdditionalLightsShadowAtlasSize, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.AdditionalLightsShadowGlobalParams, Vector4.zero);
+            cmd.SetGlobalInt(NWRPShaderIds.AdditionalLightsShadowFilterMode, 0);
+            cmd.SetGlobalFloat(NWRPShaderIds.AdditionalLightsShadowFilterRadius, 0f);
             MainLightShadowPassUtils.ExecuteBuffer(ref frameData);
         }
 
@@ -64,6 +66,12 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalVector(
                 NWRPShaderIds.AdditionalLightsShadowGlobalParams,
                 new Vector4(1f, safeMaxDistance, invFadeRange, 0f));
+            cmd.SetGlobalInt(
+                NWRPShaderIds.AdditionalLightsShadowFilterMode,
+                (int)frameData.asset.AdditionalLightShadowFilterModeSetting);
+            cmd.SetGlobalFloat(
+                NWRPShaderIds.AdditionalLightsShadowFilterRadius,
+                frameData.asset.AdditionalLightShadowFilterRadius);
             MainLightShadowPassUtils.ExecuteBuffer(ref frameData);
         }
 

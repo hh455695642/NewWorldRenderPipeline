@@ -168,7 +168,7 @@ namespace NWRP.Editor
                 ? "Point lights consume six shadow slices in the shared atlas."
                 : "Spot lights consume one shadow slice in the shared atlas.";
             EditorGUILayout.HelpBox(
-                punctualMessage + " Additional punctual light shadows are hard-shadow only in this branch, and bias tuning is controlled on the active NWRP pipeline asset.",
+                punctualMessage + " Additional punctual light shadow filtering and bias tuning are controlled on the active NWRP pipeline asset.",
                 MessageType.None);
         }
 
@@ -185,7 +185,7 @@ namespace NWRP.Editor
 
             string infoMessage = simplifiedType == LightType.Directional
                 ? "Main Light shadow filter mode, atlas resolution, cascade settings, and cached shadow options are controlled on the active NWRP pipeline asset."
-                : "Additional punctual light shadow atlas size, requested tile resolution, budget, and bias are controlled on the active NWRP pipeline asset.";
+                : "Additional punctual light shadow filter mode, atlas size, requested tile resolution, budget, and bias are controlled on the active NWRP pipeline asset.";
             EditorGUILayout.HelpBox(infoMessage, MessageType.Info);
 
             using (new EditorGUILayout.HorizontalScope())

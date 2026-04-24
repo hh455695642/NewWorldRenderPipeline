@@ -25,6 +25,12 @@ namespace NWRP
             MediumPCF = 1
         }
 
+        public enum AdditionalLightShadowFilterMode
+        {
+            Hard = 0,
+            MediumPCF = 1
+        }
+
         public enum MainLightShadowCasterCullMode
         {
             Front = (int)CullMode.Front,
@@ -93,12 +99,25 @@ namespace NWRP
         }
 
         [System.Serializable]
+        public sealed class AdditionalLightShadowFilterSettings
+        {
+            [Tooltip("Receiver filter mode for additional punctual light shadows. Hard uses one comparison; Medium PCF uses a fixed 3x3 tent kernel.")]
+            public AdditionalLightShadowFilterMode additionalLightShadowFilterMode = AdditionalLightShadowFilterMode.Hard;
+
+            [InspectorName("Additional Light Shadow Filter Radius")]
+            [Tooltip("Receiver-side Medium PCF filter radius in shadow texels. 1.0 matches the 3x3 tent kernel footprint.")]
+            [Range(0.5f, 1.5f)]
+            public float additionalLightShadowFilterRadius = 1.0f;
+        }
+
+        [System.Serializable]
         public sealed class AdditionalLightShadowSettings
         {
             public AdditionalLightShadowToggleSettings toggles = new AdditionalLightShadowToggleSettings();
             public AdditionalLightShadowBudgetSettings budget = new AdditionalLightShadowBudgetSettings();
             public AdditionalLightShadowAtlasSettings atlas = new AdditionalLightShadowAtlasSettings();
             public AdditionalLightShadowBiasSettings bias = new AdditionalLightShadowBiasSettings();
+            public AdditionalLightShadowFilterSettings filter = new AdditionalLightShadowFilterSettings();
 
             public void EnsureInitialized()
             {
@@ -120,6 +139,11 @@ namespace NWRP
                 if (bias == null)
                 {
                     bias = new AdditionalLightShadowBiasSettings();
+                }
+
+                if (filter == null)
+                {
+                    filter = new AdditionalLightShadowFilterSettings();
                 }
             }
         }
@@ -431,6 +455,10 @@ namespace NWRP
         public float AdditionalLightShadowNormalBias => AdditionalLightShadowSettingsData.bias.additionalLightShadowNormalBias;
         public MainLightShadowCasterCullMode AdditionalLightShadowCasterCullModeSetting =>
             AdditionalLightShadowSettingsData.bias.additionalLightShadowCasterCullMode;
+        public AdditionalLightShadowFilterMode AdditionalLightShadowFilterModeSetting =>
+            AdditionalLightShadowSettingsData.filter.additionalLightShadowFilterMode;
+        public float AdditionalLightShadowFilterRadius =>
+            AdditionalLightShadowSettingsData.filter.additionalLightShadowFilterRadius;
 
         /// <summary>
         /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,
@@ -625,6 +653,8 @@ namespace NWRP
                 Mathf.Max(0f, additionalSettings.bias.additionalLightShadowBias);
             additionalSettings.bias.additionalLightShadowNormalBias =
                 Mathf.Max(0f, additionalSettings.bias.additionalLightShadowNormalBias);
+            additionalSettings.filter.additionalLightShadowFilterRadius =
+                Mathf.Clamp(additionalSettings.filter.additionalLightShadowFilterRadius, 0.5f, 1.5f);
 
             SyncMainLightShadowLegacyBridge(settings);
         }

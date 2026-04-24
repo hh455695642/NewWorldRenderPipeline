@@ -27,6 +27,7 @@ namespace NWRP.Editor
         private SerializedProperty _additionalLightShadowBudgetProperty;
         private SerializedProperty _additionalLightShadowAtlasProperty;
         private SerializedProperty _additionalLightShadowBiasProperty;
+        private SerializedProperty _additionalLightShadowFilterProperty;
 
         private SerializedProperty _enableMainLightShadowsProperty;
         private SerializedProperty _enableCachedMainLightShadowsProperty;
@@ -56,6 +57,8 @@ namespace NWRP.Editor
         private SerializedProperty _additionalLightShadowBiasValueProperty;
         private SerializedProperty _additionalLightShadowNormalBiasProperty;
         private SerializedProperty _additionalLightShadowCasterCullModeProperty;
+        private SerializedProperty _additionalLightShadowFilterModeProperty;
+        private SerializedProperty _additionalLightShadowFilterRadiusProperty;
 
         private void OnEnable()
         {
@@ -75,6 +78,7 @@ namespace NWRP.Editor
             _additionalLightShadowBudgetProperty = _additionalLightShadowsProperty.FindPropertyRelative("budget");
             _additionalLightShadowAtlasProperty = _additionalLightShadowsProperty.FindPropertyRelative("atlas");
             _additionalLightShadowBiasProperty = _additionalLightShadowsProperty.FindPropertyRelative("bias");
+            _additionalLightShadowFilterProperty = _additionalLightShadowsProperty.FindPropertyRelative("filter");
 
             _enableMainLightShadowsProperty =
                 _mainLightShadowTogglesProperty.FindPropertyRelative("enableMainLightShadows");
@@ -136,6 +140,10 @@ namespace NWRP.Editor
                 _additionalLightShadowBiasProperty.FindPropertyRelative("additionalLightShadowNormalBias");
             _additionalLightShadowCasterCullModeProperty =
                 _additionalLightShadowBiasProperty.FindPropertyRelative("additionalLightShadowCasterCullMode");
+            _additionalLightShadowFilterModeProperty =
+                _additionalLightShadowFilterProperty.FindPropertyRelative("additionalLightShadowFilterMode");
+            _additionalLightShadowFilterRadiusProperty =
+                _additionalLightShadowFilterProperty.FindPropertyRelative("additionalLightShadowFilterRadius");
         }
 
         public override void OnInspectorGUI()
@@ -302,6 +310,9 @@ namespace NWRP.Editor
                 return;
             }
 
+            bool useMediumPCF = _additionalLightShadowFilterModeProperty.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.AdditionalLightShadowFilterMode.MediumPCF;
+
             DrawSubsectionLabel("Budget");
             EditorGUILayout.PropertyField(
                 _maxShadowedAdditionalLightsProperty,
@@ -318,6 +329,17 @@ namespace NWRP.Editor
                 _additionalLightShadowDistanceProperty,
                 new GUIContent("Max Shadow Distance"));
 
+            DrawSubsectionLabel("Filter");
+            EditorGUILayout.PropertyField(
+                _additionalLightShadowFilterModeProperty,
+                new GUIContent("Shadow Filter Mode"));
+            if (useMediumPCF)
+            {
+                EditorGUILayout.PropertyField(
+                    _additionalLightShadowFilterRadiusProperty,
+                    new GUIContent("Shadow Filter Radius"));
+            }
+
             DrawSubsectionLabel("Bias");
             EditorGUILayout.PropertyField(_additionalLightShadowBiasValueProperty);
             EditorGUILayout.PropertyField(_additionalLightShadowNormalBiasProperty);
@@ -326,7 +348,7 @@ namespace NWRP.Editor
                 new GUIContent("Shadow Caster Cull Mode"));
 
             EditorGUILayout.HelpBox(
-                "Spot lights consume one shadow slice and point lights consume six shadow slices in the shared atlas. Requested Tile Resolution controls per-slice quality; Atlas Max Size caps the total mobile shadow texture budget. The additional punctual light path is hard-shadow only in this branch.",
+                "Spot lights consume one shadow slice and point lights consume six shadow slices in the shared atlas. Requested Tile Resolution controls per-slice quality; Atlas Max Size caps the total mobile shadow texture budget. Medium PCF costs 9 shadow compares per shadowed punctual light receiver sample.",
                 MessageType.None);
         }
 
