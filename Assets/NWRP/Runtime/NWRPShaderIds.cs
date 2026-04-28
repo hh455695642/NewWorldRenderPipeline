@@ -7,6 +7,10 @@ namespace NWRP
     /// </summary>
     public static class NWRPShaderIds
     {
+        // Camera targets
+        public static readonly int CameraColorTexture = Shader.PropertyToID("_NWRPCameraColorTexture");
+        public static readonly int CameraDepthTexture = Shader.PropertyToID("_NWRPCameraDepthTexture");
+
         // Lighting globals
         public static readonly int MainLightPosition = Shader.PropertyToID("_MainLightPosition");
         public static readonly int MainLightColor = Shader.PropertyToID("_MainLightColor");

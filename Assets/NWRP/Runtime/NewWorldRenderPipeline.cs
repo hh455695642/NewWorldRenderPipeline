@@ -31,7 +31,9 @@ namespace NWRP
         {
             foreach (Camera camera in cameras)
             {
+                BeginCameraRendering(context, camera);
                 _renderer.Render(context, camera, _asset);
+                EndCameraRendering(context, camera);
             }
         }
 

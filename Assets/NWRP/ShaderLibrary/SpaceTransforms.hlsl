@@ -22,15 +22,25 @@
 // ============================================================
 
 // Object → World
+float4x4 GetObjectToWorldMatrix()
+{
+    return UNITY_MATRIX_M;
+}
+
+float4x4 GetWorldToObjectMatrix()
+{
+    return UNITY_MATRIX_I_M;
+}
+
 float3 TransformObjectToWorld(float3 positionOS)
 {
-    return mul(unity_ObjectToWorld, float4(positionOS, 1.0)).xyz;
+    return mul(GetObjectToWorldMatrix(), float4(positionOS, 1.0)).xyz;
 }
 
 // World → Object
 float3 TransformWorldToObject(float3 positionWS)
 {
-    return mul(unity_WorldToObject, float4(positionWS, 1.0)).xyz;
+    return mul(GetWorldToObjectMatrix(), float4(positionWS, 1.0)).xyz;
 }
 
 // World → View
@@ -56,7 +66,7 @@ float4 TransformObjectToHClip(float3 positionOS)
 {
     // 先 Object→World，再 World→Clip
     // 展开为: unity_MatrixVP * unity_ObjectToWorld * float4(positionOS, 1)
-    return mul(unity_MatrixVP, mul(unity_ObjectToWorld, float4(positionOS, 1.0)));
+    return mul(unity_MatrixVP, mul(GetObjectToWorldMatrix(), float4(positionOS, 1.0)));
 }
 
 // View → Clip
@@ -71,12 +81,6 @@ float4 TransformWViewToHClip(float3 positionVS)
     return TransformViewToHClip(positionVS);
 }
 
-// 常用矩阵别名（部分 Shader 使用 UNITY_MATRIX_XX 风格）
-#define UNITY_MATRIX_VP   unity_MatrixVP
-#define UNITY_MATRIX_V    unity_MatrixV
-#define UNITY_MATRIX_I_V  unity_MatrixInvV
-#define UNITY_MATRIX_P    glstate_matrix_projection
-
 // Clip → NDC（透视除法，结果范围 [-1,1]^3）
 float3 TransformHClipToNdc(float4 positionCS)
 {
@@ -90,14 +94,14 @@ float3 TransformHClipToNdc(float4 positionCS)
 // Object → World（方向）
 float3 TransformObjectToWorldDir(float3 dirOS, bool doNormalize = true)
 {
-    float3 dirWS = mul((float3x3)unity_ObjectToWorld, dirOS);
+    float3 dirWS = mul((float3x3)GetObjectToWorldMatrix(), dirOS);
     return doNormalize ? normalize(dirWS) : dirWS;
 }
 
 // World → Object（方向）
 float3 TransformWorldToObjectDir(float3 dirWS, bool doNormalize = true)
 {
-    float3 dirOS = mul((float3x3)unity_WorldToObject, dirWS);
+    float3 dirOS = mul((float3x3)GetWorldToObjectMatrix(), dirWS);
     return doNormalize ? normalize(dirOS) : dirOS;
 }
 
@@ -119,14 +123,14 @@ float3 TransformWorldToViewDir(float3 dirWS, bool doNormalize = false)
 float3 TransformObjectToWorldNormal(float3 normalOS, bool doNormalize = true)
 {
     // mul(vec, mat) 等价于 mul(mat^T, vec)，恰好得到 (M^-1)^T * N_os
-    float3 normalWS = mul(normalOS, (float3x3)unity_WorldToObject);
+    float3 normalWS = mul(normalOS, (float3x3)GetWorldToObjectMatrix());
     return doNormalize ? normalize(normalWS) : normalWS;
 }
 
 // World → Object（法线）
 float3 TransformWorldToObjectNormal(float3 normalWS, bool doNormalize = true)
 {
-    float3 normalOS = mul(normalWS, (float3x3)unity_ObjectToWorld);
+    float3 normalOS = mul(normalWS, (float3x3)GetObjectToWorldMatrix());
     return doNormalize ? normalize(normalOS) : normalOS;
 }
 

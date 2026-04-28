@@ -36,6 +36,7 @@ Shader "NewWorld/NPR/ToneBasedShading"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_instancing
 
             #include "../../ShaderLibrary/Core.hlsl"
             #include "../../ShaderLibrary/Lighting.hlsl"
@@ -45,6 +46,7 @@ Shader "NewWorld/NPR/ToneBasedShading"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -64,6 +66,7 @@ Shader "NewWorld/NPR/ToneBasedShading"
 
             Varyings vert(Attributes IN)
             {
+                UNITY_SETUP_INSTANCE_ID(IN);
                 Varyings OUT;
                 float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
                 OUT.positionHCS = TransformWorldToHClip(positionWS);

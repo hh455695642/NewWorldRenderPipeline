@@ -36,6 +36,7 @@ Shader "NewWorld/Lit/MultiLight"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -60,6 +61,7 @@ Shader "NewWorld/Lit/MultiLight"
 
             Varyings vert(Attributes IN)
             {
+                UNITY_SETUP_INSTANCE_ID(IN);
                 Varyings OUT;
                 float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
                 OUT.positionWS  = positionWS;

@@ -18,6 +18,7 @@ Shader "NewWorld/Base/Noise"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_instancing
 
             #include "../../ShaderLibrary/Core.hlsl"
 
@@ -25,6 +26,7 @@ Shader "NewWorld/Base/Noise"
             {
                 float4 positionOS : POSITION;
                 float2 uv : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -41,6 +43,7 @@ Shader "NewWorld/Base/Noise"
 
             Varyings vert(Attributes IN)
             {
+                UNITY_SETUP_INSTANCE_ID(IN);
                 Varyings OUT;
                 float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
                 OUT.positionHCS = TransformWorldToHClip(positionWS);

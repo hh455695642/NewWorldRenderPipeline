@@ -25,7 +25,6 @@ namespace NWRP
         private static readonly ShaderTagId s_NewWorldUnlitTagId = new ShaderTagId("NewWorldUnlit");
         private static readonly ShaderTagId s_SrpDefaultUnlitTagId = new ShaderTagId("SRPDefaultUnlit");
         private static readonly ShaderTagId s_NewWorldForwardTagId = new ShaderTagId("NewWorldForward");
-        private static readonly ShaderTagId s_NewWorldOutlineTagId = new ShaderTagId("NewWorldOutline");
 
         private static readonly Comparison<QueuedPass> s_QueuedPassComparer = CompareQueuedPass;
 
@@ -46,7 +45,6 @@ namespace NWRP
         private readonly SetupCameraPass _setupCameraPass;
         private readonly SetupLightsPass _setupLightsPass;
         private readonly DrawOpaquePass _drawOpaquePass;
-        private readonly DrawOutlinePass _drawOutlinePass;
         private readonly DrawSkyboxPass _drawSkyboxPass;
         private readonly DrawTransparentPass _drawTransparentPass;
 #if UNITY_EDITOR
@@ -62,7 +60,6 @@ namespace NWRP
             _setupCameraPass = new SetupCameraPass(this);
             _setupLightsPass = new SetupLightsPass(this);
             _drawOpaquePass = new DrawOpaquePass(this);
-            _drawOutlinePass = new DrawOutlinePass(this);
             _drawSkyboxPass = new DrawSkyboxPass(this);
             _drawTransparentPass = new DrawTransparentPass(this);
 #if UNITY_EDITOR
@@ -115,16 +112,19 @@ namespace NWRP
                 {
                     using (new ProfilingScope(cmd, NWRPProfiling.RendererExecute))
                     {
+                        ConfigureFrameTargets(ref frameData);
                         BuildPassQueue(ref frameData);
                         ExecutePassQueue(ref frameData);
                     }
                 }
 
                 ExecuteBuffer(ref frameData);
-                frameData.context.Submit();
             }
             finally
             {
+                ReleaseFrameTargets(ref frameData);
+                ExecuteBuffer(ref frameData);
+                frameData.context.Submit();
                 CommandBufferPool.Release(cmd);
             }
         }
@@ -146,6 +146,13 @@ namespace NWRP
         internal void ExecuteSetupCamera(ref NWRPFrameData frameData)
         {
             frameData.context.SetupCameraProperties(frameData.camera);
+
+            if (frameData.targets.usesIntermediateColor || frameData.targets.usesIntermediateDepth)
+            {
+                frameData.cmd.SetRenderTarget(
+                    frameData.targets.cameraColor,
+                    frameData.targets.cameraDepth);
+            }
 
             CameraClearFlags clearFlags = frameData.camera.clearFlags;
             frameData.cmd.ClearRenderTarget(
@@ -233,27 +240,6 @@ namespace NWRP
             );
         }
 
-        internal void ExecuteDrawOutline(ref NWRPFrameData frameData)
-        {
-            SortingSettings sortingSettings = new SortingSettings(frameData.camera)
-            {
-                criteria = SortingCriteria.CommonOpaque
-            };
-
-            DrawingSettings drawingSettings = new DrawingSettings(s_NewWorldOutlineTagId, sortingSettings)
-            {
-                enableDynamicBatching = false,
-                enableInstancing = frameData.asset.useGPUInstancing
-            };
-
-            FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
-            frameData.context.DrawRenderers(
-                frameData.cullingResults,
-                ref drawingSettings,
-                ref filteringSettings
-            );
-        }
-
         internal void ExecuteDrawSkybox(ref NWRPFrameData frameData)
         {
             frameData.context.DrawSkybox(frameData.camera);
@@ -300,6 +286,134 @@ namespace NWRP
             ExecuteBuffer(ref frameData);
         }
 
+        private void ConfigureFrameTargets(ref NWRPFrameData frameData)
+        {
+            NWRPFrameTargetRequirements requirements = CollectFrameTargetRequirements(ref frameData);
+
+            RenderTargetIdentifier backBuffer = BuiltinRenderTextureType.CameraTarget;
+            frameData.targets = new NWRPFrameTargets
+            {
+                backBufferColor = backBuffer,
+                backBufferDepth = backBuffer,
+                cameraColor = backBuffer,
+                cameraDepth = backBuffer,
+                hasCameraTargets = true
+            };
+
+            bool needIntermediateColor = requirements.requiresIntermediateColor;
+            bool needIntermediateDepth =
+                requirements.requiresIntermediateDepth || requirements.requiresIntermediateColor;
+
+            if (needIntermediateColor)
+            {
+                RenderTextureDescriptor colorDescriptor = CreateCameraColorDescriptor(frameData.camera);
+                frameData.cmd.GetTemporaryRT(
+                    NWRPShaderIds.CameraColorTexture,
+                    colorDescriptor,
+                    FilterMode.Bilinear);
+
+                frameData.targets.cameraColor =
+                    new RenderTargetIdentifier(NWRPShaderIds.CameraColorTexture);
+                frameData.targets.ownsIntermediateColor = true;
+                frameData.targets.usesIntermediateColor = true;
+            }
+
+            if (needIntermediateDepth)
+            {
+                RenderTextureDescriptor depthDescriptor = CreateCameraDepthDescriptor(frameData.camera);
+                frameData.cmd.GetTemporaryRT(
+                    NWRPShaderIds.CameraDepthTexture,
+                    depthDescriptor,
+                    FilterMode.Point);
+
+                frameData.targets.cameraDepth =
+                    new RenderTargetIdentifier(NWRPShaderIds.CameraDepthTexture);
+                frameData.targets.ownsIntermediateDepth = true;
+                frameData.targets.usesIntermediateDepth = true;
+            }
+        }
+
+        private void ReleaseFrameTargets(ref NWRPFrameData frameData)
+        {
+            if (frameData.cmd == null || !frameData.targets.hasCameraTargets)
+            {
+                return;
+            }
+
+            if (frameData.targets.ownsIntermediateColor)
+            {
+                frameData.cmd.ReleaseTemporaryRT(NWRPShaderIds.CameraColorTexture);
+            }
+
+            if (frameData.targets.ownsIntermediateDepth)
+            {
+                frameData.cmd.ReleaseTemporaryRT(NWRPShaderIds.CameraDepthTexture);
+            }
+
+            frameData.targets = default;
+        }
+
+        private NWRPFrameTargetRequirements CollectFrameTargetRequirements(ref NWRPFrameData frameData)
+        {
+            NWRPFrameTargetRequirements requirements = default;
+            List<NWRPFeature> features = frameData.asset.Features;
+            for (int i = 0; i < features.Count; i++)
+            {
+                NWRPFeature feature = features[i];
+                if (feature == null || !feature.IsEnabled)
+                {
+                    continue;
+                }
+
+                if (feature.TryGetFrameTargetRequirements(
+                        ref frameData,
+                        out NWRPFrameTargetRequirements featureRequirements))
+                {
+                    requirements.Merge(featureRequirements);
+                }
+            }
+
+            return requirements;
+        }
+
+        private static RenderTextureDescriptor CreateCameraColorDescriptor(Camera camera)
+        {
+            RenderTextureFormat format = camera.allowHDR
+                ? RenderTextureFormat.DefaultHDR
+                : RenderTextureFormat.Default;
+
+            RenderTextureDescriptor descriptor = new RenderTextureDescriptor(
+                Mathf.Max(camera.pixelWidth, 1),
+                Mathf.Max(camera.pixelHeight, 1),
+                format,
+                0)
+            {
+                msaaSamples = 1,
+                sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear,
+                useMipMap = false,
+                autoGenerateMips = false
+            };
+
+            return descriptor;
+        }
+
+        private static RenderTextureDescriptor CreateCameraDepthDescriptor(Camera camera)
+        {
+            RenderTextureDescriptor descriptor = new RenderTextureDescriptor(
+                Mathf.Max(camera.pixelWidth, 1),
+                Mathf.Max(camera.pixelHeight, 1),
+                RenderTextureFormat.Depth,
+                24)
+            {
+                msaaSamples = 1,
+                bindMS = false,
+                useMipMap = false,
+                autoGenerateMips = false
+            };
+
+            return descriptor;
+        }
+
         private void BuildPassQueue(ref NWRPFrameData frameData)
         {
             _activePasses.Clear();
@@ -308,7 +422,6 @@ namespace NWRP
             EnqueuePass(_setupCameraPass);
             EnqueuePass(_setupLightsPass);
             EnqueuePass(_drawOpaquePass);
-            EnqueuePass(_drawOutlinePass);
             EnqueuePass(_drawSkyboxPass);
             EnqueuePass(_drawTransparentPass);
 
@@ -512,6 +625,7 @@ namespace NWRP
             List<NWRPFeature> features = frameData.asset.Features;
             bool hasSerializedMainLightShadowFeature = false;
             bool hasSerializedAdditionalLightShadowFeature = false;
+            bool hasActiveSerializedOutlineFeature = false;
             for (int i = 0; i < features.Count; i++)
             {
                 NWRPFeature feature = features[i];
@@ -528,6 +642,11 @@ namespace NWRP
                 if (feature is AdditionalLightShadowFeature)
                 {
                     hasSerializedAdditionalLightShadowFeature = true;
+                }
+
+                if (feature is OutlineFeature)
+                {
+                    hasActiveSerializedOutlineFeature = true;
                 }
 
                 feature.EnsureCreated();
@@ -553,6 +672,16 @@ namespace NWRP
                 {
                     runtimeAdditionalLightShadowFeature.EnsureCreated();
                     runtimeAdditionalLightShadowFeature.AddPasses(this, ref frameData);
+                }
+            }
+
+            if (!hasActiveSerializedOutlineFeature && frameData.asset.EnableOutline)
+            {
+                OutlineFeature runtimeOutlineFeature = frameData.asset.GetOrCreateOutlineFeature();
+                if (runtimeOutlineFeature != null && runtimeOutlineFeature.IsEnabled)
+                {
+                    runtimeOutlineFeature.EnsureCreated();
+                    runtimeOutlineFeature.AddPasses(this, ref frameData);
                 }
             }
         }

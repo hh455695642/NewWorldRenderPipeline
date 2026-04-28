@@ -7,6 +7,7 @@ struct ShadowCasterAttributes
 {
     float4 positionOS : POSITION;
     float3 normalOS : NORMAL;
+    UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
 struct ShadowCasterVaryings
@@ -39,6 +40,8 @@ float3 ApplyShadowBias(float3 positionWS, float3 normalWS, float3 lightDirection
 
 ShadowCasterVaryings ShadowCasterVert(ShadowCasterAttributes input)
 {
+    UNITY_SETUP_INSTANCE_ID(input);
+
     ShadowCasterVaryings output;
     float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
     float3 normalWS = TransformObjectToWorldNormal(input.normalOS);

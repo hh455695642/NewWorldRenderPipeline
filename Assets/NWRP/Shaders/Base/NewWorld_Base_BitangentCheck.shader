@@ -15,6 +15,7 @@ Shader "NewWorld/Base/BitangentCheck"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_instancing
 
             #include "../../ShaderLibrary/Core.hlsl"
 
@@ -23,6 +24,7 @@ Shader "NewWorld/Base/BitangentCheck"
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
                 float4 tangentOS : TANGENT;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -33,6 +35,7 @@ Shader "NewWorld/Base/BitangentCheck"
 
             Varyings vert(Attributes IN)
             {
+                UNITY_SETUP_INSTANCE_ID(IN);
                 Varyings OUT;
                 OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
                 // tangentOS.w 决定副切线方向，GetOddNegativeScale() 处理奇数负缩放

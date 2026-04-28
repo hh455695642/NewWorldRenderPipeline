@@ -15,6 +15,7 @@ Shader "NewWorld/Base/TangentCheck"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_instancing
 
             #include "../../ShaderLibrary/Core.hlsl"
 
@@ -22,6 +23,7 @@ Shader "NewWorld/Base/TangentCheck"
             {
                 float4 positionOS : POSITION;
                 float4 tangentOS : TANGENT;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -32,6 +34,7 @@ Shader "NewWorld/Base/TangentCheck"
 
             Varyings vert(Attributes IN)
             {
+                UNITY_SETUP_INSTANCE_ID(IN);
                 Varyings OUT;
                 OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
                 OUT.color = IN.tangentOS * 0.5 + 0.5;

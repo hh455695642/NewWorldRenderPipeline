@@ -39,6 +39,7 @@ Shader "Hidden/NWRP/MainLightShadowCasterTint"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -50,6 +51,7 @@ Shader "Hidden/NWRP/MainLightShadowCasterTint"
 
             Varyings Vert(Attributes input)
             {
+                UNITY_SETUP_INSTANCE_ID(input);
                 Varyings output;
                 output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 output.positionHCS = TransformWorldToHClip(output.positionWS);

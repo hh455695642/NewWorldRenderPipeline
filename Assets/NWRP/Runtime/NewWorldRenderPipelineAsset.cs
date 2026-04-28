@@ -151,7 +151,28 @@ namespace NWRP
         [System.Serializable]
         public sealed class FeatureSettings
         {
+            public OutlineSettings outline = new OutlineSettings();
             public List<NWRPFeature> features = new List<NWRPFeature>();
+
+            public void EnsureInitialized()
+            {
+                if (outline == null)
+                {
+                    outline = new OutlineSettings();
+                }
+
+                if (features == null)
+                {
+                    features = new List<NWRPFeature>();
+                }
+            }
+        }
+
+        [System.Serializable]
+        public sealed class OutlineSettings
+        {
+            [Tooltip("Enable the built-in NewWorldOutline pass. Keep disabled on the mobile baseline unless materials explicitly need shell outlines.")]
+            public bool enableOutline = false;
         }
 
         [System.Serializable]
@@ -385,6 +406,9 @@ namespace NWRP
         [System.NonSerialized]
         private AdditionalLightShadowFeature _runtimeAdditionalLightShadowFeature;
 
+        [System.NonSerialized]
+        private OutlineFeature _runtimeOutlineFeature;
+
         private MainLightShadowSettings MainLightShadowSettingsData
         {
             get
@@ -403,21 +427,20 @@ namespace NWRP
             }
         }
 
+        private FeatureSettings FeatureSettingsData
+        {
+            get
+            {
+                EnsureFeatureSettings();
+                return featureSettings;
+            }
+        }
+
         public List<NWRPFeature> Features
         {
             get
             {
-                if (featureSettings == null)
-                {
-                    featureSettings = new FeatureSettings();
-                }
-
-                if (featureSettings.features == null)
-                {
-                    featureSettings.features = new List<NWRPFeature>();
-                }
-
-                return featureSettings.features;
+                return FeatureSettingsData.features;
             }
         }
 
@@ -459,6 +482,7 @@ namespace NWRP
             AdditionalLightShadowSettingsData.filter.additionalLightShadowFilterMode;
         public float AdditionalLightShadowFilterRadius =>
             AdditionalLightShadowSettingsData.filter.additionalLightShadowFilterRadius;
+        public bool EnableOutline => FeatureSettingsData.outline.enableOutline;
 
         /// <summary>
         /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,
@@ -546,11 +570,25 @@ namespace NWRP
             return _runtimeAdditionalLightShadowFeature;
         }
 
+        internal OutlineFeature GetOrCreateOutlineFeature()
+        {
+            if (_runtimeOutlineFeature != null)
+            {
+                return _runtimeOutlineFeature;
+            }
+
+            _runtimeOutlineFeature = ScriptableObject.CreateInstance<OutlineFeature>();
+            _runtimeOutlineFeature.hideFlags = HideFlags.HideAndDontSave;
+            _runtimeOutlineFeature.name = "NWRP Runtime OutlineFeature";
+            return _runtimeOutlineFeature;
+        }
+
         internal void DisposeRuntimeFeatures()
         {
             if (_runtimeMainLightShadowFeature == null)
             {
                 DisposeAdditionalRuntimeFeature();
+                DisposeOutlineRuntimeFeature();
                 return;
             }
 
@@ -565,6 +603,7 @@ namespace NWRP
 
             _runtimeMainLightShadowFeature = null;
             DisposeAdditionalRuntimeFeature();
+            DisposeOutlineRuntimeFeature();
         }
 
         private void DisposeAdditionalRuntimeFeature()
@@ -586,6 +625,25 @@ namespace NWRP
             _runtimeAdditionalLightShadowFeature = null;
         }
 
+        private void DisposeOutlineRuntimeFeature()
+        {
+            if (_runtimeOutlineFeature == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_runtimeOutlineFeature);
+            }
+            else
+            {
+                DestroyImmediate(_runtimeOutlineFeature);
+            }
+
+            _runtimeOutlineFeature = null;
+        }
+
         protected override RenderPipeline CreatePipeline()
         {
             return new NewWorldRenderPipeline(this);
@@ -593,6 +651,8 @@ namespace NWRP
 
         void ISerializationCallbackReceiver.OnBeforeSerialize()
         {
+            EnsureFeatureSettings();
+
             if (mainLightShadows == null)
             {
                 return;
@@ -611,6 +671,7 @@ namespace NWRP
         {
             EnsureMainLightShadowSettings(allowAssetFileMigration: false);
             EnsureAdditionalLightShadowSettings();
+            EnsureFeatureSettings();
         }
 
 #if UNITY_EDITOR
@@ -618,6 +679,7 @@ namespace NWRP
         {
             EnsureMainLightShadowSettings(allowAssetFileMigration: true);
             EnsureAdditionalLightShadowSettings();
+            EnsureFeatureSettings();
 
             MainLightShadowSettings settings = mainLightShadows;
             settings.atlas.mainLightShadowResolution = Mathf.ClosestPowerOfTwo(
@@ -686,6 +748,16 @@ namespace NWRP
             }
 
             additionalLightShadows.EnsureInitialized();
+        }
+
+        private void EnsureFeatureSettings()
+        {
+            if (featureSettings == null)
+            {
+                featureSettings = new FeatureSettings();
+            }
+
+            featureSettings.EnsureInitialized();
         }
 
         private static void MigrateMainLightShadowLegacyData(MainLightShadowSettings settings)

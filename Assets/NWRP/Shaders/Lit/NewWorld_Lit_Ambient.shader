@@ -30,6 +30,7 @@ Shader "NewWorld/Lit/Ambient"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_instancing
 
             #include "../../ShaderLibrary/Core.hlsl"
 
@@ -37,6 +38,7 @@ Shader "NewWorld/Lit/Ambient"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -88,6 +90,7 @@ Shader "NewWorld/Lit/Ambient"
 
             Varyings vert(Attributes IN)
             {
+                UNITY_SETUP_INSTANCE_ID(IN);
                 Varyings OUT;
                 OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
                 OUT.normalWS    = TransformObjectToWorldNormal(IN.normalOS);

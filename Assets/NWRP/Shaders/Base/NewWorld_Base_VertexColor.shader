@@ -15,6 +15,7 @@ Shader "NewWorld/Base/VertexColor"
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_instancing
 
             #include "../../ShaderLibrary/Core.hlsl"
 
@@ -22,6 +23,7 @@ Shader "NewWorld/Base/VertexColor"
             {
                 float4 positionOS : POSITION;
                 half4 color : COLOR;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct Varyings
@@ -32,6 +34,7 @@ Shader "NewWorld/Base/VertexColor"
 
             Varyings vert(Attributes IN)
             {
+                UNITY_SETUP_INSTANCE_ID(IN);
                 Varyings OUT;
                 OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
                 OUT.color = IN.color;

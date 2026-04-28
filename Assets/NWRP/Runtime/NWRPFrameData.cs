@@ -21,8 +21,29 @@ namespace NWRP
     /// </summary>
     public struct NWRPFrameTargets
     {
+        public RenderTargetIdentifier backBufferColor;
+        public RenderTargetIdentifier backBufferDepth;
         public RenderTargetIdentifier cameraColor;
         public RenderTargetIdentifier cameraDepth;
         public bool hasCameraTargets;
+        public bool ownsIntermediateColor;
+        public bool ownsIntermediateDepth;
+        public bool usesIntermediateColor;
+        public bool usesIntermediateDepth;
+    }
+
+    /// <summary>
+    /// Per-frame target requests declared by features before pass queue construction.
+    /// </summary>
+    public struct NWRPFrameTargetRequirements
+    {
+        public bool requiresIntermediateColor;
+        public bool requiresIntermediateDepth;
+
+        public void Merge(NWRPFrameTargetRequirements other)
+        {
+            requiresIntermediateColor |= other.requiresIntermediateColor;
+            requiresIntermediateDepth |= other.requiresIntermediateDepth;
+        }
     }
 }

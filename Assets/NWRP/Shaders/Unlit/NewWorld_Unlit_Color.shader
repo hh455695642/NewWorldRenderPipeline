@@ -30,6 +30,7 @@ Shader "NewWorld/Unlit/Color"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_instancing
 
             // ── 引入 NewWorld 自己的核心头文件 ───────────────
             // 从 Assets/Shaders/Unlit/ 到 Assets/ShaderLibrary/
@@ -45,6 +46,7 @@ Shader "NewWorld/Unlit/Color"
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             // ── 顶点输出 / 片元输入 ─────────────────────────
@@ -56,6 +58,7 @@ Shader "NewWorld/Unlit/Color"
             // ── 顶点着色器 ───────────────────────────────────
             Varyings Vert(Attributes input)
             {
+                UNITY_SETUP_INSTANCE_ID(input);
                 Varyings output;
                 // 使用我们自己写的 TransformObjectToHClip()
                 output.positionHCS = TransformObjectToHClip(input.positionOS.xyz);

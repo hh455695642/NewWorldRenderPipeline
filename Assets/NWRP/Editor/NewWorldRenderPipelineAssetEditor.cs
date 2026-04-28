@@ -14,6 +14,8 @@ namespace NWRP.Editor
         private SerializedProperty _useSRPBatcherProperty;
         private SerializedProperty _useGPUInstancingProperty;
         private SerializedProperty _featureSettingsProperty;
+        private SerializedProperty _featureListProperty;
+        private SerializedProperty _featureOutlineProperty;
 
         private SerializedProperty _mainLightShadowsProperty;
         private SerializedProperty _mainLightShadowTogglesProperty;
@@ -59,12 +61,15 @@ namespace NWRP.Editor
         private SerializedProperty _additionalLightShadowCasterCullModeProperty;
         private SerializedProperty _additionalLightShadowFilterModeProperty;
         private SerializedProperty _additionalLightShadowFilterRadiusProperty;
+        private SerializedProperty _enableOutlineProperty;
 
         private void OnEnable()
         {
             _useSRPBatcherProperty = serializedObject.FindProperty("useSRPBatcher");
             _useGPUInstancingProperty = serializedObject.FindProperty("useGPUInstancing");
             _featureSettingsProperty = serializedObject.FindProperty("featureSettings");
+            _featureOutlineProperty = _featureSettingsProperty.FindPropertyRelative("outline");
+            _featureListProperty = _featureSettingsProperty.FindPropertyRelative("features");
 
             _mainLightShadowsProperty = serializedObject.FindProperty("mainLightShadows");
             _mainLightShadowTogglesProperty = _mainLightShadowsProperty.FindPropertyRelative("toggles");
@@ -144,6 +149,8 @@ namespace NWRP.Editor
                 _additionalLightShadowFilterProperty.FindPropertyRelative("additionalLightShadowFilterMode");
             _additionalLightShadowFilterRadiusProperty =
                 _additionalLightShadowFilterProperty.FindPropertyRelative("additionalLightShadowFilterRadius");
+            _enableOutlineProperty =
+                _featureOutlineProperty.FindPropertyRelative("enableOutline");
         }
 
         public override void OnInspectorGUI()
@@ -154,7 +161,7 @@ namespace NWRP.Editor
             EditorGUILayout.Space();
             DrawShadowSettings();
             EditorGUILayout.Space();
-            EditorGUILayout.PropertyField(_featureSettingsProperty, true);
+            DrawFeatureSettings();
 
             serializedObject.ApplyModifiedProperties();
         }
@@ -174,6 +181,19 @@ namespace NWRP.Editor
                 kAdditionalLightSectionStateKey,
                 "Additional Punctual Light",
                 DrawAdditionalLightShadowSettings);
+        }
+
+        private void DrawFeatureSettings()
+        {
+            EditorGUILayout.LabelField("Feature Settings", EditorStyles.boldLabel);
+            DrawSubsectionLabel("Outline");
+            EditorGUILayout.PropertyField(
+                _enableOutlineProperty,
+                new GUIContent("Enable Built-in Outline"));
+
+            EditorGUILayout.Space(2f);
+            DrawSubsectionLabel("Explicit Features");
+            EditorGUILayout.PropertyField(_featureListProperty, true);
         }
 
         private void DrawMainLightShadowSettings()

@@ -6,6 +6,7 @@
 struct DepthOnlyAttributes
 {
     float4 positionOS : POSITION;
+    UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
 struct DepthOnlyVaryings
@@ -15,6 +16,8 @@ struct DepthOnlyVaryings
 
 DepthOnlyVaryings DepthOnlyVert(DepthOnlyAttributes input)
 {
+    UNITY_SETUP_INSTANCE_ID(input);
+
     DepthOnlyVaryings output;
     float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
     output.positionCS = TransformWorldToHClip(positionWS);

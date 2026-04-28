@@ -29,6 +29,14 @@ namespace NWRP
 
         protected abstract void Create();
 
+        public virtual bool TryGetFrameTargetRequirements(
+            ref NWRPFrameData frameData,
+            out NWRPFrameTargetRequirements requirements)
+        {
+            requirements = default;
+            return false;
+        }
+
         public abstract void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData);
 
 #if UNITY_EDITOR
