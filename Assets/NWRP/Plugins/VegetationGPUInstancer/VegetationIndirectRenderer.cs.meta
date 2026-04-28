@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 50687cb27b0c84d4d9caf3175a8efe5c
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - terrainCenter: {instanceID: 0}
+  - targetCamera: {instanceID: 0}
+  - CullingComputeShader: {fileID: 7200000, guid: a98125b7291de38408ddc24df2ababdd,
+      type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

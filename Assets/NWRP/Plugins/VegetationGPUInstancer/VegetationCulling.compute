@@ -1,0 +1,92 @@
+﻿#pragma kernel CSVegetationCulling
+
+struct GrassInstance
+{
+    float4x4 localToWorld;
+    float3 boundCenter;
+    float boundRadius;
+};
+
+StructuredBuffer<GrassInstance> _AllGrass;
+AppendStructuredBuffer<float4x4> _VisibleGrass;
+
+uint _GrassCount;
+int _CullMode;
+float4 _FrustumPlanes[6];
+float3 _CamPos;
+float3 _CamForward;
+float _CullDist;
+float _CullDistSqr;
+float _CylinderMaxDistance;
+float _CylinderNearRadius;
+float _CylinderFarRadius;
+
+bool IsInsideFrustum(float3 center, float radius)
+{
+    [unroll]
+    for (int i = 0; i < 6; i++)
+    {
+        float dist = dot(_FrustumPlanes[i].xyz, center) + _FrustumPlanes[i].w;
+        if (dist < -radius)
+            return false;
+    }
+
+    return true;
+}
+
+bool IsWithinDistance(float3 center, float radius)
+{
+    if (_CullDistSqr <= 0.0)
+        return false;
+
+    float3 diff = center - _CamPos;
+    float distSqr = dot(diff, diff);
+    float maxDist = _CullDist + radius;
+    return distSqr <= (maxDist * maxDist);
+}
+
+bool IsInsideCylinderFrustum(float3 center, float radius)
+{
+    if (_CylinderMaxDistance <= 0.0)
+        return false;
+
+    float3 toCenter = center - _CamPos;
+    float forwardDist = dot(_CamForward, toCenter);
+
+    if (forwardDist < -radius || forwardDist > _CylinderMaxDistance + radius)
+        return false;
+
+    float3 projected = _CamForward * forwardDist;
+    float3 radial = toCenter - projected;
+    float radialDistSqr = dot(radial, radial);
+
+    float t = _CylinderMaxDistance > 0.0001 ? saturate(forwardDist / _CylinderMaxDistance) : 0.0;
+    float radiusAtDepth = lerp(_CylinderNearRadius, _CylinderFarRadius, t) + radius;
+    return radialDistSqr <= (radiusAtDepth * radiusAtDepth);
+}
+
+[numthreads(64, 1, 1)]
+void CSVegetationCulling(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    if (index >= _GrassCount)
+        return;
+
+    GrassInstance inst = _AllGrass[index];
+
+    if (_CullMode == 1)
+    {
+        if (!IsInsideCylinderFrustum(inst.boundCenter, inst.boundRadius))
+            return;
+    }
+    else
+    {
+        if (!IsWithinDistance(inst.boundCenter, inst.boundRadius))
+            return;
+
+        if (!IsInsideFrustum(inst.boundCenter, inst.boundRadius))
+            return;
+    }
+
+    _VisibleGrass.Append(inst.localToWorld);
+}

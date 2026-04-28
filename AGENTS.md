@@ -110,6 +110,8 @@ Do not introduce ad hoc pass ordering outside this contract unless there is a ha
 - Prefer uniforms over shader keywords for runtime intensity/threshold toggles.
 - Prefer `#pragma shader_feature_local` over broad `multi_compile`.
 - Do not build giant shared "do everything" shaders across vegetation, characters, effects, and UI.
+- Environment and vegetation shaders under [`Assets/NWRP/Shaders/Environment`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Shaders/Environment) must use NWRP shader libraries and pass tags. Do not include URP shader libraries or keep URP LightMode tags in NWRP-owned variants.
+- Keep grass and tree shaders separate. Grass shaders should default to receiving realtime shadows without casting them; tree shaders that need shadows must use their own ShadowCaster path instead of adding tree-specific complexity to grass shaders.
 
 ## Variant Control
 
@@ -119,12 +121,13 @@ Variant growth is a hard constraint.
 - Avoid multiplying feature combinations across unrelated axes.
 - If a feature is expensive and rarely used, split it into a dedicated shader instead of another branch stack.
 - Keep mobile-facing shader variant counts predictable and bounded.
-- When touching shaders under [`Assets/Shaders/Environment`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/Shaders/Environment), reduce inherited URP keyword debt instead of copying it into NWRP.
+- When touching shaders under [`Assets/NWRP/Shaders/Environment`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Shaders/Environment), reduce inherited URP keyword debt instead of copying it into NWRP.
 
 ## Instancing and Large-Scale Rendering
 
 - For large instance counts such as vegetation, prefer GPU-driven paths.
 - Do not implement large render loops with CPU-side per-instance `for` loops.
+- GPU-driven vegetation should keep grass and tree render policies split by renderer or feature so culling distance, shadow casting, and receiver settings do not leak across vegetation types.
 - Future large-scale systems should be organized around:
   - chunk or cluster grouping
   - GPU culling
