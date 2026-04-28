@@ -15,7 +15,7 @@ namespace NWRP.Runtime.Passes
 
         public override void Execute(ref NWRPFrameData frameData)
         {
-            MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, null, null);
+            MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, null);
         }
     }
 }

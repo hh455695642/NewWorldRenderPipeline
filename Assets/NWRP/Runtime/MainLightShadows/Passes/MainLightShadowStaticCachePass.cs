@@ -57,15 +57,19 @@ namespace NWRP.Runtime.Passes
             float effectiveShadowDistance = MainLightShadowPassUtils.GetEffectiveShadowDistance(asset, frameData.camera);
             int staticCasterLayerMask = MainLightShadowPassUtils.GetStaticCasterLayerMaskValue(asset);
             int dynamicCasterLayerMask = asset.DynamicCasterLayerMask.value;
+            if (!dynamicOverlayEnabled)
+            {
+                _cacheState.ReleaseCombinedShadowmap();
+            }
 
             bool staticReallocated = _cacheState.EnsureStaticShadowmap(atlasWidth, atlasHeight);
             bool emptyReallocated = _cacheState.EnsureEmptyShadowmap();
-            bool dynamicReallocated = dynamicOverlayEnabled
-                && _cacheState.EnsureDynamicShadowmap(atlasWidth, atlasHeight);
+            bool combinedReallocated = dynamicOverlayEnabled
+                && _cacheState.EnsureCombinedShadowmap(atlasWidth, atlasHeight);
 
             bool needsRebuild = staticReallocated
                 || emptyReallocated
-                || dynamicReallocated
+                || combinedReallocated
                 || _cacheState.NeedsStaticCacheRebuild(
                     asset,
                     frameData.camera,
@@ -87,11 +91,9 @@ namespace NWRP.Runtime.Passes
                     MainLightShadowPassUtils.UploadCachedReceiverGlobals(
                         ref frameData,
                         _cacheState.StaticShadowmapTexture,
-                        _cacheState.EmptyShadowmapTexture,
                         _cacheState,
                         mainLight.shadowStrength,
                         effectiveShadowDistance,
-                        false,
                         NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.CachedStatic
                     );
                 }
@@ -184,11 +186,9 @@ namespace NWRP.Runtime.Passes
             MainLightShadowPassUtils.UploadCachedReceiverGlobals(
                 ref frameData,
                 _cacheState.StaticShadowmapTexture,
-                _cacheState.EmptyShadowmapTexture,
                 _cacheState,
                 mainLight.shadowStrength,
                 effectiveShadowDistance,
-                false,
                 NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.CachedStatic
             );
 
@@ -202,7 +202,6 @@ namespace NWRP.Runtime.Passes
         {
             MainLightShadowPassUtils.UploadDisabledGlobals(
                 ref frameData,
-                _cacheState.EmptyShadowmapTexture,
                 _cacheState.EmptyShadowmapTexture
             );
         }

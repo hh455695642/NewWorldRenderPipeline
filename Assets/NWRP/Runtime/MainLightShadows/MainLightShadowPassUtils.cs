@@ -169,6 +169,8 @@ namespace NWRP.Runtime.Passes
 
             cullingParameters.shadowDistance = GetEffectiveShadowDistance(frameData.asset, frameData.camera);
             cullingParameters.cullingMask &= unchecked((uint)layerMaskValue);
+            cullingParameters.cullingOptions |= CullingOptions.ShadowCasters;
+            cullingParameters.cullingOptions &= ~CullingOptions.OcclusionCull;
             cullResults = frameData.context.Cull(ref cullingParameters);
             return true;
         }
@@ -236,6 +238,7 @@ namespace NWRP.Runtime.Passes
                 }
 
                 splitData.shadowCascadeBlendCullingFactor = 1.0f;
+                StabilizeDirectionalShadowProjection(ref viewMatrix, ref projectionMatrix, tileResolution);
                 GetTileOffset(cascadeIndex, tileResolution, out int offsetX, out int offsetY);
 
                 ref MainLightShadowCascadeData cascadeData = ref cacheState.CascadeData[cascadeIndex];
@@ -276,6 +279,34 @@ namespace NWRP.Runtime.Passes
         {
             frameData.cmd.SetRenderTarget(shadowmapTexture);
             frameData.cmd.ClearRenderTarget(true, false, Color.black);
+            ExecuteBuffer(ref frameData);
+        }
+
+        public static bool CopyShadowAtlas(
+            ref NWRPFrameData frameData,
+            RenderTexture source,
+            RenderTexture destination)
+        {
+            if (source == null
+                || destination == null
+                || source.width != destination.width
+                || source.height != destination.height
+                || (SystemInfo.copyTextureSupport & CopyTextureSupport.Basic) == 0)
+            {
+                return false;
+            }
+
+            frameData.cmd.CopyTexture(source, destination);
+            ExecuteBuffer(ref frameData);
+            return true;
+        }
+
+        public static void BindShadowAtlas(ref NWRPFrameData frameData, RenderTexture shadowmapTexture)
+        {
+            frameData.cmd.SetRenderTarget(
+                shadowmapTexture,
+                RenderBufferLoadAction.Load,
+                RenderBufferStoreAction.Store);
             ExecuteBuffer(ref frameData);
         }
 
@@ -350,21 +381,16 @@ namespace NWRP.Runtime.Passes
 
         public static void UploadDisabledGlobals(
             ref NWRPFrameData frameData,
-            Texture staticFallbackShadowmap,
-            Texture dynamicFallbackShadowmap
+            Texture fallbackShadowmap
         )
         {
             CommandBuffer cmd = frameData.cmd;
 
             cmd.SetGlobalTexture(
                 NWRPShaderIds.MainLightShadowmapTexture,
-                staticFallbackShadowmap != null ? staticFallbackShadowmap : Texture2D.blackTexture);
-            cmd.SetGlobalTexture(
-                NWRPShaderIds.MainLightDynamicShadowmapTexture,
-                dynamicFallbackShadowmap != null ? dynamicFallbackShadowmap : Texture2D.blackTexture);
+                fallbackShadowmap != null ? fallbackShadowmap : Texture2D.blackTexture);
             cmd.SetGlobalMatrixArray(NWRPShaderIds.MainLightWorldToShadow, s_DisabledWorldToShadowMatrices);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowParams, Vector4.zero);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightDynamicShadowParams, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowmapSize, Vector4.zero);
             cmd.SetGlobalInt(NWRPShaderIds.MainLightShadowFilterMode, 0);
             cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowFilterRadius, 0f);
@@ -441,10 +467,8 @@ namespace NWRP.Runtime.Passes
             );
 
             cmd.SetGlobalTexture(NWRPShaderIds.MainLightShadowmapTexture, staticShadowmap);
-            cmd.SetGlobalTexture(NWRPShaderIds.MainLightDynamicShadowmapTexture, Texture2D.blackTexture);
             cmd.SetGlobalMatrixArray(NWRPShaderIds.MainLightWorldToShadow, worldToShadowMatrices);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowParams, shadowParams);
-            cmd.SetGlobalVector(NWRPShaderIds.MainLightDynamicShadowParams, Vector4.zero);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowmapSize, shadowmapSize);
             cmd.SetGlobalInt(
                 NWRPShaderIds.MainLightShadowFilterMode,
@@ -467,12 +491,10 @@ namespace NWRP.Runtime.Passes
 
         public static void UploadCachedReceiverGlobals(
             ref NWRPFrameData frameData,
-            Texture staticShadowmap,
-            Texture dynamicShadowmap,
+            Texture shadowmap,
             MainLightShadowCacheState cacheState,
             float shadowStrength,
             float maxShadowDistance,
-            bool dynamicOverlayEnabled,
             NewWorldRenderPipelineAsset.MainLightShadowExecutionPath executionPath
         )
         {
@@ -522,16 +544,9 @@ namespace NWRP.Runtime.Passes
 
             cmd.SetGlobalTexture(
                 NWRPShaderIds.MainLightShadowmapTexture,
-                staticShadowmap != null ? staticShadowmap : Texture2D.blackTexture);
-            cmd.SetGlobalTexture(
-                NWRPShaderIds.MainLightDynamicShadowmapTexture,
-                dynamicShadowmap != null ? dynamicShadowmap : Texture2D.blackTexture);
+                shadowmap != null ? shadowmap : Texture2D.blackTexture);
             cmd.SetGlobalMatrixArray(NWRPShaderIds.MainLightWorldToShadow, cacheState.WorldToShadowMatrices);
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowParams, shadowParams);
-            cmd.SetGlobalVector(
-                NWRPShaderIds.MainLightDynamicShadowParams,
-                new Vector4(dynamicOverlayEnabled ? 1f : 0f, 0f, 0f, 0f)
-            );
             cmd.SetGlobalVector(NWRPShaderIds.MainLightShadowmapSize, shadowmapSize);
             cmd.SetGlobalInt(
                 NWRPShaderIds.MainLightShadowFilterMode,
@@ -562,6 +577,26 @@ namespace NWRP.Runtime.Passes
             float texelSize = frustumSize / safeResolution;
 
             return new Vector4(-depthBias * texelSize, -normalBias * texelSize, 0f, 0f);
+        }
+
+        public static void StabilizeDirectionalShadowProjection(
+            ref Matrix4x4 viewMatrix,
+            ref Matrix4x4 projectionMatrix,
+            int tileResolution
+        )
+        {
+            float texelScale = Mathf.Max(tileResolution, 1) * 0.5f;
+            Matrix4x4 worldToClip = projectionMatrix * viewMatrix;
+            Vector3 shadowOrigin = worldToClip.MultiplyPoint3x4(Vector3.zero) * texelScale;
+            Vector3 roundedOrigin = new Vector3(
+                Mathf.Round(shadowOrigin.x),
+                Mathf.Round(shadowOrigin.y),
+                shadowOrigin.z);
+            Vector3 snapOffset = (roundedOrigin - shadowOrigin) / texelScale;
+
+            // Keeps cached and dynamic overlay cascades aligned to the same shadow texel grid.
+            projectionMatrix.m03 += snapOffset.x;
+            projectionMatrix.m13 += snapOffset.y;
         }
 
         public static Matrix4x4 BuildWorldToShadowMatrix(

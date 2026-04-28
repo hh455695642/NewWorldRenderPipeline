@@ -252,6 +252,9 @@ namespace NWRP
             [Tooltip("Layer mask rendered into the per-frame dynamic shadow overlay atlas for Game Cameras. Only used when Enable Dynamic Shadow is enabled.")]
             public LayerMask dynamicCasterLayerMask = 0;
 
+            [Tooltip("Invalidate the cached static shadow atlas from Game Camera movement. Keep disabled for stable cached dynamic shadows; call MarkMainLightShadowCacheDirty when the cached region must refresh.")]
+            public bool enableCameraMotionInvalidation = false;
+
             [Tooltip("Game Camera position delta in world units required to invalidate the cached static shadow atlas when using the OnDirty cached update path.")]
             [Min(0f)]
             public float cameraPositionInvalidationThreshold = 0.25f;
@@ -340,6 +343,9 @@ namespace NWRP
 
             [HideInInspector]
             public LayerMask dynamicCasterLayerMask = 0;
+
+            [HideInInspector]
+            public bool enableCameraMotionInvalidation = false;
 
             [HideInInspector]
             public float cameraPositionInvalidationThreshold = 0.25f;
@@ -464,6 +470,8 @@ namespace NWRP
             && MainLightShadowSettingsData.cached.enableDynamicShadowOverlay;
         public LayerMask StaticCasterLayerMask => MainLightShadowSettingsData.cached.staticCasterLayerMask;
         public LayerMask DynamicCasterLayerMask => MainLightShadowSettingsData.cached.dynamicCasterLayerMask;
+        public bool EnableMainLightShadowCameraMotionInvalidation =>
+            MainLightShadowSettingsData.cached.enableCameraMotionInvalidation;
         public float CameraPositionInvalidationThreshold => MainLightShadowSettingsData.cached.cameraPositionInvalidationThreshold;
         public float CameraRotationInvalidationThreshold => MainLightShadowSettingsData.cached.cameraRotationInvalidationThreshold;
         public float LightDirectionInvalidationThreshold => MainLightShadowSettingsData.cached.lightDirectionInvalidationThreshold;
@@ -794,6 +802,7 @@ namespace NWRP
 
             settings.cached.staticCasterLayerMask = settings.staticCasterLayerMask;
             settings.cached.dynamicCasterLayerMask = settings.dynamicCasterLayerMask;
+            settings.cached.enableCameraMotionInvalidation = settings.enableCameraMotionInvalidation;
             settings.cached.cameraPositionInvalidationThreshold = settings.cameraPositionInvalidationThreshold;
             settings.cached.cameraRotationInvalidationThreshold = settings.cameraRotationInvalidationThreshold;
             settings.cached.lightDirectionInvalidationThreshold = settings.lightDirectionInvalidationThreshold;
@@ -827,6 +836,7 @@ namespace NWRP
             settings.enableDynamicShadowOverlay = settings.cached.enableDynamicShadowOverlay;
             settings.staticCasterLayerMask = settings.cached.staticCasterLayerMask;
             settings.dynamicCasterLayerMask = settings.cached.dynamicCasterLayerMask;
+            settings.enableCameraMotionInvalidation = settings.cached.enableCameraMotionInvalidation;
             settings.cameraPositionInvalidationThreshold = settings.cached.cameraPositionInvalidationThreshold;
             settings.cameraRotationInvalidationThreshold = settings.cached.cameraRotationInvalidationThreshold;
             settings.lightDirectionInvalidationThreshold = settings.cached.lightDirectionInvalidationThreshold;
@@ -989,6 +999,12 @@ namespace NWRP
                 if (TryReadBool(trimmed, "enableDynamicShadowOverlay:", out bool enableDynamicShadowOverlay))
                 {
                     mainLightShadows.enableDynamicShadowOverlay = enableDynamicShadowOverlay;
+                    continue;
+                }
+
+                if (TryReadBool(trimmed, "enableCameraMotionInvalidation:", out bool enableCameraMotionInvalidation))
+                {
+                    mainLightShadows.enableCameraMotionInvalidation = enableCameraMotionInvalidation;
                     continue;
                 }
 

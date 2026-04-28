@@ -28,7 +28,6 @@
 #endif
 
 TEXTURE2D_SHADOW(_MainLightShadowmapTexture);
-TEXTURE2D_SHADOW(_MainLightDynamicShadowmapTexture);
 TEXTURE2D_SHADOW(_AdditionalLightsShadowmapTexture);
 SAMPLER_CMP(sampler_LinearClampCompare);
 
@@ -39,7 +38,6 @@ int _MainLightShadowDebugViewMode;
 int _MainLightShadowDebugExecutionPath;
 float _MainLightShadowFilterRadius;
 half4 _MainLightShadowParams;
-half4 _MainLightDynamicShadowParams;
 float4 _MainLightShadowmapSize;
 float4 _MainLightShadowReceiverBiasParams;
 float4 _MainLightShadowAtlasTexelSize;
@@ -312,16 +310,6 @@ half SampleMainLightShadowTextureHard(float3 shadowCoordUVW, int cascadeIndex)
     );
 }
 
-half SampleMainLightDynamicShadowTextureHard(float3 shadowCoordUVW, int cascadeIndex)
-{
-    shadowCoordUVW.xy = ClampMainLightShadowSampleUV(shadowCoordUVW.xy, cascadeIndex, 0.5);
-    return SAMPLE_TEXTURE2D_SHADOW(
-        _MainLightDynamicShadowmapTexture,
-        sampler_LinearClampCompare,
-        shadowCoordUVW
-    );
-}
-
 #define NWRP_SAMPLE_MAIN_LIGHT_TENT9(shadowTexture, shadowCoordUVW, cascadeIndex) \
     float radius = _MainLightShadowFilterRadius; \
     float paddingScale = max(radius, 1.0) * 0.5; \
@@ -352,12 +340,6 @@ half SampleMainLightShadowTextureMediumTent(float3 shadowCoordUVW, int cascadeIn
     return visibility * (1.0h / 16.0h);
 }
 
-half SampleMainLightDynamicShadowTextureMediumTent(float3 shadowCoordUVW, int cascadeIndex)
-{
-    NWRP_SAMPLE_MAIN_LIGHT_TENT9(_MainLightDynamicShadowmapTexture, shadowCoordUVW, cascadeIndex)
-    return visibility * (1.0h / 16.0h);
-}
-
 half SampleMainLightStaticShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
 {
     if (_MainLightShadowFilterMode == NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
@@ -366,29 +348,6 @@ half SampleMainLightStaticShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
     }
 
     return SampleMainLightShadowTextureHard(shadowCoordUVW, cascadeIndex);
-}
-
-half SampleMainLightDynamicShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
-{
-    if (_MainLightShadowFilterMode == NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
-    {
-        return SampleMainLightDynamicShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
-    }
-
-    return SampleMainLightDynamicShadowTextureHard(shadowCoordUVW, cascadeIndex);
-}
-
-MainLightShadowResult SampleMainLightShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
-{
-    MainLightShadowResult result = CreateDefaultMainLightShadowResult();
-    result.staticVisibility = SampleMainLightStaticShadowAtCoord(shadowCoordUVW, cascadeIndex);
-    if (_MainLightDynamicShadowParams.x > 0.5h)
-    {
-        result.dynamicVisibility = SampleMainLightDynamicShadowAtCoord(shadowCoordUVW, cascadeIndex);
-    }
-
-    result.finalVisibility = min(result.staticVisibility, result.dynamicVisibility);
-    return result;
 }
 
 MainLightShadowResult SampleMainLightShadowResultInternal(
@@ -404,7 +363,7 @@ MainLightShadowResult SampleMainLightShadowResultInternal(
         return result;
     }
 
-    if (_MainLightShadowParams.x <= 0.0h || _MainLightShadowCascadeCount <= 0)
+    if (_MainLightShadowParams.x <= 0.0h)
     {
         return result;
     }
@@ -415,13 +374,19 @@ MainLightShadowResult SampleMainLightShadowResultInternal(
         return result;
     }
 
-    float3 samplePositionWS = positionWS;
+    float3 safeNormalWS = float3(0.0, 0.0, 0.0);
+    float3 safeLightDirectionWS = float3(0.0, 0.0, 0.0);
     float receiverBiasFactor = 0.0;
     if (applyReceiverBias)
     {
-        float3 safeNormalWS = normalize(normalWS);
-        float3 safeLightDirectionWS = normalize(lightDirectionWS);
+        safeNormalWS = normalize(normalWS);
+        safeLightDirectionWS = normalize(lightDirectionWS);
         receiverBiasFactor = 1.0 - saturate(dot(safeNormalWS, safeLightDirectionWS));
+    }
+
+    float3 samplePositionWS = positionWS;
+    if (applyReceiverBias)
+    {
         float receiverNormalBias = _MainLightShadowReceiverBiasParams.y
             * receiverBiasFactor
             * GetMainLightShadowReceiverWorldTexelSize(cascadeIndex);
@@ -436,17 +401,15 @@ MainLightShadowResult SampleMainLightShadowResultInternal(
             * _MainLightShadowAtlasTexelSize.z;
     }
 
-    if (IsMainLightShadowCoordOutOfBounds(shadowCoordUVW))
+    if (!IsMainLightShadowCoordOutOfBounds(shadowCoordUVW))
     {
-        return result;
+        result.finalVisibility = SampleMainLightStaticShadowAtCoord(shadowCoordUVW, cascadeIndex);
     }
 
-    result = SampleMainLightShadowAtCoord(shadowCoordUVW, cascadeIndex);
-    half fade = GetMainLightReceiverShadowFade(positionWS);
-    result.staticVisibility = lerp(1.0h, result.staticVisibility, fade);
-    result.dynamicVisibility = lerp(1.0h, result.dynamicVisibility, fade);
-    result.finalVisibility = min(result.staticVisibility, result.dynamicVisibility);
+    result.finalVisibility = lerp(1.0h, result.finalVisibility, GetMainLightReceiverShadowFade(positionWS));
     result.finalVisibility = lerp(1.0h, result.finalVisibility, _MainLightShadowParams.x);
+    result.staticVisibility = result.finalVisibility;
+    result.dynamicVisibility = result.finalVisibility;
     return result;
 }
 

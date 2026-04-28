@@ -45,57 +45,59 @@ namespace NWRP.Runtime.Passes
             }
 
             bool dynamicOverlayEnabled = MainLightShadowPassUtils.ShouldRenderDynamicOverlay(asset);
-            Texture dynamicShadowmap = _cacheState.EmptyShadowmapTexture;
+            Texture receiverShadowmap = _cacheState.StaticShadowmapTexture;
+            NewWorldRenderPipelineAsset.MainLightShadowExecutionPath executionPath =
+                NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.CachedStatic;
 
-            if (dynamicOverlayEnabled && _cacheState.DynamicShadowmapTexture == null)
+            if (dynamicOverlayEnabled && _cacheState.CombinedShadowmapTexture == null)
             {
-                _cacheState.EnsureDynamicShadowmap(_cacheState.AtlasWidth, _cacheState.AtlasHeight);
+                _cacheState.EnsureCombinedShadowmap(_cacheState.AtlasWidth, _cacheState.AtlasHeight);
             }
 
-            if (dynamicOverlayEnabled && _cacheState.DynamicShadowmapTexture != null)
+            if (dynamicOverlayEnabled && _cacheState.CombinedShadowmapTexture != null)
             {
-                dynamicShadowmap = _cacheState.DynamicShadowmapTexture;
                 using (new ProfilingScope(frameData.cmd, MainLightShadowPassUtils.RenderDynamicOverlaySampler))
                 {
-                    CullingResults dynamicCullResults = frameData.cullingResults;
-                    int dynamicCasterLayerMask = asset.DynamicCasterLayerMask.value;
+                    bool copiedStaticAtlas = MainLightShadowPassUtils.CopyShadowAtlas(
+                        ref frameData,
+                        _cacheState.StaticShadowmapTexture,
+                        _cacheState.CombinedShadowmapTexture);
 
-                    if (!MainLightShadowPassUtils.IsEverythingLayerMask(dynamicCasterLayerMask)
-                        && !MainLightShadowPassUtils.TryCull(
-                            ref frameData,
-                            dynamicCasterLayerMask,
-                            out dynamicCullResults))
+                    if (copiedStaticAtlas)
                     {
-                        dynamicOverlayEnabled = false;
-                        dynamicShadowmap = _cacheState.EmptyShadowmapTexture;
-                    }
-                    else if (!MainLightShadowPassUtils.TryGetMainLightIndex(
-                            dynamicCullResults,
-                            mainLight,
-                            out int dynamicLightIndex,
-                            out VisibleLight dynamicVisibleLight))
-                    {
-                        dynamicOverlayEnabled = false;
-                        dynamicShadowmap = _cacheState.EmptyShadowmapTexture;
-                    }
-                    else
-                    {
-                        MainLightShadowPassUtils.ClearShadowAtlas(
-                            ref frameData,
-                            _cacheState.DynamicShadowmapTexture);
-                        bool renderedDynamicAtlas = MainLightShadowPassUtils.RenderMainLightShadowAtlas(
-                            ref frameData,
-                            dynamicCullResults,
-                            dynamicLightIndex,
-                            dynamicVisibleLight,
-                            _cacheState.CascadeCount,
-                            _cacheState
-                        );
+                        receiverShadowmap = _cacheState.CombinedShadowmapTexture;
+                        CullingResults dynamicCullResults = frameData.cullingResults;
+                        int dynamicCasterLayerMask = asset.DynamicCasterLayerMask.value;
 
-                        if (!renderedDynamicAtlas)
+                        if ((MainLightShadowPassUtils.IsEverythingLayerMask(dynamicCasterLayerMask)
+                                || MainLightShadowPassUtils.TryCull(
+                                    ref frameData,
+                                    dynamicCasterLayerMask,
+                                    out dynamicCullResults))
+                            && MainLightShadowPassUtils.TryGetMainLightIndex(
+                                dynamicCullResults,
+                                mainLight,
+                                out int dynamicLightIndex,
+                                out VisibleLight dynamicVisibleLight))
                         {
-                            dynamicOverlayEnabled = false;
-                            dynamicShadowmap = _cacheState.EmptyShadowmapTexture;
+                            MainLightShadowPassUtils.BindShadowAtlas(
+                                ref frameData,
+                                _cacheState.CombinedShadowmapTexture);
+                            bool renderedDynamicAtlas = MainLightShadowPassUtils.RenderMainLightShadowAtlas(
+                                ref frameData,
+                                dynamicCullResults,
+                                dynamicLightIndex,
+                                dynamicVisibleLight,
+                                _cacheState.CascadeCount,
+                                _cacheState
+                            );
+
+                            if (renderedDynamicAtlas)
+                            {
+                                executionPath = NewWorldRenderPipelineAsset
+                                    .MainLightShadowExecutionPath
+                                    .CachedStaticPlusDynamicOverlay;
+                            }
                         }
                     }
                 }
@@ -103,15 +105,11 @@ namespace NWRP.Runtime.Passes
 
             MainLightShadowPassUtils.UploadCachedReceiverGlobals(
                 ref frameData,
-                _cacheState.StaticShadowmapTexture,
-                dynamicShadowmap,
+                receiverShadowmap,
                 _cacheState,
                 mainLight.shadowStrength,
                 MainLightShadowPassUtils.GetEffectiveShadowDistance(asset, frameData.camera),
-                dynamicOverlayEnabled,
-                dynamicOverlayEnabled
-                    ? NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.CachedStaticPlusDynamicOverlay
-                    : NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.CachedStatic
+                executionPath
             );
 
             frameData.context.SetupCameraProperties(frameData.camera);
@@ -121,7 +119,6 @@ namespace NWRP.Runtime.Passes
         {
             MainLightShadowPassUtils.UploadDisabledGlobals(
                 ref frameData,
-                _cacheState.EmptyShadowmapTexture,
                 _cacheState.EmptyShadowmapTexture
             );
         }

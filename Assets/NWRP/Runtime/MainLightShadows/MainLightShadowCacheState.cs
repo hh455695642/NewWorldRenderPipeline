@@ -44,11 +44,11 @@ namespace NWRP
         private CameraType _lastCacheCameraType = CameraType.Game;
 
         private RenderTexture _staticShadowmapTexture;
-        private RenderTexture _dynamicShadowmapTexture;
+        private RenderTexture _combinedShadowmapTexture;
         private RenderTexture _emptyShadowmapTexture;
 
         public RenderTexture StaticShadowmapTexture => _staticShadowmapTexture;
-        public RenderTexture DynamicShadowmapTexture => _dynamicShadowmapTexture;
+        public RenderTexture CombinedShadowmapTexture => _combinedShadowmapTexture;
         public RenderTexture EmptyShadowmapTexture => _emptyShadowmapTexture;
 
         public int AtlasWidth { get; private set; }
@@ -67,7 +67,7 @@ namespace NWRP
         public void Dispose()
         {
             ReleaseTexture(ref _staticShadowmapTexture);
-            ReleaseTexture(ref _dynamicShadowmapTexture);
+            ReleaseTexture(ref _combinedShadowmapTexture);
             ReleaseTexture(ref _emptyShadowmapTexture);
             ResetCachedData();
         }
@@ -95,9 +95,14 @@ namespace NWRP
             return EnsureShadowmap(ref _staticShadowmapTexture, width, height, "NWRP_MainLightShadows_StaticShadowmap");
         }
 
-        public bool EnsureDynamicShadowmap(int width, int height)
+        public bool EnsureCombinedShadowmap(int width, int height)
         {
-            return EnsureShadowmap(ref _dynamicShadowmapTexture, width, height, "NWRP_MainLightShadows_DynamicShadowmap");
+            return EnsureShadowmap(ref _combinedShadowmapTexture, width, height, "NWRP_MainLightShadows_CombinedShadowmap");
+        }
+
+        public void ReleaseCombinedShadowmap()
+        {
+            ReleaseTexture(ref _combinedShadowmapTexture);
         }
 
         public bool EnsureEmptyShadowmap()
@@ -140,12 +145,8 @@ namespace NWRP
                 return true;
             }
 
-            if (Vector3.Distance(_cachedCameraPosition, camera.transform.position) > asset.CameraPositionInvalidationThreshold)
-            {
-                return true;
-            }
-
-            if (Quaternion.Angle(_cachedCameraRotation, camera.transform.rotation) > asset.CameraRotationInvalidationThreshold)
+            if (asset.EnableMainLightShadowCameraMotionInvalidation
+                && HasCameraMotionExceededThreshold(asset, camera))
             {
                 return true;
             }
@@ -176,6 +177,18 @@ namespace NWRP
             }
 
             return false;
+        }
+
+        private bool HasCameraMotionExceededThreshold(NewWorldRenderPipelineAsset asset, Camera camera)
+        {
+            if (Vector3.Distance(_cachedCameraPosition, camera.transform.position)
+                > asset.CameraPositionInvalidationThreshold)
+            {
+                return true;
+            }
+
+            return Quaternion.Angle(_cachedCameraRotation, camera.transform.rotation)
+                > asset.CameraRotationInvalidationThreshold;
         }
 
         public void CommitStaticCache(

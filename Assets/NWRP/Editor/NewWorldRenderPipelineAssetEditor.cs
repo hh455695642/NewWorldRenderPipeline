@@ -47,6 +47,7 @@ namespace NWRP.Editor
         private SerializedProperty _mainLightShadowCasterCullModeProperty;
         private SerializedProperty _staticCasterLayerMaskProperty;
         private SerializedProperty _dynamicCasterLayerMaskProperty;
+        private SerializedProperty _enableCameraMotionInvalidationProperty;
         private SerializedProperty _cameraPositionInvalidationThresholdProperty;
         private SerializedProperty _cameraRotationInvalidationThresholdProperty;
         private SerializedProperty _lightDirectionInvalidationThresholdProperty;
@@ -121,6 +122,8 @@ namespace NWRP.Editor
                 _mainLightShadowCachedProperty.FindPropertyRelative("staticCasterLayerMask");
             _dynamicCasterLayerMaskProperty =
                 _mainLightShadowCachedProperty.FindPropertyRelative("dynamicCasterLayerMask");
+            _enableCameraMotionInvalidationProperty =
+                _mainLightShadowCachedProperty.FindPropertyRelative("enableCameraMotionInvalidation");
             _cameraPositionInvalidationThresholdProperty =
                 _mainLightShadowCachedProperty.FindPropertyRelative("cameraPositionInvalidationThreshold");
             _cameraRotationInvalidationThresholdProperty =
@@ -251,8 +254,15 @@ namespace NWRP.Editor
                 EditorGUILayout.PropertyField(
                     _staticCasterLayerMaskProperty,
                     new GUIContent("Static Caster Layer Mask"));
-                EditorGUILayout.PropertyField(_cameraPositionInvalidationThresholdProperty);
-                EditorGUILayout.PropertyField(_cameraRotationInvalidationThresholdProperty);
+                EditorGUILayout.PropertyField(
+                    _enableCameraMotionInvalidationProperty,
+                    new GUIContent("Camera Motion Invalidates Cache"));
+                if (_enableCameraMotionInvalidationProperty.boolValue)
+                {
+                    EditorGUILayout.PropertyField(_cameraPositionInvalidationThresholdProperty);
+                    EditorGUILayout.PropertyField(_cameraRotationInvalidationThresholdProperty);
+                }
+
                 EditorGUILayout.PropertyField(_lightDirectionInvalidationThresholdProperty);
 
                 if (_enableDynamicShadowOverlayProperty.boolValue)
@@ -289,13 +299,20 @@ namespace NWRP.Editor
             if (useMediumPCF && _enableDynamicShadowOverlayProperty.boolValue)
             {
                 EditorGUILayout.HelpBox(
-                    "When Medium PCF and the dynamic shadow overlay are both enabled, receivers may run two 9-tap compare filters. This costs more on mobile than using the cached static path alone.",
+                    "When Medium PCF and the dynamic shadow overlay are both enabled, receivers still sample the combined main-light atlas once. The extra mobile cost is the per-frame atlas copy and dynamic caster shadow draw.",
                     MessageType.Info);
             }
 
             EditorGUILayout.HelpBox(
-                "Moving static shadow casters does not rebuild the cached atlas automatically. Call MarkMainLightShadowCacheDirty() or move the Game Camera or main light far enough to cross the invalidation thresholds.",
+                "Moving static shadow casters does not rebuild the cached atlas automatically. Call MarkMainLightShadowCacheDirty() when the cached static region must refresh.",
                 MessageType.Info);
+
+            if (_enableCameraMotionInvalidationProperty.boolValue)
+            {
+                EditorGUILayout.HelpBox(
+                    "Camera Motion Invalidates Cache can make cached dynamic shadows visibly jump while the Game Camera moves. Keep it disabled for stable cached dynamic overlays.",
+                    MessageType.Warning);
+            }
 
             if (_mainLightShadowDebugViewModeProperty.enumValueIndex
                 == (int)NewWorldRenderPipelineAsset.MainLightShadowDebugViewMode.FinalShadowSourceTint)

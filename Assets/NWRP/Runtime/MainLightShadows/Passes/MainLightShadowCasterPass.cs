@@ -176,7 +176,7 @@ namespace NWRP.Runtime.Passes
 
         private void UploadDisabledGlobals(ref NWRPFrameData frameData)
         {
-            MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, null, null);
+            MainLightShadowPassUtils.UploadDisabledGlobals(ref frameData, null);
         }
 
         private bool TryGetMainLightIndex(ref NWRPFrameData frameData, out int mainLightIndex, out Light mainLight)
