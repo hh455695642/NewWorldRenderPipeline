@@ -92,4 +92,6 @@ MonoBehaviour:
   featureSettings:
     outline:
       enableOutline: 0
+    opaqueTexture:
+      enableOpaqueTexture: 1
     features: []

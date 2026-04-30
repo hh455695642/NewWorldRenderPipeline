@@ -152,6 +152,7 @@ namespace NWRP
         public sealed class FeatureSettings
         {
             public OutlineSettings outline = new OutlineSettings();
+            public OpaqueTextureSettings opaqueTexture = new OpaqueTextureSettings();
             public List<NWRPFeature> features = new List<NWRPFeature>();
 
             public void EnsureInitialized()
@@ -159,6 +160,11 @@ namespace NWRP
                 if (outline == null)
                 {
                     outline = new OutlineSettings();
+                }
+
+                if (opaqueTexture == null)
+                {
+                    opaqueTexture = new OpaqueTextureSettings();
                 }
 
                 if (features == null)
@@ -173,6 +179,13 @@ namespace NWRP
         {
             [Tooltip("Enable the built-in NewWorldOutline pass. Keep disabled on the mobile baseline unless materials explicitly need shell outlines.")]
             public bool enableOutline = false;
+        }
+
+        [System.Serializable]
+        public sealed class OpaqueTextureSettings
+        {
+            [Tooltip("Copy opaque camera color to _CameraOpaqueTexture after skybox and before transparents. Costs one full-screen copy and one color RT.")]
+            public bool enableOpaqueTexture = false;
         }
 
         [System.Serializable]
@@ -415,6 +428,9 @@ namespace NWRP
         [System.NonSerialized]
         private OutlineFeature _runtimeOutlineFeature;
 
+        [System.NonSerialized]
+        private OpaqueTextureFeature _runtimeOpaqueTextureFeature;
+
         private MainLightShadowSettings MainLightShadowSettingsData
         {
             get
@@ -491,6 +507,7 @@ namespace NWRP
         public float AdditionalLightShadowFilterRadius =>
             AdditionalLightShadowSettingsData.filter.additionalLightShadowFilterRadius;
         public bool EnableOutline => FeatureSettingsData.outline.enableOutline;
+        public bool EnableOpaqueTexture => FeatureSettingsData.opaqueTexture.enableOpaqueTexture;
 
         /// <summary>
         /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,
@@ -591,12 +608,26 @@ namespace NWRP
             return _runtimeOutlineFeature;
         }
 
+        internal OpaqueTextureFeature GetOrCreateOpaqueTextureFeature()
+        {
+            if (_runtimeOpaqueTextureFeature != null)
+            {
+                return _runtimeOpaqueTextureFeature;
+            }
+
+            _runtimeOpaqueTextureFeature = ScriptableObject.CreateInstance<OpaqueTextureFeature>();
+            _runtimeOpaqueTextureFeature.hideFlags = HideFlags.HideAndDontSave;
+            _runtimeOpaqueTextureFeature.name = "NWRP Runtime OpaqueTextureFeature";
+            return _runtimeOpaqueTextureFeature;
+        }
+
         internal void DisposeRuntimeFeatures()
         {
             if (_runtimeMainLightShadowFeature == null)
             {
                 DisposeAdditionalRuntimeFeature();
                 DisposeOutlineRuntimeFeature();
+                DisposeOpaqueTextureRuntimeFeature();
                 return;
             }
 
@@ -612,6 +643,7 @@ namespace NWRP
             _runtimeMainLightShadowFeature = null;
             DisposeAdditionalRuntimeFeature();
             DisposeOutlineRuntimeFeature();
+            DisposeOpaqueTextureRuntimeFeature();
         }
 
         private void DisposeAdditionalRuntimeFeature()
@@ -650,6 +682,25 @@ namespace NWRP
             }
 
             _runtimeOutlineFeature = null;
+        }
+
+        private void DisposeOpaqueTextureRuntimeFeature()
+        {
+            if (_runtimeOpaqueTextureFeature == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_runtimeOpaqueTextureFeature);
+            }
+            else
+            {
+                DestroyImmediate(_runtimeOpaqueTextureFeature);
+            }
+
+            _runtimeOpaqueTextureFeature = null;
         }
 
         protected override RenderPipeline CreatePipeline()

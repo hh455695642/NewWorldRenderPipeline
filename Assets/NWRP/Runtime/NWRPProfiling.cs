@@ -13,18 +13,8 @@ namespace NWRP
             new ProfilingSampler("NWRP.RenderSingleCamera: Unknown");
         public static readonly ProfilingSampler RendererExecute =
             new ProfilingSampler("NWRPRenderer.Execute");
-        public static readonly ProfilingSampler SetupCamera =
-            new ProfilingSampler("Setup Camera");
-        public static readonly ProfilingSampler SetupLights =
-            new ProfilingSampler("Setup Lights");
-        public static readonly ProfilingSampler BeforeRendering =
-            new ProfilingSampler("Before Rendering");
-        public static readonly ProfilingSampler MainRenderingOpaque =
-            new ProfilingSampler("Main Rendering Opaque");
-        public static readonly ProfilingSampler MainRenderingTransparent =
-            new ProfilingSampler("Main Rendering Transparent");
-        public static readonly ProfilingSampler Submit =
-            new ProfilingSampler("Submit");
+        public static readonly ProfilingSampler FinalBlit =
+            new ProfilingSampler("Final Blit");
         public static readonly ProfilingSampler MainLightShadow =
             new ProfilingSampler("Main Light Shadows");
         public static readonly ProfilingSampler AdditionalLightShadow =

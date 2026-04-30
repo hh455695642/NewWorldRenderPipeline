@@ -5,7 +5,7 @@ namespace NWRP.Runtime.Passes
         private readonly NWRPRenderer _renderer;
 
         public SubmitPass(NWRPRenderer renderer)
-            : base(NWRPPassEvent.DebugOverlay, "Submit Context")
+            : base(NWRPPassEvent.DebugOverlay, "Final Blit", null, false)
         {
             _renderer = renderer;
         }

@@ -16,6 +16,7 @@ namespace NWRP.Editor
         private SerializedProperty _featureSettingsProperty;
         private SerializedProperty _featureListProperty;
         private SerializedProperty _featureOutlineProperty;
+        private SerializedProperty _featureOpaqueTextureProperty;
 
         private SerializedProperty _mainLightShadowsProperty;
         private SerializedProperty _mainLightShadowTogglesProperty;
@@ -63,6 +64,7 @@ namespace NWRP.Editor
         private SerializedProperty _additionalLightShadowFilterModeProperty;
         private SerializedProperty _additionalLightShadowFilterRadiusProperty;
         private SerializedProperty _enableOutlineProperty;
+        private SerializedProperty _enableOpaqueTextureProperty;
 
         private void OnEnable()
         {
@@ -70,6 +72,7 @@ namespace NWRP.Editor
             _useGPUInstancingProperty = serializedObject.FindProperty("useGPUInstancing");
             _featureSettingsProperty = serializedObject.FindProperty("featureSettings");
             _featureOutlineProperty = _featureSettingsProperty.FindPropertyRelative("outline");
+            _featureOpaqueTextureProperty = _featureSettingsProperty.FindPropertyRelative("opaqueTexture");
             _featureListProperty = _featureSettingsProperty.FindPropertyRelative("features");
 
             _mainLightShadowsProperty = serializedObject.FindProperty("mainLightShadows");
@@ -154,6 +157,8 @@ namespace NWRP.Editor
                 _additionalLightShadowFilterProperty.FindPropertyRelative("additionalLightShadowFilterRadius");
             _enableOutlineProperty =
                 _featureOutlineProperty.FindPropertyRelative("enableOutline");
+            _enableOpaqueTextureProperty =
+                _featureOpaqueTextureProperty.FindPropertyRelative("enableOpaqueTexture");
         }
 
         public override void OnInspectorGUI()
@@ -193,6 +198,18 @@ namespace NWRP.Editor
             EditorGUILayout.PropertyField(
                 _enableOutlineProperty,
                 new GUIContent("Enable Built-in Outline"));
+
+            EditorGUILayout.Space(2f);
+            DrawSubsectionLabel("Opaque Texture");
+            EditorGUILayout.PropertyField(
+                _enableOpaqueTextureProperty,
+                new GUIContent("Enable Camera Opaque Texture"));
+            if (_enableOpaqueTextureProperty.boolValue)
+            {
+                EditorGUILayout.HelpBox(
+                    "Copies opaque color to _CameraOpaqueTexture before transparent rendering. Mobile cost is one full-screen copy and one full-resolution color RT.",
+                    MessageType.Info);
+            }
 
             EditorGUILayout.Space(2f);
             DrawSubsectionLabel("Explicit Features");
