@@ -25,17 +25,22 @@ namespace NWRP
         public RenderTargetIdentifier backBufferDepth;
         public RenderTargetIdentifier cameraColor;
         public RenderTargetIdentifier cameraDepth;
+        public RenderTargetIdentifier cameraDepthTexture;
         public RenderTargetIdentifier opaqueTexture;
         public RTHandle backBufferColorHandle;
         public RTHandle cameraColorHandle;
         public RTHandle cameraDepthHandle;
+        public RTHandle cameraDepthTextureHandle;
         public RTHandle opaqueTextureHandle;
         public bool hasCameraTargets;
         public bool ownsIntermediateColor;
         public bool ownsIntermediateDepth;
+        public bool ownsCameraDepthTexture;
         public bool ownsOpaqueTexture;
         public bool usesIntermediateColor;
         public bool usesIntermediateDepth;
+        public bool hasCameraDepthTexture;
+        public bool cameraDepthTextureIsDepthTarget;
         public bool hasOpaqueTexture;
     }
 
@@ -46,12 +51,18 @@ namespace NWRP
     {
         public bool requiresIntermediateColor;
         public bool requiresIntermediateDepth;
+        public bool requiresDepthTexture;
+        public bool requiresDepthTextureCopy;
+        public bool requiresDepthTexturePrepass;
         public bool requiresOpaqueTexture;
 
         public void Merge(NWRPFrameTargetRequirements other)
         {
             requiresIntermediateColor |= other.requiresIntermediateColor;
             requiresIntermediateDepth |= other.requiresIntermediateDepth;
+            requiresDepthTexture |= other.requiresDepthTexture;
+            requiresDepthTextureCopy |= other.requiresDepthTextureCopy;
+            requiresDepthTexturePrepass |= other.requiresDepthTexturePrepass;
             requiresOpaqueTexture |= other.requiresOpaqueTexture;
         }
     }

@@ -17,6 +17,7 @@ namespace NWRP.Editor
         private SerializedProperty _featureListProperty;
         private SerializedProperty _featureOutlineProperty;
         private SerializedProperty _featureOpaqueTextureProperty;
+        private SerializedProperty _featureDepthTextureProperty;
 
         private SerializedProperty _mainLightShadowsProperty;
         private SerializedProperty _mainLightShadowTogglesProperty;
@@ -65,6 +66,8 @@ namespace NWRP.Editor
         private SerializedProperty _additionalLightShadowFilterRadiusProperty;
         private SerializedProperty _enableOutlineProperty;
         private SerializedProperty _enableOpaqueTextureProperty;
+        private SerializedProperty _enableDepthTextureProperty;
+        private SerializedProperty _copyDepthModeProperty;
 
         private void OnEnable()
         {
@@ -73,6 +76,7 @@ namespace NWRP.Editor
             _featureSettingsProperty = serializedObject.FindProperty("featureSettings");
             _featureOutlineProperty = _featureSettingsProperty.FindPropertyRelative("outline");
             _featureOpaqueTextureProperty = _featureSettingsProperty.FindPropertyRelative("opaqueTexture");
+            _featureDepthTextureProperty = _featureSettingsProperty.FindPropertyRelative("depthTexture");
             _featureListProperty = _featureSettingsProperty.FindPropertyRelative("features");
 
             _mainLightShadowsProperty = serializedObject.FindProperty("mainLightShadows");
@@ -159,6 +163,10 @@ namespace NWRP.Editor
                 _featureOutlineProperty.FindPropertyRelative("enableOutline");
             _enableOpaqueTextureProperty =
                 _featureOpaqueTextureProperty.FindPropertyRelative("enableOpaqueTexture");
+            _enableDepthTextureProperty =
+                _featureDepthTextureProperty.FindPropertyRelative("enableDepthTexture");
+            _copyDepthModeProperty =
+                _featureDepthTextureProperty.FindPropertyRelative("copyDepthMode");
         }
 
         public override void OnInspectorGUI()
@@ -208,6 +216,21 @@ namespace NWRP.Editor
             {
                 EditorGUILayout.HelpBox(
                     "Copies opaque color to _CameraOpaqueTexture before transparent rendering. Mobile cost is one full-screen copy and one full-resolution color RT.",
+                    MessageType.Info);
+            }
+
+            EditorGUILayout.Space(2f);
+            DrawSubsectionLabel("Depth Texture");
+            EditorGUILayout.PropertyField(
+                _enableDepthTextureProperty,
+                new GUIContent("Enable Camera Depth Texture"));
+            if (_enableDepthTextureProperty.boolValue)
+            {
+                EditorGUILayout.PropertyField(
+                    _copyDepthModeProperty,
+                    new GUIContent("Camera Depth Texture Mode"));
+                EditorGUILayout.HelpBox(
+                    "Copies or pre-renders opaque depth to _CameraDepthTexture. After Opaques is required when transparent materials sample scene depth; Force Prepass depends on DepthOnly passes.",
                     MessageType.Info);
             }
 

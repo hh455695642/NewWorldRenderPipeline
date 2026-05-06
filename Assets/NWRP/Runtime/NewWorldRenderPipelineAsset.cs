@@ -52,6 +52,13 @@ namespace NWRP
             FinalShadowSourceTint = 1
         }
 
+        public enum DepthTextureCopyMode
+        {
+            AfterOpaques = 0,
+            AfterTransparents = 1,
+            ForcePrepass = 2
+        }
+
         [System.Serializable]
         public sealed class AdditionalLightShadowToggleSettings
         {
@@ -153,6 +160,7 @@ namespace NWRP
         {
             public OutlineSettings outline = new OutlineSettings();
             public OpaqueTextureSettings opaqueTexture = new OpaqueTextureSettings();
+            public DepthTextureSettings depthTexture = new DepthTextureSettings();
             public List<NWRPFeature> features = new List<NWRPFeature>();
 
             public void EnsureInitialized()
@@ -165,6 +173,11 @@ namespace NWRP
                 if (opaqueTexture == null)
                 {
                     opaqueTexture = new OpaqueTextureSettings();
+                }
+
+                if (depthTexture == null)
+                {
+                    depthTexture = new DepthTextureSettings();
                 }
 
                 if (features == null)
@@ -184,8 +197,21 @@ namespace NWRP
         [System.Serializable]
         public sealed class OpaqueTextureSettings
         {
+            [InspectorName("Enable Camera Opaque Texture")]
             [Tooltip("Copy opaque camera color to _CameraOpaqueTexture after skybox and before transparents. Costs one full-screen copy and one color RT.")]
             public bool enableOpaqueTexture = false;
+        }
+
+        [System.Serializable]
+        public sealed class DepthTextureSettings
+        {
+            [InspectorName("Enable Camera Depth Texture")]
+            [Tooltip("Copy or pre-render opaque scene depth to _CameraDepthTexture. Costs one depth texture and usually one full-screen depth copy.")]
+            public bool enableDepthTexture = true;
+
+            [InspectorName("Camera Depth Texture Mode")]
+            [Tooltip("Controls when NWRP makes _CameraDepthTexture available.")]
+            public DepthTextureCopyMode copyDepthMode = DepthTextureCopyMode.AfterOpaques;
         }
 
         [System.Serializable]
@@ -431,6 +457,9 @@ namespace NWRP
         [System.NonSerialized]
         private OpaqueTextureFeature _runtimeOpaqueTextureFeature;
 
+        [System.NonSerialized]
+        private DepthTextureFeature _runtimeDepthTextureFeature;
+
         private MainLightShadowSettings MainLightShadowSettingsData
         {
             get
@@ -508,6 +537,8 @@ namespace NWRP
             AdditionalLightShadowSettingsData.filter.additionalLightShadowFilterRadius;
         public bool EnableOutline => FeatureSettingsData.outline.enableOutline;
         public bool EnableOpaqueTexture => FeatureSettingsData.opaqueTexture.enableOpaqueTexture;
+        public bool EnableDepthTexture => FeatureSettingsData.depthTexture.enableDepthTexture;
+        public DepthTextureCopyMode DepthTextureCopyModeSetting => FeatureSettingsData.depthTexture.copyDepthMode;
 
         /// <summary>
         /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,
@@ -621,6 +652,19 @@ namespace NWRP
             return _runtimeOpaqueTextureFeature;
         }
 
+        internal DepthTextureFeature GetOrCreateDepthTextureFeature()
+        {
+            if (_runtimeDepthTextureFeature != null)
+            {
+                return _runtimeDepthTextureFeature;
+            }
+
+            _runtimeDepthTextureFeature = ScriptableObject.CreateInstance<DepthTextureFeature>();
+            _runtimeDepthTextureFeature.hideFlags = HideFlags.HideAndDontSave;
+            _runtimeDepthTextureFeature.name = "NWRP Runtime DepthTextureFeature";
+            return _runtimeDepthTextureFeature;
+        }
+
         internal void DisposeRuntimeFeatures()
         {
             if (_runtimeMainLightShadowFeature == null)
@@ -628,6 +672,7 @@ namespace NWRP
                 DisposeAdditionalRuntimeFeature();
                 DisposeOutlineRuntimeFeature();
                 DisposeOpaqueTextureRuntimeFeature();
+                DisposeDepthTextureRuntimeFeature();
                 return;
             }
 
@@ -644,6 +689,7 @@ namespace NWRP
             DisposeAdditionalRuntimeFeature();
             DisposeOutlineRuntimeFeature();
             DisposeOpaqueTextureRuntimeFeature();
+            DisposeDepthTextureRuntimeFeature();
         }
 
         private void DisposeAdditionalRuntimeFeature()
@@ -701,6 +747,25 @@ namespace NWRP
             }
 
             _runtimeOpaqueTextureFeature = null;
+        }
+
+        private void DisposeDepthTextureRuntimeFeature()
+        {
+            if (_runtimeDepthTextureFeature == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_runtimeDepthTextureFeature);
+            }
+            else
+            {
+                DestroyImmediate(_runtimeDepthTextureFeature);
+            }
+
+            _runtimeDepthTextureFeature = null;
         }
 
         protected override RenderPipeline CreatePipeline()

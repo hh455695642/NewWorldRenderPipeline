@@ -9,7 +9,9 @@ namespace NWRP
     {
         // Camera targets
         public static readonly int CameraColorTexture = Shader.PropertyToID("_NWRPCameraColorTexture");
-        public static readonly int CameraDepthTexture = Shader.PropertyToID("_NWRPCameraDepthTexture");
+        public static readonly int CameraDepthAttachment = Shader.PropertyToID("_CameraDepthAttachment");
+        public static readonly int CameraDepthAttachmentTexelSize = Shader.PropertyToID("_CameraDepthAttachment_TexelSize");
+        public static readonly int CameraDepthTexture = Shader.PropertyToID("_CameraDepthTexture");
         public static readonly int CameraOpaqueTexture = Shader.PropertyToID("_CameraOpaqueTexture");
         public static readonly int BlitTexture = Shader.PropertyToID("_BlitTexture");
         public static readonly int BlitScaleBias = Shader.PropertyToID("_BlitScaleBias");

@@ -94,4 +94,7 @@ MonoBehaviour:
       enableOutline: 0
     opaqueTexture:
       enableOpaqueTexture: 1
+    depthTexture:
+      enableDepthTexture: 1
+      copyDepthMode: 0
     features: []

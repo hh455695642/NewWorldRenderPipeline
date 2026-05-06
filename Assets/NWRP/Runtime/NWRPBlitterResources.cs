@@ -8,6 +8,7 @@ namespace NWRP
     {
         private const string k_CoreBlitShaderName = "Hidden/NWRP/CoreBlit";
         private const string k_CoreBlitColorAndDepthShaderName = "Hidden/NWRP/CoreBlitColorAndDepth";
+        private const string k_CopyDepthShaderName = "Hidden/NWRP/CopyDepth";
 
         private static bool s_Initialized;
         private static bool s_InitializedByNWRP;
@@ -53,6 +54,18 @@ namespace NWRP
             if (shader == null)
             {
                 Debug.LogError("NWRP copy color requires Hidden/NWRP/CoreBlit.");
+                return null;
+            }
+
+            return CoreUtils.CreateEngineMaterial(shader);
+        }
+
+        public static Material CreateCopyDepthMaterial()
+        {
+            Shader shader = Shader.Find(k_CopyDepthShaderName);
+            if (shader == null)
+            {
+                Debug.LogError("NWRP depth texture requires Hidden/NWRP/CopyDepth.");
                 return null;
             }
 

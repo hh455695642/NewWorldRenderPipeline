@@ -4,6 +4,7 @@ using NWRP.Runtime.Lighting;
 using NWRP.Runtime.Passes;
 using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -56,6 +57,7 @@ namespace NWRP
         private Material _coreBlitMaterial;
         private RTHandle _cameraColorHandle;
         private RTHandle _cameraDepthHandle;
+        private RTHandle _cameraDepthTextureHandle;
         private RTHandle _opaqueTextureHandle;
         private int _enqueueCounter;
 
@@ -325,7 +327,9 @@ namespace NWRP
             bool needIntermediateColor =
                 requirements.requiresIntermediateColor || requirements.requiresOpaqueTexture;
             bool needIntermediateDepth =
-                requirements.requiresIntermediateDepth || needIntermediateColor;
+                requirements.requiresIntermediateDepth
+                || requirements.requiresDepthTextureCopy
+                || needIntermediateColor;
 
             if (needIntermediateColor)
             {
@@ -358,19 +362,47 @@ namespace NWRP
                     depthDescriptor,
                     FilterMode.Point,
                     TextureWrapMode.Clamp,
-                    name: "_NWRPCameraDepthTexture");
+                    name: "_NWRPCameraDepthAttachment");
 
                 frameData.targets.cameraDepthHandle = _cameraDepthHandle;
                 frameData.targets.cameraDepth = frameData.targets.cameraDepthHandle.nameID;
                 frameData.targets.ownsIntermediateDepth = true;
                 frameData.targets.usesIntermediateDepth = true;
                 frameData.cmd.SetGlobalTexture(
-                    NWRPShaderIds.CameraDepthTexture,
+                    NWRPShaderIds.CameraDepthAttachment,
                     frameData.targets.cameraDepthHandle);
             }
             else
             {
                 ReleaseRTHandle(ref _cameraDepthHandle);
+            }
+
+            frameData.cmd.SetGlobalTexture(
+                NWRPShaderIds.CameraDepthTexture,
+                GetDefaultDepthTexture());
+
+            if (requirements.requiresDepthTexture)
+            {
+                bool depthTextureIsDepthTarget =
+                    requirements.requiresDepthTexturePrepass || !SupportsDepthTextureColorTarget();
+                RenderTextureDescriptor depthTextureDescriptor =
+                    CreateCameraDepthTextureDescriptor(frameData.camera, depthTextureIsDepthTarget);
+                ReAllocateFrameTargetIfNeeded(
+                    ref _cameraDepthTextureHandle,
+                    depthTextureDescriptor,
+                    FilterMode.Point,
+                    TextureWrapMode.Clamp,
+                    name: "_CameraDepthTexture");
+
+                frameData.targets.cameraDepthTextureHandle = _cameraDepthTextureHandle;
+                frameData.targets.cameraDepthTexture = frameData.targets.cameraDepthTextureHandle.nameID;
+                frameData.targets.ownsCameraDepthTexture = true;
+                frameData.targets.hasCameraDepthTexture = true;
+                frameData.targets.cameraDepthTextureIsDepthTarget = depthTextureIsDepthTarget;
+            }
+            else
+            {
+                ReleaseRTHandle(ref _cameraDepthTextureHandle);
             }
 
             if (requirements.requiresOpaqueTexture)
@@ -414,6 +446,11 @@ namespace NWRP
                 frameData.targets.cameraDepthHandle = null;
             }
 
+            if (frameData.targets.ownsCameraDepthTexture)
+            {
+                frameData.targets.cameraDepthTextureHandle = null;
+            }
+
             if (frameData.targets.ownsOpaqueTexture)
             {
                 frameData.targets.opaqueTextureHandle = null;
@@ -431,6 +468,7 @@ namespace NWRP
         {
             ReleaseRTHandle(ref _cameraColorHandle);
             ReleaseRTHandle(ref _cameraDepthHandle);
+            ReleaseRTHandle(ref _cameraDepthTextureHandle);
             ReleaseRTHandle(ref _opaqueTextureHandle);
         }
 
@@ -524,6 +562,13 @@ namespace NWRP
                 requirements.requiresIntermediateColor = true;
                 requirements.requiresIntermediateDepth = true;
                 requirements.requiresOpaqueTexture = true;
+            }
+
+            if (frameData.asset.EnableDepthTexture)
+            {
+                requirements.Merge(DepthTextureFeature.GetFrameTargetRequirements(
+                    frameData.asset.DepthTextureCopyModeSetting,
+                    frameData.camera));
             }
 
             return requirements;
@@ -683,6 +728,36 @@ namespace NWRP
             return descriptor;
         }
 
+        private static RenderTextureDescriptor CreateCameraDepthTextureDescriptor(
+            Camera camera,
+            bool depthTarget)
+        {
+            RenderTextureDescriptor descriptor = depthTarget
+                ? new RenderTextureDescriptor(
+                    Mathf.Max(camera.pixelWidth, 1),
+                    Mathf.Max(camera.pixelHeight, 1),
+                    RenderTextureFormat.Depth,
+                    24)
+                : new RenderTextureDescriptor(
+                    Mathf.Max(camera.pixelWidth, 1),
+                    Mathf.Max(camera.pixelHeight, 1),
+                    RenderTextureFormat.Default,
+                    0);
+
+            if (!depthTarget)
+            {
+                descriptor.graphicsFormat = GraphicsFormat.R32_SFloat;
+                descriptor.depthStencilFormat = GraphicsFormat.None;
+                descriptor.depthBufferBits = 0;
+            }
+
+            descriptor.msaaSamples = 1;
+            descriptor.bindMS = false;
+            descriptor.useMipMap = false;
+            descriptor.autoGenerateMips = false;
+            return descriptor;
+        }
+
         private static RenderTextureDescriptor CreateCameraOpaqueTextureDescriptor(Camera camera)
         {
             RenderTextureDescriptor descriptor = CreateCameraColorDescriptor(camera);
@@ -691,6 +766,18 @@ namespace NWRP
             descriptor.useMipMap = false;
             descriptor.autoGenerateMips = false;
             return descriptor;
+        }
+
+        private static bool SupportsDepthTextureColorTarget()
+        {
+            return SystemInfo.IsFormatSupported(GraphicsFormat.R32_SFloat, FormatUsage.Render);
+        }
+
+        private static Texture GetDefaultDepthTexture()
+        {
+            return SystemInfo.usesReversedZBuffer
+                ? Texture2D.blackTexture
+                : Texture2D.whiteTexture;
         }
 
         private void BuildPassQueue(ref NWRPFrameData frameData)
@@ -877,6 +964,20 @@ namespace NWRP
             bool hasSerializedAdditionalLightShadowFeature = false;
             bool hasActiveSerializedOutlineFeature = false;
             bool hasActiveSerializedOpaqueTextureFeature = false;
+            bool hasActiveSerializedDepthTextureFeature =
+                HasActiveSerializedDepthTextureFeature(features);
+
+            if (!hasActiveSerializedDepthTextureFeature && frameData.asset.EnableDepthTexture)
+            {
+                DepthTextureFeature runtimeDepthTextureFeature =
+                    frameData.asset.GetOrCreateDepthTextureFeature();
+                if (runtimeDepthTextureFeature != null && runtimeDepthTextureFeature.IsEnabled)
+                {
+                    runtimeDepthTextureFeature.EnsureCreated();
+                    runtimeDepthTextureFeature.AddPasses(this, ref frameData);
+                }
+            }
+
             for (int i = 0; i < features.Count; i++)
             {
                 NWRPFeature feature = features[i];
@@ -951,6 +1052,20 @@ namespace NWRP
                     runtimeOpaqueTextureFeature.AddPasses(this, ref frameData);
                 }
             }
+
+        }
+
+        private static bool HasActiveSerializedDepthTextureFeature(List<NWRPFeature> features)
+        {
+            for (int i = 0; i < features.Count; i++)
+            {
+                if (features[i] is DepthTextureFeature feature && feature.IsEnabled)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
 #if UNITY_EDITOR
