@@ -40,6 +40,10 @@ namespace NWRP.Runtime.Passes
             RTHandle source = frameData.targets.cameraDepthHandle;
             RTHandle destination = frameData.targets.cameraDepthTextureHandle;
             bool copyToDepth = frameData.targets.cameraDepthTextureIsDepthTarget;
+            Vector4 scaleBias = GetCopyDepthScaleBias(
+                frameData.camera,
+                source,
+                destination);
 
             cmd.SetGlobalTexture(NWRPShaderIds.CameraDepthAttachment, source.nameID);
             cmd.SetGlobalVector(
@@ -52,18 +56,23 @@ namespace NWRP.Runtime.Passes
                 Blitter.BlitTexture(
                     cmd,
                     source,
-                    GetBlitScaleBias(source),
+                    scaleBias,
                     _copyDepthMaterial,
                     0);
             }
             else
             {
-                Blitter.BlitCameraTexture(
+                CoreUtils.SetRenderTarget(
                     cmd,
-                    source,
                     destination,
                     RenderBufferLoadAction.DontCare,
                     RenderBufferStoreAction.Store,
+                    ClearFlag.None,
+                    Color.clear);
+                Blitter.BlitTexture(
+                    cmd,
+                    source,
+                    scaleBias,
                     _copyDepthMaterial,
                     0);
             }
@@ -150,18 +159,72 @@ namespace NWRP.Runtime.Passes
             cmd.ClearRenderTarget(true, false, Color.clear);
         }
 
-        private static Vector4 GetBlitScaleBias(RTHandle source)
+        private static Vector4 GetCopyDepthScaleBias(
+            Camera camera,
+            RTHandle source,
+            RTHandle destination)
+        {
+            Vector2 viewportScale = GetViewportScale(source);
+            bool yFlip = IsSourceDepthYFlipped(camera) !=
+                IsHandleYFlipped(camera, destination);
+
+            return yFlip
+                ? new Vector4(viewportScale.x, -viewportScale.y, 0f, viewportScale.y)
+                : new Vector4(viewportScale.x, viewportScale.y, 0f, 0f);
+        }
+
+        private static Vector2 GetViewportScale(RTHandle source)
         {
             if (source == null || !source.useScaling)
             {
-                return new Vector4(1f, 1f, 0f, 0f);
+                return Vector2.one;
             }
 
-            return new Vector4(
+            return new Vector2(
                 source.rtHandleProperties.rtHandleScale.x,
-                source.rtHandleProperties.rtHandleScale.y,
-                0f,
-                0f);
+                source.rtHandleProperties.rtHandleScale.y);
+        }
+
+        private static bool IsSourceDepthYFlipped(Camera camera)
+        {
+            if (!SystemInfo.graphicsUVStartsAtTop)
+            {
+                return false;
+            }
+
+            if (IsAlwaysFlippedCamera(camera))
+            {
+                return true;
+            }
+
+            if (camera != null && camera.targetTexture != null)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsHandleYFlipped(Camera camera, RTHandle handle)
+        {
+            if (!SystemInfo.graphicsUVStartsAtTop)
+            {
+                return false;
+            }
+
+            if (IsAlwaysFlippedCamera(camera))
+            {
+                return true;
+            }
+
+            return handle != null && handle.nameID != BuiltinRenderTextureType.CameraTarget;
+        }
+
+        private static bool IsAlwaysFlippedCamera(Camera camera)
+        {
+            return camera != null
+                && (camera.cameraType == CameraType.SceneView
+                    || camera.cameraType == CameraType.Preview);
         }
 
         private static Vector4 GetDepthAttachmentTexelSize(RTHandle source)

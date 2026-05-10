@@ -27,6 +27,7 @@ struct Varyings
 
 float2 GetCopyDepthFullScreenTexCoord(uint vertexID)
 {
+    // Y flip is selected by C# via _BlitScaleBias to match source/destination RT orientation.
 #if UNITY_UV_STARTS_AT_TOP
     return float2((vertexID << 1) & 2, 1.0 - (vertexID & 2));
 #else
