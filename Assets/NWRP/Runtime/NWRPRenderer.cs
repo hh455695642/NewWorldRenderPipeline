@@ -172,6 +172,100 @@ namespace NWRP
             ExecuteBuffer(ref frameData);
         }
 
+        private static void SetCameraScreenGlobals(ref NWRPFrameData frameData)
+        {
+            Camera camera = frameData.camera;
+            float cameraWidth = Mathf.Max(camera != null ? camera.pixelWidth : 1, 1);
+            float cameraHeight = Mathf.Max(camera != null ? camera.pixelHeight : 1, 1);
+            Vector2 scaledCameraSize = GetScaledCameraTargetSize(ref frameData);
+            float scaledCameraWidth = Mathf.Max(scaledCameraSize.x, 1f);
+            float scaledCameraHeight = Mathf.Max(scaledCameraSize.y, 1f);
+
+            frameData.cmd.SetGlobalVector(
+                NWRPShaderIds.ScreenParams,
+                new Vector4(
+                    cameraWidth,
+                    cameraHeight,
+                    1.0f + 1.0f / cameraWidth,
+                    1.0f + 1.0f / cameraHeight));
+
+            frameData.cmd.SetGlobalVector(
+                NWRPShaderIds.ScaledScreenParams,
+                new Vector4(
+                    scaledCameraWidth,
+                    scaledCameraHeight,
+                    1.0f + 1.0f / scaledCameraWidth,
+                    1.0f + 1.0f / scaledCameraHeight));
+
+            bool isCameraColorFinalTarget =
+                camera != null
+                && camera.cameraType == CameraType.Game
+                && frameData.targets.cameraColorHandle != null
+                && frameData.targets.cameraColorHandle.nameID == BuiltinRenderTextureType.CameraTarget
+                && camera.targetTexture == null;
+            bool yFlip = !isCameraColorFinalTarget;
+            float flipSign = yFlip ? -1.0f : 1.0f;
+            Vector4 scaleBiasRt = flipSign < 0.0f
+                ? new Vector4(flipSign, 1.0f, -1.0f, 1.0f)
+                : new Vector4(flipSign, 0.0f, 1.0f, 1.0f);
+
+            frameData.cmd.SetGlobalVector(NWRPShaderIds.ScaleBiasRt, scaleBiasRt);
+            frameData.cmd.SetGlobalVector(
+                NWRPShaderIds.CameraDepthTextureScaleBias,
+                GetCameraDepthTextureScaleBias(camera));
+        }
+
+        private static Vector4 GetCameraDepthTextureScaleBias(Camera camera)
+        {
+            if (SystemInfo.graphicsUVStartsAtTop
+                && camera != null
+                && (camera.cameraType == CameraType.SceneView
+                    || camera.cameraType == CameraType.Preview))
+            {
+                return new Vector4(1.0f, -1.0f, 0.0f, 1.0f);
+            }
+
+            return new Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+        }
+
+        private static Vector2 GetScaledCameraTargetSize(ref NWRPFrameData frameData)
+        {
+            RTHandle colorHandle = frameData.targets.cameraColorHandle;
+            RenderTexture renderTexture = colorHandle != null ? colorHandle.rt : null;
+            if (renderTexture != null)
+            {
+                return new Vector2(renderTexture.width, renderTexture.height);
+            }
+
+            Camera camera = frameData.camera;
+            return new Vector2(
+                Mathf.Max(camera != null ? camera.pixelWidth : 1, 1),
+                Mathf.Max(camera != null ? camera.pixelHeight : 1, 1));
+        }
+
+        private static void SetCameraMatrices(ref NWRPFrameData frameData)
+        {
+            Camera camera = frameData.camera;
+            if (camera == null)
+            {
+                return;
+            }
+
+            Matrix4x4 viewMatrix = camera.worldToCameraMatrix;
+            Matrix4x4 projectionMatrix = camera.projectionMatrix;
+            frameData.cmd.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
+
+            bool projectionFlipped = IsCameraProjectionMatrixFlipped(camera, frameData.targets.cameraColorHandle);
+            Matrix4x4 gpuProjectionMatrix = GL.GetGPUProjectionMatrix(projectionMatrix, projectionFlipped);
+            Matrix4x4 inverseViewMatrix = Matrix4x4.Inverse(viewMatrix);
+            Matrix4x4 inverseProjectionMatrix = Matrix4x4.Inverse(gpuProjectionMatrix);
+            frameData.cmd.SetGlobalMatrix(NWRPShaderIds.InverseViewMatrix, inverseViewMatrix);
+            frameData.cmd.SetGlobalMatrix(NWRPShaderIds.InverseProjectionMatrix, inverseProjectionMatrix);
+            frameData.cmd.SetGlobalMatrix(
+                NWRPShaderIds.InverseViewProjectionMatrix,
+                inverseViewMatrix * inverseProjectionMatrix);
+        }
+
         internal void ExecuteSetupLights(ref NWRPFrameData frameData)
         {
             Vector4 mainLightPosition = Vector4.zero;
@@ -668,6 +762,35 @@ namespace NWRP
                 frameData.targets.cameraColor,
                 frameData.targets.cameraDepth);
             frameData.cmd.SetViewport(GetCameraViewport(frameData.camera));
+            SetCameraMatrices(ref frameData);
+            SetCameraScreenGlobals(ref frameData);
+        }
+
+        private static bool IsCameraProjectionMatrixFlipped(Camera camera, RTHandle colorHandle)
+        {
+            if (!SystemInfo.graphicsUVStartsAtTop)
+            {
+                return false;
+            }
+
+            return camera.targetTexture != null || IsHandleYFlipped(camera, colorHandle);
+        }
+
+        private static bool IsHandleYFlipped(Camera camera, RTHandle handle)
+        {
+            if (!SystemInfo.graphicsUVStartsAtTop)
+            {
+                return false;
+            }
+
+            if (camera != null
+                && (camera.cameraType == CameraType.SceneView
+                    || camera.cameraType == CameraType.Preview))
+            {
+                return true;
+            }
+
+            return handle != null && handle.nameID != BuiltinRenderTextureType.CameraTarget;
         }
 
         private static Rect GetCameraViewport(Camera camera)

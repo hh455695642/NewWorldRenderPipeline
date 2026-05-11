@@ -12,9 +12,16 @@ namespace NWRP
         public static readonly int CameraDepthAttachment = Shader.PropertyToID("_CameraDepthAttachment");
         public static readonly int CameraDepthAttachmentTexelSize = Shader.PropertyToID("_CameraDepthAttachment_TexelSize");
         public static readonly int CameraDepthTexture = Shader.PropertyToID("_CameraDepthTexture");
+        public static readonly int CameraDepthTextureScaleBias = Shader.PropertyToID("_CameraDepthTextureScaleBias");
         public static readonly int CameraOpaqueTexture = Shader.PropertyToID("_CameraOpaqueTexture");
         public static readonly int BlitTexture = Shader.PropertyToID("_BlitTexture");
         public static readonly int BlitScaleBias = Shader.PropertyToID("_BlitScaleBias");
+        public static readonly int ScreenParams = Shader.PropertyToID("_ScreenParams");
+        public static readonly int ScaledScreenParams = Shader.PropertyToID("_ScaledScreenParams");
+        public static readonly int ScaleBiasRt = Shader.PropertyToID("_ScaleBiasRt");
+        public static readonly int InverseViewMatrix = Shader.PropertyToID("unity_MatrixInvV");
+        public static readonly int InverseProjectionMatrix = Shader.PropertyToID("unity_MatrixInvP");
+        public static readonly int InverseViewProjectionMatrix = Shader.PropertyToID("unity_MatrixInvVP");
 
         // Lighting globals
         public static readonly int MainLightPosition = Shader.PropertyToID("_MainLightPosition");

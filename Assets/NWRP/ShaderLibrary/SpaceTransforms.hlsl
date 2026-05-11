@@ -219,6 +219,62 @@ float LinearEyeDepth(float depth)
     return 1.0 / (_ZBufferParams.z * depth + _ZBufferParams.w);
 }
 
+float4 GetScaledScreenParams()
+{
+    return _ScaledScreenParams;
+}
+
+void TransformScreenUV(inout float2 uv, float screenHeight)
+{
+#if UNITY_UV_STARTS_AT_TOP
+    uv.y = screenHeight - (uv.y * _ScaleBiasRt.x + _ScaleBiasRt.y * screenHeight);
+#endif
+}
+
+void TransformScreenUV(inout float2 uv)
+{
+#if UNITY_UV_STARTS_AT_TOP
+    TransformScreenUV(uv, GetScaledScreenParams().y);
+#endif
+}
+
+void TransformNormalizedScreenUV(inout float2 uv)
+{
+#if UNITY_UV_STARTS_AT_TOP
+    TransformScreenUV(uv, 1.0);
+#endif
+}
+
+float2 GetNormalizedScreenSpaceUV(float2 positionCS)
+{
+    float2 uv = positionCS.xy * rcp(GetScaledScreenParams().xy);
+    TransformNormalizedScreenUV(uv);
+    return uv;
+}
+
+float2 GetNormalizedScreenSpaceUV(float4 positionCS)
+{
+    return GetNormalizedScreenSpaceUV(positionCS.xy);
+}
+
+float4 ComputeClipSpacePosition(float2 positionNDC, float deviceDepth)
+{
+    float4 positionCS = float4(positionNDC * 2.0 - 1.0, deviceDepth, 1.0);
+
+#if UNITY_UV_STARTS_AT_TOP
+    positionCS.y = -positionCS.y;
+#endif
+
+    return positionCS;
+}
+
+float3 ComputeWorldSpacePosition(float2 positionNDC, float deviceDepth, float4x4 invViewProjMatrix)
+{
+    float4 positionCS = ComputeClipSpacePosition(positionNDC, deviceDepth);
+    float4 positionWS = mul(invViewProjMatrix, positionCS);
+    return positionWS.xyz / positionWS.w;
+}
+
 // ============================================================
 // ── 屏幕空间工具 ──────────────────────────────────────────────
 // ============================================================

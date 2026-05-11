@@ -51,6 +51,15 @@ float4 _ProjectionParams;
 // z = 1 + 1/width, w = 1 + 1/height
 float4 _ScreenParams;
 
+// Scaled screen parameters, URP-compatible.
+// x = scaled width(px), y = scaled height(px)
+// z = 1 + 1/width, w = 1 + 1/height
+float4 _ScaledScreenParams;
+
+// RT scale/bias used by normalized screen UV helpers.
+// Game backbuffer: (1, 0, 1, 1). RT/SceneView/targetTexture: (-1, 1, -1, 1).
+float4 _ScaleBiasRt;
+
 // Z-Buffer 重建参数（用于从深度图线性化深度）
 // x = 1 - far/near,  y = far/near
 // z = x/far,         w = y/far

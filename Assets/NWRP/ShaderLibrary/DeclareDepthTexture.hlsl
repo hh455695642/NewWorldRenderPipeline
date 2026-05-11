@@ -6,14 +6,31 @@
 TEXTURE2D(_CameraDepthTexture);
 SAMPLER(sampler_CameraDepthTexture);
 
-float SampleSceneDepth(float2 uv)
+float4 _CameraDepthTextureScaleBias;
+
+float2 TransformSceneDepthUV(float2 screenUV)
 {
-    return SAMPLE_TEXTURE2D(_CameraDepthTexture, sampler_CameraDepthTexture, uv).r;
+    return screenUV * _CameraDepthTextureScaleBias.xy + _CameraDepthTextureScaleBias.zw;
+}
+
+float SampleSceneDepthRawTextureUV(float2 textureUV)
+{
+    return SAMPLE_TEXTURE2D(_CameraDepthTexture, sampler_CameraDepthTexture, textureUV).r;
+}
+
+float SampleSceneDepth(float2 screenUV)
+{
+    return SampleSceneDepthRawTextureUV(TransformSceneDepthUV(screenUV));
+}
+
+float LoadSceneDepthRawTextureCoord(uint2 pixelCoord)
+{
+    return LOAD_TEXTURE2D(_CameraDepthTexture, pixelCoord).r;
 }
 
 float LoadSceneDepth(uint2 pixelCoord)
 {
-    return LOAD_TEXTURE2D(_CameraDepthTexture, pixelCoord).r;
+    return LoadSceneDepthRawTextureCoord(pixelCoord);
 }
 
 float SampleSceneDepthLinear01(float2 uv)
