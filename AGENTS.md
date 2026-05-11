@@ -18,16 +18,16 @@ The primary audience for this file is coding agents working inside this project.
 
 ## Current Repository Layout
 
-- Runtime pipeline code lives in [`Assets/NWRP/Runtime`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime)
-- Shared shader library lives in [`Assets/NWRP/ShaderLibrary`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/ShaderLibrary)
-- NWRP-owned shaders live in [`Assets/NWRP/Shaders`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Shaders)
-- Pipeline asset lives in [`Assets/Settings/NewWorldRP.asset`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/Settings/NewWorldRP.asset)
-- Sample scenes live in [`Assets/Scenes`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/Scenes) and [`Assets/NWRP/Tests/Scenes`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Tests/Scenes)
+- Runtime pipeline code lives in [`Assets/NWRP/Runtime`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Runtime)
+- Shared shader library lives in [`Assets/NWRP/ShaderLibrary`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/ShaderLibrary)
+- NWRP-owned shaders live in [`Assets/NWRP/Shaders`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Shaders)
+- Pipeline asset lives in [`Assets/Settings/NewWorldRP.asset`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/Settings/NewWorldRP.asset)
+- Sample scenes live in [`Assets/Scenes`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/Scenes) and [`Assets/NWRP/Tests/Scenes`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Tests/Scenes)
 
 ## Mandatory Architecture Rules
 
 - Keep this project on custom SRP. Do not migrate it back to URP renderer features.
-- Do not reintroduce monolithic renderer logic into [`CameraRenderer.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/CameraRenderer.cs) or [`NWRPRenderer.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/NWRPRenderer.cs).
+- Do not reintroduce monolithic renderer logic into [`CameraRenderer.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Runtime/CameraRenderer.cs) or [`NWRPRenderer.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Runtime/NWRPRenderer.cs).
 - New rendering functionality must be implemented as:
   - one `NWRPFeature`
   - one or more focused `NWRPPass`
@@ -37,7 +37,7 @@ The primary audience for this file is coding agents working inside this project.
 
 ## Pass Order Contract
 
-Respect the pass event sequence defined in [`NWRPPassEvent.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/NWRPPassEvent.cs):
+Respect the pass event sequence defined in [`NWRPPassEvent.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Runtime/NWRPPassEvent.cs):
 
 - `BeforeShadowMap`
 - `ShadowMap`
@@ -56,7 +56,7 @@ Do not introduce ad hoc pass ordering outside this contract unless there is a ha
 
 ## Asset and Settings Rules
 
-- Pipeline-facing settings must live in [`NewWorldRenderPipelineAsset.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/NewWorldRenderPipelineAsset.cs).
+- Pipeline-facing settings must live in [`NewWorldRenderPipelineAsset.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Runtime/NewWorldRenderPipelineAsset.cs).
 - Group new settings into existing sections when possible:
   - `GeneralSettings`
   - `LightingSettings`
@@ -92,10 +92,21 @@ Do not introduce ad hoc pass ordering outside this contract unless there is a ha
 - Do not add multi-light real-time shadowing as a default path for mobile.
 - Additional lights may contribute lighting, but they should not silently become shadow casters.
 - If changing shadow code, keep these files aligned:
-  - [`MainLightShadowFeature.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/MainLightShadows/MainLightShadowFeature.cs)
-  - [`MainLightShadowCasterPass.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowCasterPass.cs)
-  - [`Shadows.hlsl`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/ShaderLibrary/Shadows.hlsl)
-  - [`Lighting.hlsl`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/ShaderLibrary/Lighting.hlsl)
+  - [`MainLightShadowFeature.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Runtime/MainLightShadows/MainLightShadowFeature.cs)
+  - [`MainLightShadowCasterPass.cs`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Runtime/MainLightShadows/Passes/MainLightShadowCasterPass.cs)
+  - [`Shadows.hlsl`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/ShaderLibrary/Shadows.hlsl)
+  - [`Lighting.hlsl`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/ShaderLibrary/Lighting.hlsl)
+
+## URP Compatibility Boundary
+
+- `Packages/manifest.json` may keep URP installed for testing, reference, and shader migration work.
+- NWRP-owned runtime and shaders must not depend on URP package source:
+  - no `UnityEngine.Rendering.Universal` in `Assets/NWRP`
+  - no `Packages/com.unity.render-pipelines.universal/...` shader includes in `Assets/NWRP`
+  - no `ScriptableRendererFeature` or `ScriptableRenderPass` implementations for NWRP features
+- URP-style shader global names and helper names are allowed when they ease migration, for example `_CameraDepthTexture`, `_CameraOpaqueTexture`, `TransformObjectToWorld`, `GetNormalizedScreenSpaceUV`, and `SampleSceneDepth`.
+- When using URP-style names, implement them in NWRP shader libraries or thin NWRP aliases. Naming compatibility must not imply package dependency.
+- NWRP internal features, passes, debug paths, and private helpers should use `NWRP` or `NewWorld` naming to make ownership clear.
 
 ## Shader Rules
 
@@ -105,12 +116,12 @@ Do not introduce ad hoc pass ordering outside this contract unless there is a ha
   - `DepthOnly`
   - `NewWorldOutline`
   - `NewWorldUnlit`
-- New lit shaders should prefer reusing the shared `ShadowCaster` and `DepthOnly` pass pattern from [`NewWorld_Lit_StandardLit.shader`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Shaders/Lit/NewWorld_Lit_StandardLit.shader).
+- New lit shaders should prefer reusing the shared `ShadowCaster` and `DepthOnly` pass pattern from [`NewWorld_Lit_StandardLit.shader`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Shaders/Lit/NewWorld_Lit_StandardLit.shader).
 - Prefer `half` for mobile shader math unless world-space precision or matrix math requires `float`.
 - Prefer uniforms over shader keywords for runtime intensity/threshold toggles.
 - Prefer `#pragma shader_feature_local` over broad `multi_compile`.
 - Do not build giant shared "do everything" shaders across vegetation, characters, effects, and UI.
-- Environment and vegetation shaders under [`Assets/NWRP/Shaders/Environment`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Shaders/Environment) must use NWRP shader libraries and pass tags. Do not include URP shader libraries or keep URP LightMode tags in NWRP-owned variants.
+- Environment and vegetation shaders under [`Assets/NWRP/Shaders/Environment`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Shaders/Environment) must use NWRP shader libraries and pass tags. Do not include URP shader libraries or keep URP LightMode tags in NWRP-owned variants.
 - Keep grass and tree shaders separate. Grass shaders should default to receiving realtime shadows without casting them; tree shaders that need shadows must use their own ShadowCaster path instead of adding tree-specific complexity to grass shaders.
 
 ## Variant Control
@@ -121,7 +132,7 @@ Variant growth is a hard constraint.
 - Avoid multiplying feature combinations across unrelated axes.
 - If a feature is expensive and rarely used, split it into a dedicated shader instead of another branch stack.
 - Keep mobile-facing shader variant counts predictable and bounded.
-- When touching shaders under [`Assets/NWRP/Shaders/Environment`](E:/UnityProject/Unity2022/NewWorldRenderPipeline/Assets/NWRP/Shaders/Environment), reduce inherited URP keyword debt instead of copying it into NWRP.
+- When touching shaders under [`Assets/NWRP/Shaders/Environment`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Shaders/Environment), reduce inherited URP keyword debt instead of copying it into NWRP.
 
 ## Instancing and Large-Scale Rendering
 
@@ -161,8 +172,9 @@ Variant growth is a hard constraint.
 
 ## Main Light Shadow Filtering Policy
 
-- Mobile-first shadow filtering tiers are limited to:
+- Mobile-first baseline shadow filtering defaults to:
   - `Hard`
+- `MediumPCF` exists as an explicit asset-selected NWRP mode. Do not treat it as soft shadow support or as approval to add wider filtering tiers.
 - Soft shadow support is temporarily removed on the stabilization branch.
 - Shadow caster passes should use a dedicated shadow-light direction upload, not implicitly reuse forward-light globals.
 - Soft-shadow artifact mitigation priority is:

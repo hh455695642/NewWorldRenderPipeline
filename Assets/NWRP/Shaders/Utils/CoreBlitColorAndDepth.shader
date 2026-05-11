@@ -6,8 +6,7 @@ Shader "Hidden/NWRP/CoreBlitColorAndDepth"
         #pragma editor_sync_compilation
         #pragma multi_compile _ DISABLE_TEXTURE2D_X_ARRAY
         #pragma multi_compile _ BLIT_SINGLE_SLICE
-        // Core.hlsl for XR dependencies
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include "../../ShaderLibrary/NWRPBlitCoreCompat.hlsl"
         #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/BlitColorAndDepth.hlsl"
     ENDHLSL
 

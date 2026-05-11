@@ -12,6 +12,8 @@ Local rules for `Assets/NWRP/ShaderLibrary`.
 - Put cross-shader pass includes in `Assets/NWRP/ShaderLibrary/Passes`.
 - Keep shader-family include folders (for example `Shaders/Lit/Includes`) as thin compatibility wrappers.
 - Avoid duplicating pass logic across shader families.
+- Do not include `Packages/com.unity.render-pipelines.universal/...` from NWRP-owned shader libraries.
+- URP-style helper names are allowed for migration compatibility, but implementations must live in NWRP or Unity Core includes.
 
 ## Mobile Shader Constraints
 
@@ -21,7 +23,8 @@ Local rules for `Assets/NWRP/ShaderLibrary`.
 
 ## Shadow Filtering Constraints
 
-- Main light receiver filtering is temporarily `Hard` only on the stabilization branch.
+- Main light receiver filtering defaults to `Hard`.
+- `MediumPCF` is an explicit NWRP asset-selected mode. Do not add soft shadow, PCSS, or EVSM paths without approval and profiling.
 - Keep shadow globals and semantics stable with runtime upload code.
 - Shadow caster includes should consume the dedicated shadow-light direction upload used by the runtime shadow pass.
 - Keep `Depth Bias` and `Normal Bias` semantics distinct in shared shader code; do not collapse both into one offset path.

@@ -1,4 +1,4 @@
-#ifndef NEWWORLD_SHADOWS_INCLUDED
+﻿#ifndef NEWWORLD_SHADOWS_INCLUDED
 #define NEWWORLD_SHADOWS_INCLUDED
 
 #define NWRP_MAIN_LIGHT_SHADOW_FILTER_HARD 0
@@ -310,44 +310,54 @@ half SampleMainLightShadowTextureHard(float3 shadowCoordUVW, int cascadeIndex)
     );
 }
 
-#define NWRP_SAMPLE_MAIN_LIGHT_TENT9(shadowTexture, shadowCoordUVW, cascadeIndex) \
-    float radius = _MainLightShadowFilterRadius; \
-    float paddingScale = max(radius, 1.0) * 0.5; \
-    float2 texelSize = _MainLightShadowAtlasTexelSize.xy * radius; \
-    half visibility = 0.0h; \
-    float2 uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(-1.0, -1.0), cascadeIndex, paddingScale); \
-    visibility += SAMPLE_TEXTURE2D_SHADOW(shadowTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 1.0h; \
-    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(0.0, -1.0), cascadeIndex, paddingScale); \
-    visibility += SAMPLE_TEXTURE2D_SHADOW(shadowTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 2.0h; \
-    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(1.0, -1.0), cascadeIndex, paddingScale); \
-    visibility += SAMPLE_TEXTURE2D_SHADOW(shadowTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 1.0h; \
-    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(-1.0, 0.0), cascadeIndex, paddingScale); \
-    visibility += SAMPLE_TEXTURE2D_SHADOW(shadowTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 2.0h; \
-    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy, cascadeIndex, paddingScale); \
-    visibility += SAMPLE_TEXTURE2D_SHADOW(shadowTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 4.0h; \
-    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(1.0, 0.0), cascadeIndex, paddingScale); \
-    visibility += SAMPLE_TEXTURE2D_SHADOW(shadowTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 2.0h; \
-    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(-1.0, 1.0), cascadeIndex, paddingScale); \
-    visibility += SAMPLE_TEXTURE2D_SHADOW(shadowTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 1.0h; \
-    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(0.0, 1.0), cascadeIndex, paddingScale); \
-    visibility += SAMPLE_TEXTURE2D_SHADOW(shadowTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 2.0h; \
-    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(1.0, 1.0), cascadeIndex, paddingScale); \
-    visibility += SAMPLE_TEXTURE2D_SHADOW(shadowTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 1.0h;
-
 half SampleMainLightShadowTextureMediumTent(float3 shadowCoordUVW, int cascadeIndex)
 {
-    NWRP_SAMPLE_MAIN_LIGHT_TENT9(_MainLightShadowmapTexture, shadowCoordUVW, cascadeIndex)
+    float radius = _MainLightShadowFilterRadius;
+    float paddingScale = max(radius, 1.0) * 0.5;
+    float2 texelSize = _MainLightShadowAtlasTexelSize.xy * radius;
+    half visibility = 0.0h;
+    float2 uv = float2(0.0, 0.0);
+
+    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(-1.0, -1.0), cascadeIndex, paddingScale);
+    visibility += SAMPLE_TEXTURE2D_SHADOW(_MainLightShadowmapTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 1.0h;
+
+    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(0.0, -1.0), cascadeIndex, paddingScale);
+    visibility += SAMPLE_TEXTURE2D_SHADOW(_MainLightShadowmapTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 2.0h;
+
+    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(1.0, -1.0), cascadeIndex, paddingScale);
+    visibility += SAMPLE_TEXTURE2D_SHADOW(_MainLightShadowmapTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 1.0h;
+
+    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(-1.0, 0.0), cascadeIndex, paddingScale);
+    visibility += SAMPLE_TEXTURE2D_SHADOW(_MainLightShadowmapTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 2.0h;
+
+    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy, cascadeIndex, paddingScale);
+    visibility += SAMPLE_TEXTURE2D_SHADOW(_MainLightShadowmapTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 4.0h;
+
+    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(1.0, 0.0), cascadeIndex, paddingScale);
+    visibility += SAMPLE_TEXTURE2D_SHADOW(_MainLightShadowmapTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 2.0h;
+
+    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(-1.0, 1.0), cascadeIndex, paddingScale);
+    visibility += SAMPLE_TEXTURE2D_SHADOW(_MainLightShadowmapTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 1.0h;
+
+    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(0.0, 1.0), cascadeIndex, paddingScale);
+    visibility += SAMPLE_TEXTURE2D_SHADOW(_MainLightShadowmapTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 2.0h;
+
+    uv = ClampMainLightShadowSampleUV(shadowCoordUVW.xy + texelSize * float2(1.0, 1.0), cascadeIndex, paddingScale);
+    visibility += SAMPLE_TEXTURE2D_SHADOW(_MainLightShadowmapTexture, sampler_LinearClampCompare, float3(uv, shadowCoordUVW.z)) * 1.0h;
+
     return visibility * (1.0h / 16.0h);
 }
 
 half SampleMainLightStaticShadowAtCoord(float3 shadowCoordUVW, int cascadeIndex)
 {
+    half visibility = SampleMainLightShadowTextureHard(shadowCoordUVW, cascadeIndex);
+
     if (_MainLightShadowFilterMode == NWRP_MAIN_LIGHT_SHADOW_FILTER_MEDIUM_PCF)
     {
-        return SampleMainLightShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
+        visibility = SampleMainLightShadowTextureMediumTent(shadowCoordUVW, cascadeIndex);
     }
 
-    return SampleMainLightShadowTextureHard(shadowCoordUVW, cascadeIndex);
+    return visibility;
 }
 
 MainLightShadowResult SampleMainLightShadowResultInternal(
