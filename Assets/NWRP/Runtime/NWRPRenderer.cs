@@ -123,6 +123,7 @@ namespace NWRP
                 {
                     using (new ProfilingScope(cmd, NWRPProfiling.RendererExecute))
                     {
+                        ConfigureCameraData(ref frameData);
                         ConfigureFrameTargets(ref frameData);
                         BuildPassQueue(ref frameData);
                         ExecutePassQueue(ref frameData);
@@ -392,12 +393,86 @@ namespace NWRP
 
         internal void ExecuteFinalBlit(ref NWRPFrameData frameData)
         {
+            if (frameData.targets.cameraColorPresented)
+            {
+                ExecuteBuffer(ref frameData);
+                return;
+            }
+
             if (frameData.targets.usesIntermediateColor)
             {
                 PresentIntermediateColor(ref frameData);
             }
 
             ExecuteBuffer(ref frameData);
+        }
+
+        private static void ConfigureCameraData(ref NWRPFrameData frameData)
+        {
+            frameData.cameraData = null;
+            frameData.volumeStack = null;
+            frameData.postProcessingEnabled = false;
+            frameData.tonemappingActive = false;
+            frameData.tonemapping = null;
+
+            if (frameData.camera == null
+                || frameData.asset == null
+                || !frameData.asset.SupportsPostProcessing)
+            {
+                return;
+            }
+
+            if (frameData.camera.TryGetComponent(out NWRPCameraData cameraData))
+            {
+                if (!cameraData.RenderPostProcessing)
+                {
+                    return;
+                }
+
+                ConfigurePostProcessingFromVolume(
+                    ref frameData,
+                    cameraData.GetVolumeTrigger(frameData.camera),
+                    cameraData.VolumeLayerMask,
+                    cameraData);
+                return;
+            }
+
+#if UNITY_EDITOR
+            // Scene View cameras are editor-owned temporary cameras, so the auto-add
+            // NWRPCameraData path cannot reliably attach settings to them. Keep the
+            // runtime rule intact (missing NWRPCameraData means no cost), but allow
+            // Scene View preview to sample NWRP volumes using the Scene View camera.
+            if (frameData.camera.cameraType == CameraType.SceneView)
+            {
+                ConfigurePostProcessingFromVolume(
+                    ref frameData,
+                    frameData.camera.transform,
+                    frameData.camera.cullingMask,
+                    null);
+            }
+#endif
+        }
+
+        private static void ConfigurePostProcessingFromVolume(
+            ref NWRPFrameData frameData,
+            Transform volumeTrigger,
+            LayerMask volumeLayerMask,
+            NWRPCameraData cameraData)
+        {
+            VolumeManager.instance.Update(volumeTrigger, volumeLayerMask);
+
+            frameData.cameraData = cameraData;
+            frameData.volumeStack = VolumeManager.instance.stack;
+            if (frameData.volumeStack == null)
+            {
+                return;
+            }
+
+            frameData.postProcessingEnabled = true;
+
+            NWRPTonemapping tonemapping = frameData.volumeStack.GetComponent<NWRPTonemapping>();
+            frameData.tonemapping = tonemapping;
+            frameData.tonemappingActive = tonemapping != null && tonemapping.IsActive();
         }
 
         private void ConfigureFrameTargets(ref NWRPFrameData frameData)
@@ -419,7 +494,9 @@ namespace NWRP
             };
 
             bool needIntermediateColor =
-                requirements.requiresIntermediateColor || requirements.requiresOpaqueTexture;
+                requirements.requiresIntermediateColor
+                || requirements.requiresOpaqueTexture
+                || RequiresHDRIntermediateColor(frameData.camera, frameData.asset);
             bool needIntermediateDepth =
                 requirements.requiresIntermediateDepth
                 || requirements.requiresDepthTextureCopy
@@ -427,7 +504,9 @@ namespace NWRP
 
             if (needIntermediateColor)
             {
-                RenderTextureDescriptor colorDescriptor = CreateCameraColorDescriptor(frameData.camera);
+                RenderTextureDescriptor colorDescriptor = CreateCameraColorDescriptor(
+                    frameData.camera,
+                    frameData.asset);
                 ReAllocateFrameTargetIfNeeded(
                     ref _cameraColorHandle,
                     colorDescriptor,
@@ -501,7 +580,9 @@ namespace NWRP
 
             if (requirements.requiresOpaqueTexture)
             {
-                RenderTextureDescriptor opaqueDescriptor = CreateCameraOpaqueTextureDescriptor(frameData.camera);
+                RenderTextureDescriptor opaqueDescriptor = CreateCameraOpaqueTextureDescriptor(
+                    frameData.camera,
+                    frameData.asset);
                 ReAllocateFrameTargetIfNeeded(
                     ref _opaqueTextureHandle,
                     opaqueDescriptor,
@@ -614,6 +695,7 @@ namespace NWRP
                 && current.height == descriptor.height
                 && current.volumeDepth == descriptor.volumeDepth
                 && current.graphicsFormat == descriptor.graphicsFormat
+                && current.depthStencilFormat == descriptor.depthStencilFormat
                 && current.depthBufferBits == descriptor.depthBufferBits
                 && current.msaaSamples == descriptor.msaaSamples
                 && current.dimension == descriptor.dimension
@@ -635,6 +717,7 @@ namespace NWRP
             }
 
             List<NWRPFeature> features = frameData.asset.Features;
+            bool hasActiveSerializedPostProcessFeature = false;
             for (int i = 0; i < features.Count; i++)
             {
                 NWRPFeature feature = features[i];
@@ -643,11 +726,29 @@ namespace NWRP
                     continue;
                 }
 
+                if (feature is PostProcessFeature)
+                {
+                    hasActiveSerializedPostProcessFeature = true;
+                }
+
                 if (feature.TryGetFrameTargetRequirements(
                         ref frameData,
                         out NWRPFrameTargetRequirements featureRequirements))
                 {
                     requirements.Merge(featureRequirements);
+                }
+            }
+
+            if (!hasActiveSerializedPostProcessFeature && PostProcessFeature.HasAnyActivePostProcess(ref frameData))
+            {
+                PostProcessFeature runtimePostProcessFeature =
+                    frameData.asset.GetOrCreatePostProcessFeature();
+                runtimePostProcessFeature.EnsureCreated();
+                if (runtimePostProcessFeature.TryGetFrameTargetRequirements(
+                        ref frameData,
+                        out NWRPFrameTargetRequirements postProcessRequirements))
+                {
+                    requirements.Merge(postProcessRequirements);
                 }
             }
 
@@ -666,6 +767,14 @@ namespace NWRP
             }
 
             return requirements;
+        }
+
+        private static bool RequiresHDRIntermediateColor(
+            Camera camera,
+            NewWorldRenderPipelineAsset asset)
+        {
+            return IsCameraHDRRenderingEnabled(camera, asset)
+                && camera.targetTexture == null;
         }
 
         private void PresentIntermediateColor(ref NWRPFrameData frameData)
@@ -705,10 +814,12 @@ namespace NWRP
                     scaleBias,
                     _coreBlitMaterial,
                     passIndex);
+
+                frameData.targets.cameraColorPresented = true;
             }
         }
 
-        private static Vector4 GetFinalBlitScaleBias(Camera camera, RTHandle source)
+        internal static Vector4 GetFinalBlitScaleBias(Camera camera, RTHandle source)
         {
             Vector2 viewportScale = source.useScaling
                 ? new Vector2(
@@ -727,7 +838,7 @@ namespace NWRP
                 : new Vector4(viewportScale.x, viewportScale.y, 0f, 0f);
         }
 
-        private static bool IsDefaultViewport(Camera camera, Rect cameraViewport)
+        internal static bool IsDefaultViewport(Camera camera, Rect cameraViewport)
         {
             if (camera == null)
             {
@@ -793,7 +904,7 @@ namespace NWRP
             return handle != null && handle.nameID != BuiltinRenderTextureType.CameraTarget;
         }
 
-        private static Rect GetCameraViewport(Camera camera)
+        internal static Rect GetCameraViewport(Camera camera)
         {
             if (camera == null)
             {
@@ -813,25 +924,84 @@ namespace NWRP
             return cameraViewport;
         }
 
-        private static RenderTextureDescriptor CreateCameraColorDescriptor(Camera camera)
+        private static RenderTextureDescriptor CreateCameraColorDescriptor(
+            Camera camera,
+            NewWorldRenderPipelineAsset asset)
         {
-            RenderTextureFormat format = camera.allowHDR
-                ? RenderTextureFormat.DefaultHDR
-                : RenderTextureFormat.Default;
-
-            RenderTextureDescriptor descriptor = new RenderTextureDescriptor(
-                Mathf.Max(camera.pixelWidth, 1),
-                Mathf.Max(camera.pixelHeight, 1),
-                format,
-                0)
+            RenderTexture targetTexture = camera != null ? camera.targetTexture : null;
+            RenderTextureDescriptor descriptor;
+            if (targetTexture != null)
             {
-                msaaSamples = 1,
-                sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear,
-                useMipMap = false,
-                autoGenerateMips = false
-            };
+                descriptor = targetTexture.descriptor;
+                descriptor.depthStencilFormat = GraphicsFormat.None;
+                descriptor.depthBufferBits = 0;
+            }
+            else
+            {
+                int width = Mathf.Max(camera != null ? camera.pixelWidth : 1, 1);
+                int height = Mathf.Max(camera != null ? camera.pixelHeight : 1, 1);
+                descriptor = new RenderTextureDescriptor(width, height)
+                {
+                    graphicsFormat = MakeCameraColorGraphicsFormat(
+                        IsCameraHDRRenderingEnabled(camera, asset),
+                        asset != null
+                            ? asset.HDRColorBufferPrecisionSetting
+                            : NewWorldRenderPipelineAsset.HDRColorBufferPrecision._32Bits,
+                        needsAlpha: Graphics.preserveFramebufferAlpha),
+                    depthStencilFormat = GraphicsFormat.None,
+                    depthBufferBits = 0
+                };
+            }
 
+            descriptor.width = Mathf.Max(descriptor.width, 1);
+            descriptor.height = Mathf.Max(descriptor.height, 1);
+            descriptor.msaaSamples = 1;
+            descriptor.bindMS = false;
+            descriptor.sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear;
+            descriptor.useMipMap = false;
+            descriptor.autoGenerateMips = false;
             return descriptor;
+        }
+
+        private static bool IsCameraHDRRenderingEnabled(
+            Camera camera,
+            NewWorldRenderPipelineAsset asset)
+        {
+            return camera != null
+                && asset != null
+                && camera.allowHDR
+                && asset.SupportsHDR;
+        }
+
+        private static GraphicsFormat MakeCameraColorGraphicsFormat(
+            bool isHdrEnabled,
+            NewWorldRenderPipelineAsset.HDRColorBufferPrecision hdrColorBufferPrecision,
+            bool needsAlpha)
+        {
+            if (!isHdrEnabled)
+            {
+                return SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
+            }
+
+            // Mobile HDR baseline: prefer 32-bit R11G11B10 when alpha is not required.
+            if (!needsAlpha
+                && hdrColorBufferPrecision != NewWorldRenderPipelineAsset.HDRColorBufferPrecision._64Bits
+                && SupportsRenderGraphicsFormat(GraphicsFormat.B10G11R11_UFloatPack32))
+            {
+                return GraphicsFormat.B10G11R11_UFloatPack32;
+            }
+
+            if (SupportsRenderGraphicsFormat(GraphicsFormat.R16G16B16A16_SFloat))
+            {
+                return GraphicsFormat.R16G16B16A16_SFloat;
+            }
+
+            return SystemInfo.GetGraphicsFormat(DefaultFormat.HDR);
+        }
+
+        private static bool SupportsRenderGraphicsFormat(GraphicsFormat format)
+        {
+            return SystemInfo.IsFormatSupported(format, FormatUsage.Linear | FormatUsage.Render);
         }
 
         private static RenderTextureDescriptor CreateCameraDepthDescriptor(Camera camera)
@@ -881,10 +1051,13 @@ namespace NWRP
             return descriptor;
         }
 
-        private static RenderTextureDescriptor CreateCameraOpaqueTextureDescriptor(Camera camera)
+        private static RenderTextureDescriptor CreateCameraOpaqueTextureDescriptor(
+            Camera camera,
+            NewWorldRenderPipelineAsset asset)
         {
-            RenderTextureDescriptor descriptor = CreateCameraColorDescriptor(camera);
+            RenderTextureDescriptor descriptor = CreateCameraColorDescriptor(camera, asset);
             descriptor.depthBufferBits = 0;
+            descriptor.depthStencilFormat = GraphicsFormat.None;
             descriptor.msaaSamples = 1;
             descriptor.useMipMap = false;
             descriptor.autoGenerateMips = false;
@@ -1087,6 +1260,7 @@ namespace NWRP
             bool hasSerializedAdditionalLightShadowFeature = false;
             bool hasActiveSerializedOutlineFeature = false;
             bool hasActiveSerializedOpaqueTextureFeature = false;
+            bool hasActiveSerializedPostProcessFeature = false;
             bool hasActiveSerializedDepthTextureFeature =
                 HasActiveSerializedDepthTextureFeature(features);
 
@@ -1127,6 +1301,11 @@ namespace NWRP
                 if (feature is OpaqueTextureFeature)
                 {
                     hasActiveSerializedOpaqueTextureFeature = true;
+                }
+
+                if (feature is PostProcessFeature)
+                {
+                    hasActiveSerializedPostProcessFeature = true;
                 }
 
                 feature.EnsureCreated();
@@ -1176,6 +1355,16 @@ namespace NWRP
                 }
             }
 
+            if (!hasActiveSerializedPostProcessFeature && PostProcessFeature.HasAnyActivePostProcess(ref frameData))
+            {
+                PostProcessFeature runtimePostProcessFeature =
+                    frameData.asset.GetOrCreatePostProcessFeature();
+                if (runtimePostProcessFeature != null && runtimePostProcessFeature.IsEnabled)
+                {
+                    runtimePostProcessFeature.EnsureCreated();
+                    runtimePostProcessFeature.AddPasses(this, ref frameData);
+                }
+            }
         }
 
         private static bool HasActiveSerializedDepthTextureFeature(List<NWRPFeature> features)

@@ -59,6 +59,12 @@ namespace NWRP
             ForcePrepass = 2
         }
 
+        public enum HDRColorBufferPrecision
+        {
+            _32Bits = 0,
+            _64Bits = 1
+        }
+
         [System.Serializable]
         public sealed class AdditionalLightShadowToggleSettings
         {
@@ -436,6 +442,15 @@ namespace NWRP
         [Tooltip("Enable GPU instancing")]
         public bool useGPUInstancing = true;
 
+        [Tooltip("Allow cameras with Allow HDR enabled to render into HDR color buffers.")]
+        public bool supportsHDR = true;
+
+        [Tooltip("Requested HDR color buffer precision. 32-bit prefers B10G11R11 for mobile bandwidth; 64-bit prefers R16G16B16A16.")]
+        public HDRColorBufferPrecision hdrColorBufferPrecision = HDRColorBufferPrecision._32Bits;
+
+        [Tooltip("Allow NWRP cameras with Render Post Processing enabled to execute NWRP post-processing passes.")]
+        public bool supportsPostProcessing = true;
+
         [Header("Main Light Shadows")]
         public MainLightShadowSettings mainLightShadows = new MainLightShadowSettings();
 
@@ -459,6 +474,9 @@ namespace NWRP
 
         [System.NonSerialized]
         private DepthTextureFeature _runtimeDepthTextureFeature;
+
+        [System.NonSerialized]
+        private PostProcessFeature _runtimePostProcessFeature;
 
         private MainLightShadowSettings MainLightShadowSettingsData
         {
@@ -539,6 +557,9 @@ namespace NWRP
         public bool EnableOpaqueTexture => FeatureSettingsData.opaqueTexture.enableOpaqueTexture;
         public bool EnableDepthTexture => FeatureSettingsData.depthTexture.enableDepthTexture;
         public DepthTextureCopyMode DepthTextureCopyModeSetting => FeatureSettingsData.depthTexture.copyDepthMode;
+        public bool SupportsHDR => supportsHDR;
+        public HDRColorBufferPrecision HDRColorBufferPrecisionSetting => hdrColorBufferPrecision;
+        public bool SupportsPostProcessing => supportsPostProcessing;
 
         /// <summary>
         /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,
@@ -665,6 +686,19 @@ namespace NWRP
             return _runtimeDepthTextureFeature;
         }
 
+        internal PostProcessFeature GetOrCreatePostProcessFeature()
+        {
+            if (_runtimePostProcessFeature != null)
+            {
+                return _runtimePostProcessFeature;
+            }
+
+            _runtimePostProcessFeature = ScriptableObject.CreateInstance<PostProcessFeature>();
+            _runtimePostProcessFeature.hideFlags = HideFlags.HideAndDontSave;
+            _runtimePostProcessFeature.name = "NWRP Runtime PostProcessFeature";
+            return _runtimePostProcessFeature;
+        }
+
         internal void DisposeRuntimeFeatures()
         {
             if (_runtimeMainLightShadowFeature == null)
@@ -673,6 +707,7 @@ namespace NWRP
                 DisposeOutlineRuntimeFeature();
                 DisposeOpaqueTextureRuntimeFeature();
                 DisposeDepthTextureRuntimeFeature();
+                DisposePostProcessRuntimeFeature();
                 return;
             }
 
@@ -690,6 +725,7 @@ namespace NWRP
             DisposeOutlineRuntimeFeature();
             DisposeOpaqueTextureRuntimeFeature();
             DisposeDepthTextureRuntimeFeature();
+            DisposePostProcessRuntimeFeature();
         }
 
         private void DisposeAdditionalRuntimeFeature()
@@ -766,6 +802,25 @@ namespace NWRP
             }
 
             _runtimeDepthTextureFeature = null;
+        }
+
+        private void DisposePostProcessRuntimeFeature()
+        {
+            if (_runtimePostProcessFeature == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_runtimePostProcessFeature);
+            }
+            else
+            {
+                DestroyImmediate(_runtimePostProcessFeature);
+            }
+
+            _runtimePostProcessFeature = null;
         }
 
         protected override RenderPipeline CreatePipeline()

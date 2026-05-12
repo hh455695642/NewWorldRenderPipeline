@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useSRPBatcher: 1
   useGPUInstancing: 1
+  supportsHDR: 1
+  hdrColorBufferPrecision: 0
+  supportsPostProcessing: 1
   mainLightShadows:
     toggles:
       enableMainLightShadows: 1

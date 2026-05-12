@@ -19,6 +19,7 @@ namespace NWRP
         public static readonly int ScreenParams = Shader.PropertyToID("_ScreenParams");
         public static readonly int ScaledScreenParams = Shader.PropertyToID("_ScaledScreenParams");
         public static readonly int ScaleBiasRt = Shader.PropertyToID("_ScaleBiasRt");
+        public static readonly int TonemapParams = Shader.PropertyToID("_NWRPTonemapParams");
         public static readonly int InverseViewMatrix = Shader.PropertyToID("unity_MatrixInvV");
         public static readonly int InverseProjectionMatrix = Shader.PropertyToID("unity_MatrixInvP");
         public static readonly int InverseViewProjectionMatrix = Shader.PropertyToID("unity_MatrixInvVP");

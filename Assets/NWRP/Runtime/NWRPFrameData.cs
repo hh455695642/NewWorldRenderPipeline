@@ -13,6 +13,11 @@ namespace NWRP
         public CullingResults cullingResults;
         public CommandBuffer cmd;
         public NewWorldRenderPipelineAsset asset;
+        public NWRPCameraData cameraData;
+        public VolumeStack volumeStack;
+        public bool postProcessingEnabled;
+        public bool tonemappingActive;
+        public NWRPTonemapping tonemapping;
         public NWRPFrameTargets targets;
     }
 
@@ -42,6 +47,7 @@ namespace NWRP
         public bool hasCameraDepthTexture;
         public bool cameraDepthTextureIsDepthTarget;
         public bool hasOpaqueTexture;
+        public bool cameraColorPresented;
     }
 
     /// <summary>

@@ -13,6 +13,9 @@ namespace NWRP.Editor
 
         private SerializedProperty _useSRPBatcherProperty;
         private SerializedProperty _useGPUInstancingProperty;
+        private SerializedProperty _supportsHDRProperty;
+        private SerializedProperty _hdrColorBufferPrecisionProperty;
+        private SerializedProperty _supportsPostProcessingProperty;
         private SerializedProperty _featureSettingsProperty;
         private SerializedProperty _featureListProperty;
         private SerializedProperty _featureOutlineProperty;
@@ -73,6 +76,9 @@ namespace NWRP.Editor
         {
             _useSRPBatcherProperty = serializedObject.FindProperty("useSRPBatcher");
             _useGPUInstancingProperty = serializedObject.FindProperty("useGPUInstancing");
+            _supportsHDRProperty = serializedObject.FindProperty("supportsHDR");
+            _hdrColorBufferPrecisionProperty = serializedObject.FindProperty("hdrColorBufferPrecision");
+            _supportsPostProcessingProperty = serializedObject.FindProperty("supportsPostProcessing");
             _featureSettingsProperty = serializedObject.FindProperty("featureSettings");
             _featureOutlineProperty = _featureSettingsProperty.FindPropertyRelative("outline");
             _featureOpaqueTextureProperty = _featureSettingsProperty.FindPropertyRelative("opaqueTexture");
@@ -187,6 +193,34 @@ namespace NWRP.Editor
             EditorGUILayout.LabelField("General", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_useSRPBatcherProperty);
             EditorGUILayout.PropertyField(_useGPUInstancingProperty);
+            EditorGUILayout.PropertyField(
+                _supportsHDRProperty,
+                new GUIContent("Supports HDR"));
+            using (new EditorGUI.DisabledScope(!_supportsHDRProperty.boolValue))
+            {
+                EditorGUILayout.PropertyField(
+                    _hdrColorBufferPrecisionProperty,
+                    new GUIContent("HDR Color Buffer Precision"));
+            }
+
+            if (_supportsHDRProperty.boolValue
+                && _hdrColorBufferPrecisionProperty.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.HDRColorBufferPrecision._64Bits)
+            {
+                EditorGUILayout.HelpBox(
+                    "64-bit HDR uses a wider color buffer when supported. Prefer 32-bit on mobile unless banding is visible and profiling accepts the bandwidth cost.",
+                    MessageType.Warning);
+            }
+
+            EditorGUILayout.PropertyField(
+                _supportsPostProcessingProperty,
+                new GUIContent("Supports Post Processing"));
+            if (!_supportsPostProcessingProperty.boolValue)
+            {
+                EditorGUILayout.HelpBox(
+                    "NWRP camera post-processing is disabled at the pipeline capability level. Camera and Volume settings will be ignored.",
+                    MessageType.Info);
+            }
         }
 
         private void DrawShadowSettings()
