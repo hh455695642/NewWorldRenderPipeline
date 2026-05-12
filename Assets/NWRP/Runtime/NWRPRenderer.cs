@@ -415,43 +415,72 @@ namespace NWRP
             frameData.tonemappingActive = false;
             frameData.tonemapping = null;
 
-            if (frameData.camera == null
+            Camera camera = frameData.camera;
+            if (camera == null
                 || frameData.asset == null
-                || !frameData.asset.SupportsPostProcessing)
+                || !frameData.asset.SupportsPostProcessing
+                || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES2)
             {
                 return;
             }
 
-            if (frameData.camera.TryGetComponent(out NWRPCameraData cameraData))
+#if UNITY_EDITOR
+            // Match URP's Scene View behavior: the Scene window toolbar Effects/Post
+            // Processing toggle controls whether editor-owned Scene View cameras run
+            // post-processing. Scene View cameras do not reliably carry NWRPCameraData,
+            // so they sample volumes from the Scene View camera instead.
+            if (camera.cameraType == CameraType.SceneView)
             {
-                if (!cameraData.RenderPostProcessing)
+                if (!IsSceneViewPostProcessingEnabled(camera))
                 {
                     return;
                 }
 
                 ConfigurePostProcessingFromVolume(
                     ref frameData,
-                    cameraData.GetVolumeTrigger(frameData.camera),
-                    cameraData.VolumeLayerMask,
-                    cameraData);
+                    camera.transform,
+                    camera.cullingMask,
+                    null);
+                return;
+            }
+#endif
+
+            if (!camera.TryGetComponent(out NWRPCameraData cameraData)
+                || !cameraData.renderPostProcessing)
+            {
                 return;
             }
 
-#if UNITY_EDITOR
-            // Scene View cameras are editor-owned temporary cameras, so the auto-add
-            // NWRPCameraData path cannot reliably attach settings to them. Keep the
-            // runtime rule intact (missing NWRPCameraData means no cost), but allow
-            // Scene View preview to sample NWRP volumes using the Scene View camera.
-            if (frameData.camera.cameraType == CameraType.SceneView)
-            {
-                ConfigurePostProcessingFromVolume(
-                    ref frameData,
-                    frameData.camera.transform,
-                    frameData.camera.cullingMask,
-                    null);
-            }
-#endif
+            ConfigurePostProcessingFromVolume(
+                ref frameData,
+                cameraData.GetVolumeTrigger(camera),
+                cameraData.VolumeLayerMask,
+                cameraData);
         }
+
+#if UNITY_EDITOR
+        private static bool IsSceneViewPostProcessingEnabled(Camera camera)
+        {
+            if (camera == null || camera.cameraType != CameraType.SceneView)
+            {
+                return false;
+            }
+
+            if (CoreUtils.ArePostProcessesEnabled(camera))
+            {
+                return true;
+            }
+
+            // CoreUtils requires the SceneView camera reference to match exactly.
+            // Some editor render paths can pass an equivalent temporary SceneView camera,
+            // so fall back to the currently drawing SceneView state while keeping the
+            // same toolbar and wireframe rules as URP.
+            SceneView currentSceneView = SceneView.currentDrawingSceneView;
+            return currentSceneView != null
+                && currentSceneView.sceneViewState.imageEffectsEnabled
+                && currentSceneView.cameraMode.drawMode != DrawCameraMode.Wireframe;
+        }
+#endif
 
         private static void ConfigurePostProcessingFromVolume(
             ref NWRPFrameData frameData,
@@ -459,6 +488,9 @@ namespace NWRP
             LayerMask volumeLayerMask,
             NWRPCameraData cameraData)
         {
+            // Keep the global stack deterministic between Game and Scene View cameras,
+            // mirroring URP's per-camera volume update path.
+            VolumeManager.instance.ResetMainStack();
             VolumeManager.instance.Update(volumeTrigger, volumeLayerMask);
 
             frameData.cameraData = cameraData;
