@@ -9,11 +9,55 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
         #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
 
         float4 _NWRPTonemapParams;
+        float4 _NWRPBloomCompositeParams;
+        TEXTURE2D_X(_NWRPBloomTexture);
+        TEXTURE2D_X(_NWRPBloomDirtSourceTexture);
+        TEXTURE2D(_NWRPBloomDirtTexture);
 
         #define NWRP_TONEMAP_PRE_EXPOSURE _NWRPTonemapParams.x
         #define NWRP_TONEMAP_POST_BRIGHTNESS _NWRPTonemapParams.y
         #define NWRP_TONEMAP_MAX_INPUT_BRIGHTNESS _NWRPTonemapParams.z
         #define NWRP_TONEMAP_AGX_GAMMA _NWRPTonemapParams.w
+        #define NWRP_BLOOM_INTENSITY _NWRPBloomCompositeParams.x
+        #define NWRP_BLOOM_DIRT_INTENSITY _NWRPBloomCompositeParams.y
+        #define NWRP_BLOOM_DIRT_THRESHOLD _NWRPBloomCompositeParams.z
+        #define NWRP_BLOOM_DIRT_CONTRIBUTION _NWRPBloomCompositeParams.w
+
+        float3 ApplyNWRPBloom(float2 uv, float3 color)
+        {
+            UNITY_BRANCH
+            if (NWRP_BLOOM_INTENSITY > 0.0)
+            {
+                color += SAMPLE_TEXTURE2D_X(
+                    _NWRPBloomTexture,
+                    sampler_LinearClamp,
+                    uv).rgb * NWRP_BLOOM_INTENSITY;
+            }
+
+            UNITY_BRANCH
+            if (NWRP_BLOOM_DIRT_INTENSITY > 0.0)
+            {
+                float3 screenLum = SAMPLE_TEXTURE2D_X(
+                    _NWRPBloomDirtSourceTexture,
+                    sampler_LinearClamp,
+                    uv).rgb * NWRP_BLOOM_DIRT_CONTRIBUTION;
+                float3 dirt = SAMPLE_TEXTURE2D(
+                    _NWRPBloomDirtTexture,
+                    sampler_LinearRepeat,
+                    uv).rgb;
+                color += saturate(
+                        float3(0.5, 0.5, 0.5)
+                        - float3(
+                            NWRP_BLOOM_DIRT_THRESHOLD,
+                            NWRP_BLOOM_DIRT_THRESHOLD,
+                            NWRP_BLOOM_DIRT_THRESHOLD)
+                        + screenLum)
+                    * dirt
+                    * NWRP_BLOOM_DIRT_INTENSITY;
+            }
+
+            return color;
+        }
 
         float4 FetchTonemapInput(Varyings input)
         {
@@ -25,6 +69,7 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
                 sampler_LinearClamp,
                 input.texcoord.xy,
                 _BlitMipLevel);
+            color.rgb = ApplyNWRPBloom(input.texcoord.xy, color.rgb);
             color.rgb = min(max(color.rgb, float3(0.0, 0.0, 0.0)), float3(maxInput, maxInput, maxInput))
                 * NWRP_TONEMAP_PRE_EXPOSURE;
             return color;

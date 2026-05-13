@@ -17,7 +17,9 @@ namespace NWRP
         public VolumeStack volumeStack;
         public bool postProcessingEnabled;
         public bool tonemappingActive;
+        public bool bloomActive;
         public NWRPTonemapping tonemapping;
+        public NWRPBloom bloom;
         public NWRPFrameTargets targets;
     }
 

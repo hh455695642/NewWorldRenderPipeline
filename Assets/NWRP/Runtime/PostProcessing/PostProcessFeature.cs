@@ -23,9 +23,8 @@ namespace NWRP
                 return false;
             }
 
-            // PostProcess v1 only has final tonemapping, but the framework always renders
-            // scene color into an intermediate HDR target first. The final PostProcess pass
-            // writes directly back to the camera/backbuffer target and marks it presented.
+            // Internal post effects read from an intermediate HDR color target. The single
+            // external PostProcess pass writes directly back to the camera/backbuffer target.
             requirements.requiresIntermediateColor = true;
             return true;
         }
@@ -47,15 +46,19 @@ namespace NWRP
 
         internal static bool HasAnyActivePostProcess(ref NWRPFrameData frameData)
         {
-            // Future effects should be OR'ed here, for example Bloom/LUT/Sharpen.
             // NWRPRenderer only sees one PostProcess pass regardless of how many
             // internal effects are active.
-            return IsTonemappingActive(ref frameData);
+            return IsTonemappingActive(ref frameData) || IsBloomActive(ref frameData);
         }
 
         internal static bool IsTonemappingActive(ref NWRPFrameData frameData)
         {
             return IsPostProcessingEnabled(ref frameData) && frameData.tonemappingActive;
+        }
+
+        internal static bool IsBloomActive(ref NWRPFrameData frameData)
+        {
+            return IsPostProcessingEnabled(ref frameData) && frameData.bloomActive;
         }
 
         internal static bool IsPostProcessingEnabled(ref NWRPFrameData frameData)

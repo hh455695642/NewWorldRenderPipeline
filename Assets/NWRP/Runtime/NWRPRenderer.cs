@@ -413,7 +413,9 @@ namespace NWRP
             frameData.volumeStack = null;
             frameData.postProcessingEnabled = false;
             frameData.tonemappingActive = false;
+            frameData.bloomActive = false;
             frameData.tonemapping = null;
+            frameData.bloom = null;
 
             Camera camera = frameData.camera;
             if (camera == null
@@ -505,6 +507,13 @@ namespace NWRP
             NWRPTonemapping tonemapping = frameData.volumeStack.GetComponent<NWRPTonemapping>();
             frameData.tonemapping = tonemapping;
             frameData.tonemappingActive = tonemapping != null && tonemapping.IsActive();
+
+            NWRPBloom bloom = frameData.volumeStack.GetComponent<NWRPBloom>();
+            frameData.bloom = bloom;
+            frameData.bloomActive =
+                frameData.asset.EnableBloom
+                && bloom != null
+                && bloom.IsActive();
         }
 
         private void ConfigureFrameTargets(ref NWRPFrameData frameData)

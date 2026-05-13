@@ -1,5 +1,115 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-6140876894605714381
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b4f8c5379cf449e49b28d19aa8f0b781, type: 3}
+  m_Name: NWRPBloom
+  m_EditorClassIdentifier: 
+  active: 1
+  intensity:
+    m_OverrideState: 1
+    m_Value: 0.08
+  threshold:
+    m_OverrideState: 0
+    m_Value: 0.75
+  conservativeThreshold:
+    m_OverrideState: 0
+    m_Value: 0
+  spread:
+    m_OverrideState: 0
+    m_Value: 0.5
+  maxBrightness:
+    m_OverrideState: 0
+    m_Value: 1000
+  tint:
+    m_OverrideState: 0
+    m_Value: {r: 0.5, g: 0.5, b: 1, a: 0}
+  antiflicker:
+    m_OverrideState: 0
+    m_Value: 0
+  resolution:
+    m_OverrideState: 0
+    m_Value: 1
+  quickerBlur:
+    m_OverrideState: 0
+    m_Value: 0
+  customize:
+    m_OverrideState: 0
+    m_Value: 0
+  weight0:
+    m_OverrideState: 0
+    m_Value: 0.5
+  boost0:
+    m_OverrideState: 0
+    m_Value: 0
+  tint0:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  weight1:
+    m_OverrideState: 0
+    m_Value: 0.5
+  boost1:
+    m_OverrideState: 0
+    m_Value: 0
+  tint1:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  weight2:
+    m_OverrideState: 0
+    m_Value: 0.5
+  boost2:
+    m_OverrideState: 0
+    m_Value: 0
+  tint2:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  weight3:
+    m_OverrideState: 0
+    m_Value: 0.5
+  boost3:
+    m_OverrideState: 0
+    m_Value: 0
+  tint3:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  weight4:
+    m_OverrideState: 0
+    m_Value: 0.5
+  boost4:
+    m_OverrideState: 0
+    m_Value: 0
+  tint4:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  weight5:
+    m_OverrideState: 0
+    m_Value: 0.5
+  boost5:
+    m_OverrideState: 0
+    m_Value: 0
+  tint5:
+    m_OverrideState: 0
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  lensDirtIntensity:
+    m_OverrideState: 0
+    m_Value: 0
+  lensDirtThreshold:
+    m_OverrideState: 0
+    m_Value: 0.5
+  lensDirtTexture:
+    m_OverrideState: 0
+    m_Value: {fileID: 0}
+    dimension: 1
+  lensDirtSpread:
+    m_OverrideState: 0
+    m_Value: 3
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13,8 +123,9 @@ MonoBehaviour:
   m_Name: NWRP_TonemappingProfile
   m_EditorClassIdentifier: 
   components:
-  - {fileID: 3991767867408825083}
---- !u!114 &3991767867408825083
+  - {fileID: 2038543448562684077}
+  - {fileID: -6140876894605714381}
+--- !u!114 &2038543448562684077
 MonoBehaviour:
   m_ObjectHideFlags: 3
   m_CorrespondingSourceObject: {fileID: 0}
@@ -29,16 +140,16 @@ MonoBehaviour:
   active: 1
   mode:
     m_OverrideState: 1
-    m_Value: 3
+    m_Value: 2
   preExposure:
-    m_OverrideState: 1
+    m_OverrideState: 0
     m_Value: 1
   postBrightness:
-    m_OverrideState: 1
+    m_OverrideState: 0
     m_Value: 1
   maxInputBrightness:
-    m_OverrideState: 1
+    m_OverrideState: 0
     m_Value: 1000
   agxGamma:
-    m_OverrideState: 1
+    m_OverrideState: 0
     m_Value: 2.5

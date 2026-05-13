@@ -21,6 +21,7 @@ namespace NWRP.Editor
         private SerializedProperty _featureOutlineProperty;
         private SerializedProperty _featureOpaqueTextureProperty;
         private SerializedProperty _featureDepthTextureProperty;
+        private SerializedProperty _featureBloomProperty;
 
         private SerializedProperty _mainLightShadowsProperty;
         private SerializedProperty _mainLightShadowTogglesProperty;
@@ -70,6 +71,7 @@ namespace NWRP.Editor
         private SerializedProperty _enableOutlineProperty;
         private SerializedProperty _enableOpaqueTextureProperty;
         private SerializedProperty _enableDepthTextureProperty;
+        private SerializedProperty _enableBloomProperty;
         private SerializedProperty _copyDepthModeProperty;
 
         private void OnEnable()
@@ -83,6 +85,7 @@ namespace NWRP.Editor
             _featureOutlineProperty = _featureSettingsProperty.FindPropertyRelative("outline");
             _featureOpaqueTextureProperty = _featureSettingsProperty.FindPropertyRelative("opaqueTexture");
             _featureDepthTextureProperty = _featureSettingsProperty.FindPropertyRelative("depthTexture");
+            _featureBloomProperty = _featureSettingsProperty.FindPropertyRelative("bloom");
             _featureListProperty = _featureSettingsProperty.FindPropertyRelative("features");
 
             _mainLightShadowsProperty = serializedObject.FindProperty("mainLightShadows");
@@ -171,6 +174,8 @@ namespace NWRP.Editor
                 _featureOpaqueTextureProperty.FindPropertyRelative("enableOpaqueTexture");
             _enableDepthTextureProperty =
                 _featureDepthTextureProperty.FindPropertyRelative("enableDepthTexture");
+            _enableBloomProperty =
+                _featureBloomProperty.FindPropertyRelative("enableBloom");
             _copyDepthModeProperty =
                 _featureDepthTextureProperty.FindPropertyRelative("copyDepthMode");
         }
@@ -265,6 +270,18 @@ namespace NWRP.Editor
                     new GUIContent("Camera Depth Texture Mode"));
                 EditorGUILayout.HelpBox(
                     "Copies or pre-renders opaque depth to _CameraDepthTexture. After Opaques is required when transparent materials sample scene depth; Force Prepass depends on DepthOnly passes.",
+                    MessageType.Info);
+            }
+
+            EditorGUILayout.Space(2f);
+            DrawSubsectionLabel("Bloom");
+            EditorGUILayout.PropertyField(
+                _enableBloomProperty,
+                new GUIContent("Enable NWRP Bloom"));
+            if (!_enableBloomProperty.boolValue)
+            {
+                EditorGUILayout.HelpBox(
+                    "NWRP Bloom Volume components are ignored. This is a hard pipeline-level cutoff for post-process bandwidth.",
                     MessageType.Info);
             }
 
