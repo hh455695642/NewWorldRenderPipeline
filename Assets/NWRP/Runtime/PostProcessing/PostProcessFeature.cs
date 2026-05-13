@@ -48,7 +48,10 @@ namespace NWRP
         {
             // NWRPRenderer only sees one PostProcess pass regardless of how many
             // internal effects are active.
-            return IsTonemappingActive(ref frameData) || IsBloomActive(ref frameData);
+            return IsTonemappingActive(ref frameData)
+                || IsBloomActive(ref frameData)
+                || IsColorAdjustmentsActive(ref frameData)
+                || IsVignetteActive(ref frameData);
         }
 
         internal static bool IsTonemappingActive(ref NWRPFrameData frameData)
@@ -59,6 +62,16 @@ namespace NWRP
         internal static bool IsBloomActive(ref NWRPFrameData frameData)
         {
             return IsPostProcessingEnabled(ref frameData) && frameData.bloomActive;
+        }
+
+        internal static bool IsColorAdjustmentsActive(ref NWRPFrameData frameData)
+        {
+            return IsPostProcessingEnabled(ref frameData) && frameData.colorAdjustmentsActive;
+        }
+
+        internal static bool IsVignetteActive(ref NWRPFrameData frameData)
+        {
+            return IsPostProcessingEnabled(ref frameData) && frameData.vignetteActive;
         }
 
         internal static bool IsPostProcessingEnabled(ref NWRPFrameData frameData)

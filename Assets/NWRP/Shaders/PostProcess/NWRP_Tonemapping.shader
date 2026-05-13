@@ -9,6 +9,12 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
         #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
 
         float4 _NWRPTonemapParams;
+        float4 _NWRPColorAdjustParams;
+        float4 _NWRPColorAdjustParams2;
+        float4 _NWRPColorAdjustTint;
+        float4 _NWRPVignetteColor;
+        float4 _NWRPVignetteParams;
+        float4 _NWRPVignetteParams2;
         float4 _NWRPBloomCompositeParams;
         TEXTURE2D_X(_NWRPBloomTexture);
         TEXTURE2D_X(_NWRPBloomDirtSourceTexture);
@@ -18,10 +24,113 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
         #define NWRP_TONEMAP_POST_BRIGHTNESS _NWRPTonemapParams.y
         #define NWRP_TONEMAP_MAX_INPUT_BRIGHTNESS _NWRPTonemapParams.z
         #define NWRP_TONEMAP_AGX_GAMMA _NWRPTonemapParams.w
+        #define NWRP_COLOR_SEPIA _NWRPColorAdjustParams.x
+        #define NWRP_COLOR_DALTONIZE _NWRPColorAdjustParams.y
+        #define NWRP_COLOR_SATURATION _NWRPColorAdjustParams.z
+        #define NWRP_COLOR_BRIGHTNESS _NWRPColorAdjustParams.w
+        #define NWRP_COLOR_CONTRAST _NWRPColorAdjustParams2.x
+        #define NWRP_COLOR_TEMPERATURE _NWRPColorAdjustParams2.y
+        #define NWRP_COLOR_TEMPERATURE_BLEND _NWRPColorAdjustParams2.z
+        #define NWRP_COLOR_ADJUST_ACTIVE _NWRPColorAdjustParams2.w
+        #define NWRP_VIGNETTE_CENTER _NWRPVignetteParams.xy
+        #define NWRP_VIGNETTE_ASPECT_Y _NWRPVignetteParams.z
+        #define NWRP_VIGNETTE_OUTER_RING _NWRPVignetteParams.w
+        #define NWRP_VIGNETTE_ASPECT_X _NWRPVignetteParams2.x
+        #define NWRP_VIGNETTE_INNER_RING _NWRPVignetteParams2.y
+        #define NWRP_VIGNETTE_FADE _NWRPVignetteParams2.z
+        #define NWRP_VIGNETTE_ACTIVE _NWRPVignetteParams2.w
         #define NWRP_BLOOM_INTENSITY _NWRPBloomCompositeParams.x
         #define NWRP_BLOOM_DIRT_INTENSITY _NWRPBloomCompositeParams.y
         #define NWRP_BLOOM_DIRT_THRESHOLD _NWRPBloomCompositeParams.z
         #define NWRP_BLOOM_DIRT_CONTRIBUTION _NWRPBloomCompositeParams.w
+
+        half NWRPGetLuma(half3 color)
+        {
+            return dot(color, half3(0.299h, 0.587h, 0.114h));
+        }
+
+        float3 NWRPKelvinToRGB(float kelvin)
+        {
+            float safeKelvin = clamp(kelvin, 1000.0, 40000.0);
+            float3 m0 = float3(0.0, -2902.1955373783176, -8257.7997278925690);
+            float3 m1 = float3(0.0, 1669.5803561666639, 2575.2827530017594);
+            float3 m2 = float3(1.0, 1.3302673723350029, 1.8993753891711275);
+            return m0 / (safeKelvin.xxx + m1) + m2;
+        }
+
+        half3 ApplyNWRPColorAdjustments(half3 color)
+        {
+            UNITY_BRANCH
+            if (NWRP_COLOR_ADJUST_ACTIVE <= 0.0)
+            {
+                return color;
+            }
+
+            half luma = NWRPGetLuma(color);
+            half daltonize = (half)NWRP_COLOR_DALTONIZE;
+            half3 inverseColor = half3(1.0h, 1.0h, 1.0h) - saturate(color);
+            half3 daltonized = color;
+            daltonized.r *= 1.0h + daltonized.r * inverseColor.g * inverseColor.b * daltonize;
+            daltonized.g *= 1.0h + daltonized.g * inverseColor.r * inverseColor.b * daltonize;
+            daltonized.b *= 1.0h + daltonized.b * inverseColor.r * inverseColor.g * daltonize;
+            color = daltonized * (luma / (NWRPGetLuma(daltonized) + 0.0001h));
+
+            half3 sepia = half3(
+                dot(color, half3(0.393h, 0.769h, 0.189h)),
+                dot(color, half3(0.349h, 0.686h, 0.168h)),
+                dot(color, half3(0.272h, 0.534h, 0.131h)));
+            color = lerp(color, sepia, saturate((half)NWRP_COLOR_SEPIA));
+
+            half maxComponent = max(color.r, max(color.g, color.b));
+            half minComponent = min(color.r, min(color.g, color.b));
+            half saturation = saturate(maxComponent - minComponent);
+            color *= 1.0h
+                + (half)NWRP_COLOR_SATURATION
+                * (1.0h - saturation)
+                * (color - NWRPGetLuma(color));
+
+            color = lerp(
+                color,
+                color * (half3)_NWRPColorAdjustTint.rgb,
+                saturate((half)_NWRPColorAdjustTint.a));
+            color = (color - half3(0.5h, 0.5h, 0.5h)) * (half)NWRP_COLOR_CONTRAST
+                + half3(0.5h, 0.5h, 0.5h);
+            color *= (half)NWRP_COLOR_BRIGHTNESS;
+
+            UNITY_BRANCH
+            if (NWRP_COLOR_TEMPERATURE_BLEND > 0.0)
+            {
+                half3 kelvin = (half3)NWRPKelvinToRGB(NWRP_COLOR_TEMPERATURE);
+                color = lerp(color, color * kelvin, saturate((half)NWRP_COLOR_TEMPERATURE_BLEND));
+            }
+
+            return color;
+        }
+
+        half3 ApplyNWRPVignette(float2 uv, half3 color)
+        {
+            UNITY_BRANCH
+            if (NWRP_VIGNETTE_ACTIVE <= 0.0)
+            {
+                return color;
+            }
+
+            float2 vignetteDelta = float2(
+                (uv.x - NWRP_VIGNETTE_CENTER.x) * NWRP_VIGNETTE_ASPECT_X,
+                (uv.y - NWRP_VIGNETTE_CENTER.y) * NWRP_VIGNETTE_ASPECT_Y);
+            float outerRing = max(NWRP_VIGNETTE_OUTER_RING, 0.0001);
+            float innerRing = min(NWRP_VIGNETTE_INNER_RING, outerRing - 0.0001);
+            float ringRange = max(outerRing - innerRing, 0.0001);
+            half edgeBlend = saturate(
+                (dot(vignetteDelta, vignetteDelta) - innerRing) / ringRange
+                + (half)NWRP_VIGNETTE_FADE);
+            edgeBlend = smoothstep(0.0h, 1.0h, edgeBlend);
+            edgeBlend *= edgeBlend;
+            return lerp(
+                color,
+                (half3)_NWRPVignetteColor.rgb,
+                edgeBlend * saturate((half)_NWRPVignetteColor.a));
+        }
 
         float3 ApplyNWRPBloom(float2 uv, float3 color)
         {
@@ -75,10 +184,14 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
             return color;
         }
 
-        float4 PackTonemapOutput(float3 color, float alpha)
+        float4 PackTonemapOutput(float2 uv, float3 color, float alpha)
         {
+            half3 finalColor = (half3)saturate(color * NWRP_TONEMAP_POST_BRIGHTNESS);
+            finalColor = ApplyNWRPColorAdjustments(finalColor);
+            finalColor = ApplyNWRPVignette(uv, finalColor);
+
             return float4(
-                saturate(color * NWRP_TONEMAP_POST_BRIGHTNESS),
+                saturate(finalColor),
                 saturate(alpha));
         }
 
@@ -167,25 +280,25 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
         float4 FragLinear(Varyings input) : SV_Target
         {
             float4 color = FetchTonemapInput(input);
-            return PackTonemapOutput(color.rgb, color.a);
+            return PackTonemapOutput(input.texcoord.xy, color.rgb, color.a);
         }
 
         float4 FragACES(Varyings input) : SV_Target
         {
             float4 color = FetchTonemapInput(input);
-            return PackTonemapOutput(TonemapACES(color.rgb), color.a);
+            return PackTonemapOutput(input.texcoord.xy, TonemapACES(color.rgb), color.a);
         }
 
         float4 FragACESFitted(Varyings input) : SV_Target
         {
             float4 color = FetchTonemapInput(input);
-            return PackTonemapOutput(TonemapACESFitted(color.rgb), color.a);
+            return PackTonemapOutput(input.texcoord.xy, TonemapACESFitted(color.rgb), color.a);
         }
 
         float4 FragAGX(Varyings input) : SV_Target
         {
             float4 color = FetchTonemapInput(input);
-            return PackTonemapOutput(TonemapAGX(color.rgb), color.a);
+            return PackTonemapOutput(input.texcoord.xy, TonemapAGX(color.rgb), color.a);
         }
 
     ENDHLSL

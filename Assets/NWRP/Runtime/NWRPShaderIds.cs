@@ -20,6 +20,12 @@ namespace NWRP
         public static readonly int ScaledScreenParams = Shader.PropertyToID("_ScaledScreenParams");
         public static readonly int ScaleBiasRt = Shader.PropertyToID("_ScaleBiasRt");
         public static readonly int TonemapParams = Shader.PropertyToID("_NWRPTonemapParams");
+        public static readonly int ColorAdjustParams = Shader.PropertyToID("_NWRPColorAdjustParams");
+        public static readonly int ColorAdjustParams2 = Shader.PropertyToID("_NWRPColorAdjustParams2");
+        public static readonly int ColorAdjustTint = Shader.PropertyToID("_NWRPColorAdjustTint");
+        public static readonly int VignetteColor = Shader.PropertyToID("_NWRPVignetteColor");
+        public static readonly int VignetteParams = Shader.PropertyToID("_NWRPVignetteParams");
+        public static readonly int VignetteParams2 = Shader.PropertyToID("_NWRPVignetteParams2");
         public static readonly int BloomThresholdParams = Shader.PropertyToID("_NWRPBloomThresholdParams");
         public static readonly int BloomCompositeParams = Shader.PropertyToID("_NWRPBloomCompositeParams");
         public static readonly int BloomTexelSize = Shader.PropertyToID("_NWRPBloomTexelSize");

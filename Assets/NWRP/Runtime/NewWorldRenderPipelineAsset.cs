@@ -167,7 +167,6 @@ namespace NWRP
             public OutlineSettings outline = new OutlineSettings();
             public OpaqueTextureSettings opaqueTexture = new OpaqueTextureSettings();
             public DepthTextureSettings depthTexture = new DepthTextureSettings();
-            public BloomSettings bloom = new BloomSettings();
             public List<NWRPFeature> features = new List<NWRPFeature>();
 
             public void EnsureInitialized()
@@ -185,11 +184,6 @@ namespace NWRP
                 if (depthTexture == null)
                 {
                     depthTexture = new DepthTextureSettings();
-                }
-
-                if (bloom == null)
-                {
-                    bloom = new BloomSettings();
                 }
 
                 if (features == null)
@@ -224,14 +218,6 @@ namespace NWRP
             [InspectorName("Camera Depth Texture Mode")]
             [Tooltip("Controls when NWRP makes _CameraDepthTexture available.")]
             public DepthTextureCopyMode copyDepthMode = DepthTextureCopyMode.AfterOpaques;
-        }
-
-        [System.Serializable]
-        public sealed class BloomSettings
-        {
-            [InspectorName("Enable NWRP Bloom")]
-            [Tooltip("Allows NWRP Bloom Volume components to run. Disable for a hard pipeline-level mobile performance cutoff.")]
-            public bool enableBloom = true;
         }
 
         [System.Serializable]
@@ -570,7 +556,6 @@ namespace NWRP
         public bool EnableOutline => FeatureSettingsData.outline.enableOutline;
         public bool EnableOpaqueTexture => FeatureSettingsData.opaqueTexture.enableOpaqueTexture;
         public bool EnableDepthTexture => FeatureSettingsData.depthTexture.enableDepthTexture;
-        public bool EnableBloom => FeatureSettingsData.bloom.enableBloom;
         public DepthTextureCopyMode DepthTextureCopyModeSetting => FeatureSettingsData.depthTexture.copyDepthMode;
         public bool SupportsHDR => supportsHDR;
         public HDRColorBufferPrecision HDRColorBufferPrecisionSetting => hdrColorBufferPrecision;

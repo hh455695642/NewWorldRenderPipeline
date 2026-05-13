@@ -18,8 +18,12 @@ namespace NWRP
         public bool postProcessingEnabled;
         public bool tonemappingActive;
         public bool bloomActive;
+        public bool colorAdjustmentsActive;
+        public bool vignetteActive;
         public NWRPTonemapping tonemapping;
         public NWRPBloom bloom;
+        public NWRPColorAdjustments colorAdjustments;
+        public NWRPVignette vignette;
         public NWRPFrameTargets targets;
     }
 

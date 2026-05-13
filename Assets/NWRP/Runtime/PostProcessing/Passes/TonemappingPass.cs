@@ -265,6 +265,15 @@ namespace NWRP.Runtime.Passes
 
             UploadTonemappingConstants(cmd, frameData.tonemapping, tonemappingActive, frameData.bloom);
             UploadFinalBloomConstants(cmd, frameData.bloom, bloomResources);
+            UploadColorAdjustmentConstants(
+                cmd,
+                frameData.colorAdjustments,
+                PostProcessFeature.IsColorAdjustmentsActive(ref frameData));
+            UploadVignetteConstants(
+                cmd,
+                frameData.camera,
+                frameData.vignette,
+                PostProcessFeature.IsVignetteActive(ref frameData));
 
             CoreUtils.SetRenderTarget(
                 cmd,
@@ -521,6 +530,152 @@ namespace NWRP.Runtime.Passes
             }
 
             cmd.SetGlobalTexture(NWRPShaderIds.BloomDirtTexture, dirtTexture);
+        }
+
+        private static void UploadColorAdjustmentConstants(
+            CommandBuffer cmd,
+            NWRPColorAdjustments colorAdjustments,
+            bool colorAdjustmentsActive)
+        {
+            float sepia = 0f;
+            float daltonize = 0f;
+            float saturate = 0f;
+            float brightness = 1f;
+            float contrast = 1f;
+            float temperature = 6550f;
+            float temperatureBlend = 0f;
+            Color tintColor = new Color(1f, 1f, 1f, 0f);
+            float active = 0f;
+
+            if (colorAdjustmentsActive && colorAdjustments != null)
+            {
+                sepia = GetFloat(colorAdjustments.sepia, 0f);
+                daltonize = GetFloat(colorAdjustments.daltonize, 0f);
+                saturate = GetFloat(colorAdjustments.saturate, 0f);
+                brightness = GetFloat(colorAdjustments.brightness, 1f);
+                contrast = GetFloat(colorAdjustments.contrast, 1f);
+                if (QualitySettings.activeColorSpace == ColorSpace.Linear)
+                {
+                    contrast = 1f + (contrast - 1f) / 2.2f;
+                }
+
+                temperature = GetFloat(colorAdjustments.colorTemp, 6550f);
+                temperatureBlend = GetFloat(colorAdjustments.colorTempBlend, 0f);
+                tintColor = GetColor(colorAdjustments.tintColor, tintColor);
+                active = 1f;
+            }
+
+            cmd.SetGlobalVector(
+                NWRPShaderIds.ColorAdjustParams,
+                new Vector4(
+                    Mathf.Clamp01(sepia),
+                    Mathf.Clamp(daltonize, 0f, 2f),
+                    Mathf.Clamp(saturate, -2f, 3f),
+                    Mathf.Clamp(brightness, 0f, 2f)));
+            cmd.SetGlobalVector(
+                NWRPShaderIds.ColorAdjustParams2,
+                new Vector4(
+                    Mathf.Clamp(contrast, 0.5f, 1.5f),
+                    Mathf.Clamp(temperature, 1000f, 40000f),
+                    Mathf.Clamp01(temperatureBlend),
+                    active));
+            cmd.SetGlobalColor(NWRPShaderIds.ColorAdjustTint, tintColor);
+        }
+
+        private static void UploadVignetteConstants(
+            CommandBuffer cmd,
+            Camera camera,
+            NWRPVignette vignette,
+            bool vignetteActive)
+        {
+            Vector2 center = new Vector2(0.5f, 0.5f);
+            Color color = Color.clear;
+            float outerRing = 1f;
+            float innerRing = 1f;
+            float fade = 0f;
+            float aspectX = 1f;
+            float aspectY = 1f;
+            float active = 0f;
+
+            if (vignetteActive && vignette != null)
+            {
+                center = GetVector2(vignette.center, center);
+                color = GetColor(vignette.color, new Color(0f, 0f, 0f, 1f));
+                outerRing = 1f - GetFloat(vignette.outerRing, 0f);
+                innerRing = 1f - GetFloat(vignette.innerRing, 1f);
+                fade = GetFloat(vignette.fade, 0f);
+
+                if (GetBool(vignette.circularShape, false))
+                {
+                    float cameraAspect = Mathf.Max(camera != null ? camera.aspect : 1f, 0.0001f);
+                    if (GetVignetteFitMode(vignette.fitMode) == NWRPVignetteFitMode.FitToWidth)
+                    {
+                        aspectY = 1f / cameraAspect;
+                    }
+                    else
+                    {
+                        aspectX = cameraAspect;
+                    }
+                }
+                else
+                {
+                    aspectY = GetFloat(vignette.aspectRatio, 1f);
+                }
+
+                active = 1f;
+            }
+
+            cmd.SetGlobalColor(NWRPShaderIds.VignetteColor, color);
+            cmd.SetGlobalVector(
+                NWRPShaderIds.VignetteParams,
+                new Vector4(
+                    center.x,
+                    center.y,
+                    Mathf.Max(0.0001f, aspectY),
+                    outerRing));
+            cmd.SetGlobalVector(
+                NWRPShaderIds.VignetteParams2,
+                new Vector4(
+                    Mathf.Max(0.0001f, aspectX),
+                    innerRing,
+                    Mathf.Clamp01(fade),
+                    active));
+        }
+
+        private static float GetFloat(FloatParameter parameter, float fallback)
+        {
+            return parameter != null && parameter.overrideState
+                ? parameter.value
+                : fallback;
+        }
+
+        private static bool GetBool(BoolParameter parameter, bool fallback)
+        {
+            return parameter != null && parameter.overrideState
+                ? parameter.value
+                : fallback;
+        }
+
+        private static Vector2 GetVector2(Vector2Parameter parameter, Vector2 fallback)
+        {
+            return parameter != null && parameter.overrideState
+                ? parameter.value
+                : fallback;
+        }
+
+        private static Color GetColor(ColorParameter parameter, Color fallback)
+        {
+            return parameter != null && parameter.overrideState
+                ? parameter.value
+                : fallback;
+        }
+
+        private static NWRPVignetteFitMode GetVignetteFitMode(
+            NWRPVignetteFitModeParameter parameter)
+        {
+            return parameter != null && parameter.overrideState
+                ? parameter.value
+                : NWRPVignetteFitMode.FitToWidth;
         }
 
         private Texture GetLensDirtTexture(NWRPBloom bloom)
