@@ -58,7 +58,7 @@ Material:
     - _ReceiveShadows: 1
     - _Reflection_Distortion: 0.1
     - _Reflection_Fresnel: 0.44
-    - _Reflection_Strength: 0
+    - _Reflection_Strength: 0.188
     - _Refraction_Distance_Fade: 0.5
     - _Refraction_Distance_Strength: 0.1
     - _Refraction_Strength: 0.5
@@ -77,7 +77,7 @@ Material:
     - _ShoreFade_Smoothness: 0.2
     - _Specular_Hardness: 0
     - _Specular_Size: 0
-    - _Specular_Spread: 0
+    - _Specular_Spread: 0.344
     - _Water_Depth: 0.3
     m_Colors:
     - _1st_Wave_Direction: {r: 1, g: 0, b: 0, a: 0}
