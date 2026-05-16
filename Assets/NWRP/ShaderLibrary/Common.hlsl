@@ -63,13 +63,21 @@
 #define TEXTURECUBE_ARRAY(textureName)                  TextureCubeArray textureName
 #define TEXTURE3D(textureName)                          Texture3D textureName
 #define TEXTURE2D_SHADOW(textureName)                   Texture2D textureName
+#define TEXTURE2D_PARAM(textureName, samplerName)       Texture2D textureName, SamplerState samplerName
+#define TEXTURE2D_ARGS(textureName, samplerName)        textureName, samplerName
+#define TEXTURE2D_ARRAY_PARAM(textureName, samplerName) Texture2DArray textureName, SamplerState samplerName
+#define TEXTURE2D_ARRAY_ARGS(textureName, samplerName)  textureName, samplerName
+#define TEXTURE2D_HALF(textureName)                     Texture2D<half4> textureName
+#define TEXTURE2D_FLOAT(textureName)                    Texture2D<float4> textureName
 
 #define SAMPLER(samplerName)                            SamplerState samplerName
 #define SAMPLER_CMP(samplerName)                        SamplerComparisonState samplerName
 
 // 采样宏
 #define SAMPLE_TEXTURE2D(tex, samp, uv)                 tex.Sample(samp, uv)
+#define SAMPLE_TEXTURE2D_ARRAY(tex, samp, uv, index)    tex.Sample(samp, float3(uv, index))
 #define SAMPLE_TEXTURE2D_LOD(tex, samp, uv, lod)        tex.SampleLevel(samp, uv, lod)
+#define SAMPLE_TEXTURE2D_ARRAY_LOD(tex, samp, uv, index, lod) tex.SampleLevel(samp, float3(uv, index), lod)
 #define SAMPLE_TEXTURE2D_BIAS(tex, samp, uv, bias)      tex.SampleBias(samp, uv, bias)
 #define SAMPLE_TEXTURE2D_GRAD(tex,samp,uv,ddx,ddy)     tex.SampleGrad(samp, uv, ddx, ddy)
 #define SAMPLE_TEXTURECUBE(tex, samp, dir)              tex.Sample(samp, dir)
@@ -82,6 +90,8 @@
 // Load（直接按像素坐标读取，不走采样器）
 #define LOAD_TEXTURE2D(tex, coord2)                     tex.Load(int3(coord2, 0))
 #define LOAD_TEXTURE2D_LOD(tex, coord2, lod)            tex.Load(int3(coord2, lod))
+#define LOAD_TEXTURE2D_ARRAY(tex, coord2, index)        tex.Load(int4(coord2, index, 0))
+#define LOAD_TEXTURE2D_ARRAY_LOD(tex, coord2, index, lod) tex.Load(int4(coord2, index, lod))
 
 // ------------------------------------------------------------
 // UV 变换宏（纹理 Tiling + Offset）
