@@ -90,6 +90,9 @@ public class VegetationIndirectRenderer : MonoBehaviour
     [Header("Debug: disable instancing and use original MeshRenderer")]
     public bool debugUseOriginalRenderer = false;
 
+    [Header("Mobile Fallback: remap vegetation shaders when indirect is unsupported")]
+    public bool useMobileFallbackShaders = true;
+
     [Header("Editor: draw chunk gizmos")]
     public bool drawChunkGizmos = true;
 
@@ -170,13 +173,19 @@ public class VegetationIndirectRenderer : MonoBehaviour
     readonly List<MeshRenderer> _cachedRenderers = new List<MeshRenderer>();
     readonly List<ShadowCasterEntry> _shadowCasterEntries = new List<ShadowCasterEntry>();
     readonly Dictionary<MeshRenderer, RendererState> _originalRendererStates = new Dictionary<MeshRenderer, RendererState>();
+    readonly Dictionary<MeshRenderer, Material[]> _originalRendererMaterials = new Dictionary<MeshRenderer, Material[]>();
+    readonly Dictionary<Material, Material> _mobileFallbackMaterials = new Dictionary<Material, Material>();
+    readonly HashSet<string> _missingMobileFallbackShaders = new HashSet<string>();
     readonly HashSet<Vector2Int> _cpuVisibleChunkCoords = new HashSet<Vector2Int>();
     readonly HashSet<Vector2Int> _submittedChunkCoords = new HashSet<Vector2Int>();
 
     int _kernelIndex = -1;
     bool _csReady = false;
+    bool _usingOriginalRendererFallback = false;
+    bool _fallbackReasonLogged = false;
     bool _lastDebugState = false;
     bool _lastCastShadows = false;
+    string _fallbackReason = string.Empty;
     Camera _cam;
 
     static readonly int _idVisibleBuffer = Shader.PropertyToID("_VisibleVegetationBuffer");
@@ -228,6 +237,7 @@ public class VegetationIndirectRenderer : MonoBehaviour
         _cpuVisibleChunkCoords.Clear();
         _submittedChunkCoords.Clear();
         ReleaseAllBuffers();
+        ReleaseMobileFallbackMaterials();
     }
 
     void OnDestroy()
@@ -236,6 +246,7 @@ public class VegetationIndirectRenderer : MonoBehaviour
         _cpuVisibleChunkCoords.Clear();
         _submittedChunkCoords.Clear();
         ReleaseAllBuffers();
+        ReleaseMobileFallbackMaterials();
     }
 
     [ContextMenu("Reinitialize Grass Renderer")]
@@ -245,35 +256,116 @@ public class VegetationIndirectRenderer : MonoBehaviour
         ReleaseAllBuffers();
         CacheRenderers();
         BuildChunks();
-        RebuildAllBuffers();
 
         _lastDebugState = debugUseOriginalRenderer;
         _lastCastShadows = castShadows;
-        if (Application.isPlaying)
-            ApplyOriginalRendererRuntimeState();
-
         _csReady = false;
+        _usingOriginalRendererFallback = false;
+        _fallbackReason = string.Empty;
+        _fallbackReasonLogged = false;
+        _kernelIndex = -1;
+
+        if (!Application.isPlaying)
+        {
+            RestoreOriginalRenderers();
+            return;
+        }
+
+        if (!TryPrepareIndirectPath(out string fallbackReason))
+        {
+            ActivateOriginalRendererFallback(fallbackReason);
+            return;
+        }
+
+        try
+        {
+            RebuildAllBuffers();
+        }
+        catch (System.Exception exception)
+        {
+            ReleaseAllBuffers();
+            ActivateOriginalRendererFallback($"Failed to allocate indirect vegetation buffers: {exception.Message}");
+            return;
+        }
+
+        _csReady = true;
+        ApplyOriginalRendererRuntimeState();
+        Debug.Log($"[VegetationRenderer] Initialize complete. Chunks={_chunks.Count}, Instances={GetTotalInstanceCount()}");
+    }
+
+    bool TryPrepareIndirectPath(out string fallbackReason)
+    {
+        fallbackReason = string.Empty;
+
+        GraphicsDeviceType deviceType = SystemInfo.graphicsDeviceType;
+        if (deviceType == GraphicsDeviceType.OpenGLES2 || deviceType == GraphicsDeviceType.OpenGLES3)
+        {
+            fallbackReason = $"{deviceType} uses MeshRenderer fallback because the indirect vegetation shaders target SM 4.5.";
+            return false;
+        }
+
+        if (!SystemInfo.supportsComputeShaders)
+        {
+            fallbackReason = "Compute shaders are not supported.";
+            return false;
+        }
+
+        if (!SystemInfo.supportsInstancing)
+        {
+            fallbackReason = "GPU instancing is not supported.";
+            return false;
+        }
+
+        if (!SystemInfo.supportsIndirectArgumentsBuffer)
+        {
+            fallbackReason = "Indirect arguments buffers are not supported.";
+            return false;
+        }
+
         if (CullingComputeShader == null)
         {
-            Debug.LogError("[VegetationRenderer] Missing compute shader reference.");
-            return;
+            fallbackReason = "Missing VegetationCulling compute shader reference.";
+            return false;
         }
 
-        _kernelIndex = CullingComputeShader.FindKernel("CSVegetationCulling");
-        _csReady = _kernelIndex >= 0;
-
-        if (!_csReady)
+        try
         {
-            Debug.LogError("[VegetationRenderer] Kernel 'CSVegetationCulling' not found.");
-            return;
+            _kernelIndex = CullingComputeShader.FindKernel("CSVegetationCulling");
+        }
+        catch (System.Exception exception)
+        {
+            fallbackReason = $"Kernel 'CSVegetationCulling' not found: {exception.Message}";
+            return false;
         }
 
-        Debug.Log($"[VegetationRenderer] Initialize complete. Chunks={_chunks.Count}, Instances={GetTotalInstanceCount()}");
+        if (_kernelIndex < 0)
+        {
+            fallbackReason = "Kernel 'CSVegetationCulling' not found.";
+            return false;
+        }
+
+        return true;
+    }
+
+    void ActivateOriginalRendererFallback(string reason)
+    {
+        _csReady = false;
+        _usingOriginalRendererFallback = true;
+        _fallbackReason = string.IsNullOrEmpty(reason) ? "Indirect vegetation path is unavailable." : reason;
+
+        RestoreOriginalRenderers();
+        ApplyMobileFallbackMaterialOverrides();
+
+        if (!_fallbackReasonLogged)
+        {
+            Debug.LogWarning($"[VegetationRenderer] Using original MeshRenderer fallback. Reason: {_fallbackReason}");
+            _fallbackReasonLogged = true;
+        }
     }
 
     void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
     {
-        if (!Application.isPlaying || debugUseOriginalRenderer || !castShadows)
+        if (!Application.isPlaying || debugUseOriginalRenderer || _usingOriginalRendererFallback || !castShadows)
             return;
 
         if (!ShouldPrepareShadowCastersForCamera(camera))
@@ -331,16 +423,22 @@ public class VegetationIndirectRenderer : MonoBehaviour
         for (int i = 0; i < _cachedRenderers.Count; i++)
         {
             MeshRenderer renderer = _cachedRenderers[i];
-            if (renderer == null || _originalRendererStates.ContainsKey(renderer))
+            if (renderer == null)
                 continue;
 
-            _originalRendererStates.Add(renderer, new RendererState
+            if (!_originalRendererStates.ContainsKey(renderer))
             {
-                enabled = renderer.enabled,
-                shadowCastingMode = renderer.shadowCastingMode,
-                receiveShadows = renderer.receiveShadows,
-                layer = renderer.gameObject.layer
-            });
+                _originalRendererStates.Add(renderer, new RendererState
+                {
+                    enabled = renderer.enabled,
+                    shadowCastingMode = renderer.shadowCastingMode,
+                    receiveShadows = renderer.receiveShadows,
+                    layer = renderer.gameObject.layer
+                });
+            }
+
+            if (!_originalRendererMaterials.ContainsKey(renderer))
+                _originalRendererMaterials.Add(renderer, renderer.sharedMaterials);
         }
     }
 
@@ -518,6 +616,9 @@ public class VegetationIndirectRenderer : MonoBehaviour
         }
 
         if (Application.isPlaying && debugUseOriginalRenderer)
+            return;
+
+        if (_usingOriginalRendererFallback)
             return;
 
         if (!_csReady)
@@ -722,6 +823,13 @@ public class VegetationIndirectRenderer : MonoBehaviour
 
     void ApplyOriginalRendererRuntimeState()
     {
+        if (_usingOriginalRendererFallback)
+        {
+            RestoreOriginalRenderers();
+            ApplyMobileFallbackMaterialOverrides();
+            return;
+        }
+
         if (!Application.isPlaying || debugUseOriginalRenderer)
         {
             RestoreOriginalRenderers();
@@ -788,6 +896,9 @@ public class VegetationIndirectRenderer : MonoBehaviour
             if (renderer == null)
                 continue;
 
+            if (_originalRendererMaterials.TryGetValue(renderer, out Material[] materials))
+                renderer.sharedMaterials = materials;
+
             if (_originalRendererStates.TryGetValue(renderer, out RendererState state))
             {
                 renderer.enabled = state.enabled;
@@ -800,6 +911,109 @@ public class VegetationIndirectRenderer : MonoBehaviour
                 renderer.enabled = true;
             }
         }
+    }
+
+    void ApplyMobileFallbackMaterialOverrides()
+    {
+        if (!useMobileFallbackShaders)
+            return;
+
+        foreach (var renderer in _cachedRenderers)
+        {
+            if (renderer == null)
+                continue;
+
+            Material[] sourceMaterials = _originalRendererMaterials.TryGetValue(renderer, out Material[] originalMaterials)
+                ? originalMaterials
+                : renderer.sharedMaterials;
+            if (sourceMaterials == null || sourceMaterials.Length == 0)
+                continue;
+
+            bool changed = false;
+            Material[] fallbackMaterials = new Material[sourceMaterials.Length];
+            for (int i = 0; i < sourceMaterials.Length; i++)
+            {
+                Material sourceMaterial = sourceMaterials[i];
+                if (TryGetMobileFallbackMaterial(sourceMaterial, out Material fallbackMaterial))
+                {
+                    fallbackMaterials[i] = fallbackMaterial;
+                    changed = true;
+                }
+                else
+                {
+                    fallbackMaterials[i] = sourceMaterial;
+                }
+            }
+
+            if (changed)
+                renderer.sharedMaterials = fallbackMaterials;
+        }
+    }
+
+    bool TryGetMobileFallbackMaterial(Material sourceMaterial, out Material fallbackMaterial)
+    {
+        fallbackMaterial = null;
+        if (sourceMaterial == null || sourceMaterial.shader == null)
+            return false;
+
+        if (_mobileFallbackMaterials.TryGetValue(sourceMaterial, out fallbackMaterial))
+            return fallbackMaterial != null;
+
+        string fallbackShaderName = GetMobileFallbackShaderName(sourceMaterial.shader.name);
+        if (string.IsNullOrEmpty(fallbackShaderName))
+            return false;
+
+        Shader fallbackShader = Shader.Find(fallbackShaderName);
+        if (fallbackShader == null)
+        {
+            if (_missingMobileFallbackShaders.Add(fallbackShaderName))
+                Debug.LogWarning($"[VegetationRenderer] Missing mobile fallback shader '{fallbackShaderName}'. Keeping '{sourceMaterial.shader.name}'.");
+            return false;
+        }
+
+        fallbackMaterial = new Material(sourceMaterial)
+        {
+            shader = fallbackShader,
+            name = $"{sourceMaterial.name} (Mobile Fallback)",
+            hideFlags = HideFlags.DontSave
+        };
+        fallbackMaterial.enableInstancing = sourceMaterial.enableInstancing;
+        _mobileFallbackMaterials.Add(sourceMaterial, fallbackMaterial);
+        return true;
+    }
+
+    static string GetMobileFallbackShaderName(string sourceShaderName)
+    {
+        switch (sourceShaderName)
+        {
+            case "NewWorld/Env/WorldGrass":
+                return "NewWorld/Env/MobileFallback/WorldGrass";
+            case "NewWorld/Env/Tree":
+                return "NewWorld/Env/MobileFallback/Tree";
+            case "NewWorld/Env/TreeLeaf":
+                return "NewWorld/Env/MobileFallback/TreeLeaf";
+            case "NewWorld/Env/Shrub":
+                return "NewWorld/Env/MobileFallback/Shrub";
+            default:
+                return null;
+        }
+    }
+
+    void ReleaseMobileFallbackMaterials()
+    {
+        foreach (var material in _mobileFallbackMaterials.Values)
+        {
+            if (material == null)
+                continue;
+
+            if (Application.isPlaying)
+                Destroy(material);
+            else
+                DestroyImmediate(material);
+        }
+
+        _mobileFallbackMaterials.Clear();
+        _missingMobileFallbackShaders.Clear();
     }
 
 #if UNITY_EDITOR

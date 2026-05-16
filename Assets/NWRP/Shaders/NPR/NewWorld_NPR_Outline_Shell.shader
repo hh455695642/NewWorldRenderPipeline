@@ -94,7 +94,7 @@ Shader "NewWorld/NPR/Outline (Shell Method)"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
-            #pragma shader_feature __ _PIXELWIDTH_ON
+            #pragma shader_feature_local _PIXELWIDTH_ON
 
             #include "../../ShaderLibrary/Core.hlsl"
 

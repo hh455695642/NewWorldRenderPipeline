@@ -89,7 +89,7 @@ namespace NWRP
 
             [Tooltip("Maximum shared atlas size for additional punctual light realtime shadows.")]
             [Range(512, 2048)]
-            public int additionalLightShadowAtlasMaxSize = 2048;
+            public int additionalLightShadowAtlasMaxSize = 1024;
 
             [Tooltip("Maximum camera distance that receives additional punctual light realtime shadows.")]
             [Range(1f, 100f)]
@@ -213,7 +213,7 @@ namespace NWRP
         {
             [InspectorName("Enable Camera Depth Texture")]
             [Tooltip("Copy or pre-render opaque scene depth to _CameraDepthTexture. Costs one depth texture and usually one full-screen depth copy.")]
-            public bool enableDepthTexture = true;
+            public bool enableDepthTexture = false;
 
             [InspectorName("Camera Depth Texture Mode")]
             [Tooltip("Controls when NWRP makes _CameraDepthTexture available.")]
@@ -244,7 +244,7 @@ namespace NWRP
         public sealed class MainLightShadowAtlasSettings
         {
             [Range(256, 4096)]
-            public int mainLightShadowResolution = 2048;
+            public int mainLightShadowResolution = 1024;
 
             [Tooltip("Receiver filter mode for main light shadows. Hard uses a single comparison; Medium PCF uses a 3x3 tent kernel.")]
             public MainLightShadowFilterMode mainLightShadowFilterMode = MainLightShadowFilterMode.Hard;
@@ -348,7 +348,7 @@ namespace NWRP
             public bool cachedShadowSettingsMigrated = false;
 
             [HideInInspector]
-            public int mainLightShadowResolution = 2048;
+            public int mainLightShadowResolution = 1024;
 
             [HideInInspector]
             public float mainLightShadowDistance = 80f;
@@ -443,13 +443,13 @@ namespace NWRP
         public bool useGPUInstancing = true;
 
         [Tooltip("Allow cameras with Allow HDR enabled to render into HDR color buffers.")]
-        public bool supportsHDR = true;
+        public bool supportsHDR = false;
 
         [Tooltip("Requested HDR color buffer precision. 32-bit prefers B10G11R11 for mobile bandwidth; 64-bit prefers R16G16B16A16.")]
         public HDRColorBufferPrecision hdrColorBufferPrecision = HDRColorBufferPrecision._32Bits;
 
         [Tooltip("Allow NWRP cameras with Render Post Processing enabled to execute NWRP post-processing passes.")]
-        public bool supportsPostProcessing = true;
+        public bool supportsPostProcessing = false;
 
         [Header("Main Light Shadows")]
         public MainLightShadowSettings mainLightShadows = new MainLightShadowSettings();

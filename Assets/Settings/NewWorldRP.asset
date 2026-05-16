@@ -14,29 +14,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useSRPBatcher: 1
   useGPUInstancing: 1
-  supportsHDR: 1
+  supportsHDR: 0
   hdrColorBufferPrecision: 0
-  supportsPostProcessing: 1
+  supportsPostProcessing: 0
   mainLightShadows:
     toggles:
       enableMainLightShadows: 1
     distance:
-      mainLightShadowDistance: 300
+      mainLightShadowDistance: 80
       mainLightShadowCascadeCount: 2
-      mainLightShadowCascadeSplit: 0.333
+      mainLightShadowCascadeSplit: 0.35
     atlas:
-      mainLightShadowResolution: 2048
-      mainLightShadowFilterMode: 1
+      mainLightShadowResolution: 1024
+      mainLightShadowFilterMode: 0
       mainLightShadowFilterRadius: 1
     bias:
-      mainLightShadowBias: 1
-      mainLightShadowNormalBias: 0
+      mainLightShadowBias: 0.7
+      mainLightShadowNormalBias: 1
       mainLightShadowReceiverDepthBias: 0
       mainLightShadowReceiverNormalBias: 0
       mainLightShadowCasterCullMode: 2
     cached:
-      enableCachedMainLightShadows: 1
-      enableDynamicShadowOverlay: 1
+      enableCachedMainLightShadows: 0
+      enableDynamicShadowOverlay: 0
       staticCasterLayerMask:
         serializedVersion: 2
         m_Bits: 55
@@ -51,21 +51,21 @@ MonoBehaviour:
       debugViewMode: 0
     serializedVersion: 1
     enableMainLightShadows: 1
-    enableCachedMainLightShadows: 1
-    shadowMode: 1
+    enableCachedMainLightShadows: 0
+    shadowMode: 0
     cachedShadowSettingsMigrated: 1
-    mainLightShadowResolution: 2048
-    mainLightShadowDistance: 300
+    mainLightShadowResolution: 1024
+    mainLightShadowDistance: 80
     mainLightShadowCascadeCount: 2
-    mainLightShadowCascadeSplit: 0.333
-    mainLightShadowBias: 1
-    mainLightShadowNormalBias: 0
-    mainLightShadowFilterMode: 1
+    mainLightShadowCascadeSplit: 0.35
+    mainLightShadowBias: 0.7
+    mainLightShadowNormalBias: 1
+    mainLightShadowFilterMode: 0
     mainLightShadowFilterRadius: 1
     mainLightShadowReceiverDepthBias: 0
     mainLightShadowReceiverNormalBias: 0
     mainLightShadowCasterCullMode: 2
-    enableDynamicShadowOverlay: 1
+    enableDynamicShadowOverlay: 0
     staticCasterLayerMask:
       serializedVersion: 2
       m_Bits: 55
@@ -78,27 +78,27 @@ MonoBehaviour:
     lightDirectionInvalidationThreshold: 0.5
   additionalLightShadows:
     toggles:
-      enableAdditionalLightShadows: 1
+      enableAdditionalLightShadows: 0
     budget:
-      maxShadowedAdditionalLights: 4
+      maxShadowedAdditionalLights: 1
     atlas:
       additionalLightShadowResolution: 512
-      additionalLightShadowAtlasMaxSize: 2048
-      additionalLightShadowDistance: 100
+      additionalLightShadowAtlasMaxSize: 1024
+      additionalLightShadowDistance: 30
     bias:
       additionalLightShadowBias: 0.8
       additionalLightShadowNormalBias: 0.6
       additionalLightShadowCasterCullMode: 2
     filter:
-      additionalLightShadowFilterMode: 1
-      additionalLightShadowFilterRadius: 1.5
+      additionalLightShadowFilterMode: 0
+      additionalLightShadowFilterRadius: 1
   featureSettings:
     outline:
       enableOutline: 0
     opaqueTexture:
-      enableOpaqueTexture: 1
+      enableOpaqueTexture: 0
     depthTexture:
-      enableDepthTexture: 1
+      enableDepthTexture: 0
       copyDepthMode: 0
     features:
     - {fileID: 0}
