@@ -297,13 +297,6 @@ public class VegetationIndirectRenderer : MonoBehaviour
     {
         fallbackReason = string.Empty;
 
-        GraphicsDeviceType deviceType = SystemInfo.graphicsDeviceType;
-        if (deviceType == GraphicsDeviceType.OpenGLES2 || deviceType == GraphicsDeviceType.OpenGLES3)
-        {
-            fallbackReason = $"{deviceType} uses MeshRenderer fallback because the indirect vegetation shaders target SM 4.5.";
-            return false;
-        }
-
         if (!SystemInfo.supportsComputeShaders)
         {
             fallbackReason = "Compute shaders are not supported.";

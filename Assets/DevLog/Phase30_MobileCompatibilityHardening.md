@@ -11,7 +11,7 @@
 ## 本阶段目标
 
 - 为 vegetation indirect path 增加运行时能力门控。
-- 为 GLES / 无 compute / 无 indirect arguments buffer 设备提供安全 fallback。
+- 为 GLES 能力不足 / 无 compute / 无 indirect arguments buffer 设备提供安全 fallback。
 - 收敛默认 pipeline asset 到移动端 baseline，避免默认开启高带宽功能。
 - 修正样例场景中树木阴影距离与 vegetation culling 距离不一致的问题。
 - 降低已知 shader keyword 污染点。
@@ -19,16 +19,16 @@
 
 ## 植被 GPU Driven 兼容性
 
-`VegetationIndirectRenderer` 原路径默认假设 compute shader、append buffer、indirect arguments buffer 与 `Graphics.RenderMeshIndirect` 可用。Android 项目配置中仍保留 GLES3 fallback，而当前环境植被 shader 使用 SM 4.5 + procedural instancing + StructuredBuffer；如果低端设备或 GLES 路径继续尝试 indirect path，最危险的结果是原 MeshRenderer 已经被关闭，但 GPU 路径无法提交，导致植被直接消失。
+`VegetationIndirectRenderer` 原路径默认假设 compute shader、append buffer、indirect arguments buffer 与 `Graphics.RenderMeshIndirect` 可用。Android 项目配置中仍保留 Vulkan + GLES3 fallback，而当前环境植被 shader 使用 SM 4.5 + procedural instancing + StructuredBuffer；如果低端设备或能力不足的 GLES 路径继续尝试 indirect path，最危险的结果是原 MeshRenderer 已经被关闭，但 GPU 路径无法提交，导致植被直接消失。
 
 本阶段新增运行时能力门控：
 
-- `SystemInfo.graphicsDeviceType` 为 `OpenGLES2 / OpenGLES3` 时不进入 indirect path。
 - `SystemInfo.supportsComputeShaders == false` 时不进入 indirect path。
 - `SystemInfo.supportsInstancing == false` 时不进入 indirect path。
 - `SystemInfo.supportsIndirectArgumentsBuffer == false` 时不进入 indirect path。
 - `CullingComputeShader` 缺失或 `CSVegetationCulling` kernel 不存在时不进入 indirect path。
 - indirect buffer 分配失败时释放已分配资源并退回 MeshRenderer。
+- `OpenGLES3` 不再被硬编码拦截；ES3.1 / AEP / ES3.2 设备只要满足上述能力检查，就允许继续跑 indirect path。
 
 fallback 行为：
 
@@ -126,7 +126,7 @@ Android 仍保留 Vulkan + GLES fallback 策略。为了避免现代 Android 设
 ## 性能与移动端策略
 
 - 高能力设备：继续使用 compute culling + indirect draw，保持大规模植被 GPU-driven 主路径。
-- GLES / 低能力设备：退回普通 MeshRenderer + target 3.0 fallback shader，优先保证可见性和稳定性。
+- GLES 能力不足 / 低能力设备：退回普通 MeshRenderer + target 3.0 fallback shader，优先保证可见性和稳定性。
 - 默认 pipeline asset 不再自动请求 HDR color、post-process intermediate、opaque texture、depth texture。
 - 主光阴影默认使用 Hard，避免 3x3 PCF 在移动端成为隐性 baseline 成本。
 - additional punctual shadow 继续作为显式高成本功能，不默认进入移动端路径。
@@ -156,7 +156,7 @@ CPU vs GPU 取舍：
 ## 已知边界与后续建议
 
 - MobileFallback shader 是低能力兜底，不追求完全复刻 indirect shader 的风动画、噪声和所有视觉细节。
-- 如果后续需要在 GLES3 上保持大规模植被性能，应单独设计不依赖 compute/indirect 的分层 LOD 或烘焙合批方案，而不是把当前 GPU-driven path 硬降级。
+- 如果后续发现某些 GLES3.1 / AEP / ES3.2 机型虽通过能力检查但驱动执行不稳定，应增加设备黑名单或资产级禁用开关，而不是重新把整个 OpenGLES3 后端硬降级。
 - 原 vegetation shader 的 `multi_compile_fog` 可以作为后续 variant cleanup 阶段处理。
 - 树木阴影长期仍建议迁入独立 NWRP vegetation shadow pass，减少对源 MeshRenderer ShadowsOnly fallback 的依赖。
 - 移动端默认配置已经收敛；高画质配置应作为单独 asset 或 quality override 管理，避免重新污染 baseline。
