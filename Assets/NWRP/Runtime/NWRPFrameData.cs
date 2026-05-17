@@ -25,6 +25,11 @@ namespace NWRP
         public NWRPColorAdjustments colorAdjustments;
         public NWRPVignette vignette;
         public NWRPFrameTargets targets;
+        public float resolvedRenderScale;
+        public int cameraTargetWidth;
+        public int cameraTargetHeight;
+        public FilterMode renderScaleFilterMode;
+        public bool renderScaleActive;
     }
 
     /// <summary>

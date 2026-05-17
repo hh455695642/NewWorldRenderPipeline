@@ -79,7 +79,7 @@ namespace NWRP.Runtime.Passes
 
             cmd.SetGlobalTexture(NWRPShaderIds.CameraDepthTexture, destination.nameID);
             cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-            cmd.SetViewport(GetCameraViewport(frameData.camera));
+            cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
         }
 
         public void Dispose()
@@ -238,26 +238,6 @@ namespace NWRP.Runtime.Passes
             float width = Mathf.Max(renderTexture.width, 1);
             float height = Mathf.Max(renderTexture.height, 1);
             return new Vector4(1f / width, 1f / height, width, height);
-        }
-
-        private static Rect GetCameraViewport(Camera camera)
-        {
-            if (camera == null)
-            {
-                return new Rect(0f, 0f, 1f, 1f);
-            }
-
-            Rect cameraViewport = camera.pixelRect;
-            if (cameraViewport.width <= 0f || cameraViewport.height <= 0f)
-            {
-                cameraViewport = new Rect(
-                    0f,
-                    0f,
-                    Mathf.Max(camera.pixelWidth, 1),
-                    Mathf.Max(camera.pixelHeight, 1));
-            }
-
-            return cameraViewport;
         }
 
         private static bool IsGlesDevice()

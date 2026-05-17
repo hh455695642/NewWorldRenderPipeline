@@ -26,7 +26,7 @@ namespace NWRP.Runtime.Passes
                 new RenderTargetIdentifier(BuiltinRenderTextureType.None),
                 frameData.targets.cameraDepthTexture);
             cmd.ClearRenderTarget(true, false, Color.clear);
-            cmd.SetViewport(GetCameraViewport(frameData.camera));
+            cmd.SetViewport(NWRPRenderer.GetCameraTargetViewport(ref frameData));
             ExecuteBuffer(ref frameData);
 
             SortingSettings sortingSettings = new SortingSettings(frameData.camera)
@@ -50,27 +50,7 @@ namespace NWRP.Runtime.Passes
                 NWRPShaderIds.CameraDepthTexture,
                 frameData.targets.cameraDepthTextureHandle);
             cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-            cmd.SetViewport(GetCameraViewport(frameData.camera));
-        }
-
-        private static Rect GetCameraViewport(Camera camera)
-        {
-            if (camera == null)
-            {
-                return new Rect(0f, 0f, 1f, 1f);
-            }
-
-            Rect cameraViewport = camera.pixelRect;
-            if (cameraViewport.width <= 0f || cameraViewport.height <= 0f)
-            {
-                cameraViewport = new Rect(
-                    0f,
-                    0f,
-                    Mathf.Max(camera.pixelWidth, 1),
-                    Mathf.Max(camera.pixelHeight, 1));
-            }
-
-            return cameraViewport;
+            cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
         }
 
         private static void ExecuteBuffer(ref NWRPFrameData frameData)

@@ -7,10 +7,26 @@ namespace NWRP
     [RequireComponent(typeof(Camera))]
     public sealed class NWRPCameraData : MonoBehaviour
     {
+        public enum RenderScaleMode
+        {
+            PipelineDefault = 0,
+            ForceNative = 1,
+            Override = 2
+        }
+
         [SerializeField]
         [FormerlySerializedAs("renderPostProcessing")]
         [Tooltip("Enable NWRP-owned post-processing for this camera. Missing NWRPCameraData means off at runtime.")]
         private bool m_RenderPostProcessing = true;
+
+        [SerializeField]
+        [Tooltip("Controls how this camera participates in NWRP render scale. Use Force Native for Screen Space Camera UI cameras.")]
+        private RenderScaleMode renderScaleMode = RenderScaleMode.PipelineDefault;
+
+        [SerializeField]
+        [Range(NewWorldRenderPipelineAsset.MinRenderScale, NewWorldRenderPipelineAsset.MaxRenderScale)]
+        [Tooltip("Per-camera render scale used when Render Scale Mode is Override.")]
+        private float renderScaleOverride = 1.0f;
 
         [SerializeField]
         [Tooltip("Volume layers sampled by NWRP post-processing for this camera.")]
@@ -36,6 +52,24 @@ namespace NWRP
         /// </summary>
         public bool RenderPostProcessing => renderPostProcessing;
 
+        public RenderScaleMode CameraRenderScaleMode
+        {
+            get => renderScaleMode;
+            set => renderScaleMode = value;
+        }
+
+        public float RenderScaleOverride
+        {
+            get => Mathf.Clamp(
+                renderScaleOverride,
+                NewWorldRenderPipelineAsset.MinRenderScale,
+                NewWorldRenderPipelineAsset.MaxRenderScale);
+            set => renderScaleOverride = Mathf.Clamp(
+                value,
+                NewWorldRenderPipelineAsset.MinRenderScale,
+                NewWorldRenderPipelineAsset.MaxRenderScale);
+        }
+
         public LayerMask VolumeLayerMask => volumeLayerMask;
 
         public Transform GetVolumeTrigger(Camera camera)
@@ -46,5 +80,12 @@ namespace NWRP
                     ? camera.transform
                     : transform;
         }
+
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            renderScaleOverride = RenderScaleOverride;
+        }
+#endif
     }
 }

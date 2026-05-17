@@ -65,6 +65,15 @@ namespace NWRP
             _64Bits = 1
         }
 
+        public enum RenderScaleFilterMode
+        {
+            Point = 0,
+            Bilinear = 1
+        }
+
+        public const float MinRenderScale = 0.5f;
+        public const float MaxRenderScale = 1.0f;
+
         [System.Serializable]
         public sealed class AdditionalLightShadowToggleSettings
         {
@@ -451,6 +460,16 @@ namespace NWRP
         [Tooltip("Allow NWRP cameras with Render Post Processing enabled to execute NWRP post-processing passes.")]
         public bool supportsPostProcessing = false;
 
+        [Tooltip("Render eligible Game cameras into a smaller intermediate color/depth target, then upscale to the camera viewport.")]
+        public bool enableRenderScale = false;
+
+        [Range(MinRenderScale, MaxRenderScale)]
+        [Tooltip("Internal render target scale for eligible Game cameras. UI cameras can force native resolution through NWRPCameraData.")]
+        public float renderScale = 1.0f;
+
+        [Tooltip("Upscale filter used by the final blit when render scale creates an intermediate camera color target.")]
+        public RenderScaleFilterMode renderScaleFilterMode = RenderScaleFilterMode.Bilinear;
+
         [Header("Main Light Shadows")]
         public MainLightShadowSettings mainLightShadows = new MainLightShadowSettings();
 
@@ -560,6 +579,12 @@ namespace NWRP
         public bool SupportsHDR => supportsHDR;
         public HDRColorBufferPrecision HDRColorBufferPrecisionSetting => hdrColorBufferPrecision;
         public bool SupportsPostProcessing => supportsPostProcessing;
+        public bool EnableRenderScale => enableRenderScale;
+        public float RenderScale => ValidateRenderScale(renderScale);
+        public FilterMode RenderScaleFilterModeSetting =>
+            renderScaleFilterMode == RenderScaleFilterMode.Point
+                ? FilterMode.Point
+                : FilterMode.Bilinear;
 
         /// <summary>
         /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,
@@ -860,6 +885,8 @@ namespace NWRP
             EnsureAdditionalLightShadowSettings();
             EnsureFeatureSettings();
 
+            renderScale = ValidateRenderScale(renderScale);
+
             MainLightShadowSettings settings = mainLightShadows;
             settings.atlas.mainLightShadowResolution = Mathf.ClosestPowerOfTwo(
                 Mathf.Clamp(settings.atlas.mainLightShadowResolution, 256, 4096)
@@ -937,6 +964,11 @@ namespace NWRP
             }
 
             featureSettings.EnsureInitialized();
+        }
+
+        private static float ValidateRenderScale(float value)
+        {
+            return Mathf.Clamp(value, MinRenderScale, MaxRenderScale);
         }
 
         private static void MigrateMainLightShadowLegacyData(MainLightShadowSettings settings)

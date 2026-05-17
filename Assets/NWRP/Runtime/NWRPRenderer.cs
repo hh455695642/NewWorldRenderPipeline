@@ -17,6 +17,8 @@ namespace NWRP
     /// </summary>
     public sealed class NWRPRenderer : IDisposable
     {
+        private const float kRenderScaleThreshold = 0.05f;
+
         private struct QueuedPass
         {
             public NWRPPass pass;
@@ -124,6 +126,7 @@ namespace NWRP
                     using (new ProfilingScope(cmd, NWRPProfiling.RendererExecute))
                     {
                         ConfigureCameraData(ref frameData);
+                        ResolveCameraRenderScale(ref frameData);
                         ConfigureFrameTargets(ref frameData);
                         BuildPassQueue(ref frameData);
                         ExecutePassQueue(ref frameData);
@@ -176,8 +179,9 @@ namespace NWRP
         private static void SetCameraScreenGlobals(ref NWRPFrameData frameData)
         {
             Camera camera = frameData.camera;
-            float cameraWidth = Mathf.Max(camera != null ? camera.pixelWidth : 1, 1);
-            float cameraHeight = Mathf.Max(camera != null ? camera.pixelHeight : 1, 1);
+            Vector2Int nativeSize = GetNativeCameraTargetSize(camera);
+            float cameraWidth = Mathf.Max(nativeSize.x, 1);
+            float cameraHeight = Mathf.Max(nativeSize.y, 1);
             Vector2 scaledCameraSize = GetScaledCameraTargetSize(ref frameData);
             float scaledCameraWidth = Mathf.Max(scaledCameraSize.x, 1f);
             float scaledCameraHeight = Mathf.Max(scaledCameraSize.y, 1f);
@@ -231,17 +235,9 @@ namespace NWRP
 
         private static Vector2 GetScaledCameraTargetSize(ref NWRPFrameData frameData)
         {
-            RTHandle colorHandle = frameData.targets.cameraColorHandle;
-            RenderTexture renderTexture = colorHandle != null ? colorHandle.rt : null;
-            if (renderTexture != null)
-            {
-                return new Vector2(renderTexture.width, renderTexture.height);
-            }
-
-            Camera camera = frameData.camera;
             return new Vector2(
-                Mathf.Max(camera != null ? camera.pixelWidth : 1, 1),
-                Mathf.Max(camera != null ? camera.pixelHeight : 1, 1));
+                Mathf.Max(frameData.cameraTargetWidth, 1),
+                Mathf.Max(frameData.cameraTargetHeight, 1));
         }
 
         private static void SetCameraMatrices(ref NWRPFrameData frameData)
@@ -422,6 +418,14 @@ namespace NWRP
             frameData.vignette = null;
 
             Camera camera = frameData.camera;
+            if (camera != null)
+            {
+                if (camera.TryGetComponent(out NWRPCameraData cameraData))
+                {
+                    frameData.cameraData = cameraData;
+                }
+            }
+
             if (camera == null
                 || frameData.asset == null
                 || !frameData.asset.SupportsPostProcessing
@@ -451,17 +455,17 @@ namespace NWRP
             }
 #endif
 
-            if (!camera.TryGetComponent(out NWRPCameraData cameraData)
-                || !cameraData.renderPostProcessing)
+            if (frameData.cameraData == null
+                || !frameData.cameraData.renderPostProcessing)
             {
                 return;
             }
 
             ConfigurePostProcessingFromVolume(
                 ref frameData,
-                cameraData.GetVolumeTrigger(camera),
-                cameraData.VolumeLayerMask,
-                cameraData);
+                frameData.cameraData.GetVolumeTrigger(camera),
+                frameData.cameraData.VolumeLayerMask,
+                frameData.cameraData);
         }
 
 #if UNITY_EDITOR
@@ -532,6 +536,81 @@ namespace NWRP
                 && vignette.IsActive();
         }
 
+        private static void ResolveCameraRenderScale(ref NWRPFrameData frameData)
+        {
+            Vector2Int nativeSize = GetNativeCameraTargetSize(frameData.camera);
+            frameData.cameraTargetWidth = nativeSize.x;
+            frameData.cameraTargetHeight = nativeSize.y;
+            frameData.resolvedRenderScale = 1.0f;
+            frameData.renderScaleActive = false;
+            frameData.renderScaleFilterMode = frameData.asset != null
+                ? frameData.asset.RenderScaleFilterModeSetting
+                : FilterMode.Bilinear;
+
+            if (frameData.asset == null
+                || !frameData.asset.EnableRenderScale
+                || !IsRenderScaleEligible(frameData.camera))
+            {
+                return;
+            }
+
+            if (frameData.cameraData != null
+                && frameData.cameraData.CameraRenderScaleMode == NWRPCameraData.RenderScaleMode.ForceNative)
+            {
+                return;
+            }
+
+            float requestedScale = frameData.asset.RenderScale;
+            if (frameData.cameraData != null
+                && frameData.cameraData.CameraRenderScaleMode == NWRPCameraData.RenderScaleMode.Override)
+            {
+                requestedScale = frameData.cameraData.RenderScaleOverride;
+            }
+
+            if (Mathf.Abs(1.0f - requestedScale) < kRenderScaleThreshold)
+            {
+                return;
+            }
+
+            frameData.resolvedRenderScale = requestedScale;
+            frameData.renderScaleActive = true;
+            frameData.cameraTargetWidth = Mathf.Max(1, (int)(nativeSize.x * requestedScale));
+            frameData.cameraTargetHeight = Mathf.Max(1, (int)(nativeSize.y * requestedScale));
+        }
+
+        private static Vector2Int GetNativeCameraTargetSize(Camera camera)
+        {
+            if (camera == null)
+            {
+                return Vector2Int.one;
+            }
+
+            RenderTexture targetTexture = camera.targetTexture;
+            if (targetTexture != null)
+            {
+                RenderTextureDescriptor descriptor = targetTexture.descriptor;
+                return new Vector2Int(
+                    Mathf.Max(descriptor.width, 1),
+                    Mathf.Max(descriptor.height, 1));
+            }
+
+            return new Vector2Int(
+                Mathf.Max(camera.pixelWidth, 1),
+                Mathf.Max(camera.pixelHeight, 1));
+        }
+
+        private static bool IsRenderScaleEligible(Camera camera)
+        {
+            if (camera == null || camera.targetTexture != null)
+            {
+                return false;
+            }
+
+            return camera.cameraType != CameraType.SceneView
+                && camera.cameraType != CameraType.Preview
+                && camera.cameraType != CameraType.Reflection;
+        }
+
         private void ConfigureFrameTargets(ref NWRPFrameData frameData)
         {
             NWRPFrameTargetRequirements requirements = CollectFrameTargetRequirements(ref frameData);
@@ -553,7 +632,8 @@ namespace NWRP
             bool needIntermediateColor =
                 requirements.requiresIntermediateColor
                 || requirements.requiresOpaqueTexture
-                || RequiresHDRIntermediateColor(frameData.camera, frameData.asset);
+                || RequiresHDRIntermediateColor(frameData.camera, frameData.asset)
+                || frameData.renderScaleActive;
             bool needIntermediateDepth =
                 requirements.requiresIntermediateDepth
                 || requirements.requiresDepthTextureCopy
@@ -563,11 +643,13 @@ namespace NWRP
             {
                 RenderTextureDescriptor colorDescriptor = CreateCameraColorDescriptor(
                     frameData.camera,
-                    frameData.asset);
+                    frameData.asset,
+                    frameData.cameraTargetWidth,
+                    frameData.cameraTargetHeight);
                 ReAllocateFrameTargetIfNeeded(
                     ref _cameraColorHandle,
                     colorDescriptor,
-                    FilterMode.Bilinear,
+                    frameData.renderScaleActive ? frameData.renderScaleFilterMode : FilterMode.Bilinear,
                     TextureWrapMode.Clamp,
                     name: "_NWRPCameraColorTexture");
 
@@ -586,7 +668,9 @@ namespace NWRP
 
             if (needIntermediateDepth)
             {
-                RenderTextureDescriptor depthDescriptor = CreateCameraDepthDescriptor(frameData.camera);
+                RenderTextureDescriptor depthDescriptor = CreateCameraDepthDescriptor(
+                    frameData.cameraTargetWidth,
+                    frameData.cameraTargetHeight);
                 ReAllocateFrameTargetIfNeeded(
                     ref _cameraDepthHandle,
                     depthDescriptor,
@@ -616,7 +700,10 @@ namespace NWRP
                 bool depthTextureIsDepthTarget =
                     requirements.requiresDepthTexturePrepass || !SupportsDepthTextureColorTarget();
                 RenderTextureDescriptor depthTextureDescriptor =
-                    CreateCameraDepthTextureDescriptor(frameData.camera, depthTextureIsDepthTarget);
+                    CreateCameraDepthTextureDescriptor(
+                        frameData.cameraTargetWidth,
+                        frameData.cameraTargetHeight,
+                        depthTextureIsDepthTarget);
                 ReAllocateFrameTargetIfNeeded(
                     ref _cameraDepthTextureHandle,
                     depthTextureDescriptor,
@@ -639,7 +726,9 @@ namespace NWRP
             {
                 RenderTextureDescriptor opaqueDescriptor = CreateCameraOpaqueTextureDescriptor(
                     frameData.camera,
-                    frameData.asset);
+                    frameData.asset,
+                    frameData.cameraTargetWidth,
+                    frameData.cameraTargetHeight);
                 ReAllocateFrameTargetIfNeeded(
                     ref _opaqueTextureHandle,
                     opaqueDescriptor,
@@ -929,7 +1018,7 @@ namespace NWRP
             frameData.cmd.SetRenderTarget(
                 frameData.targets.cameraColor,
                 frameData.targets.cameraDepth);
-            frameData.cmd.SetViewport(GetCameraViewport(frameData.camera));
+            frameData.cmd.SetViewport(GetCameraRenderViewport(ref frameData));
             SetCameraMatrices(ref frameData);
             SetCameraScreenGlobals(ref frameData);
         }
@@ -981,9 +1070,31 @@ namespace NWRP
             return cameraViewport;
         }
 
+        internal static Rect GetCameraRenderViewport(ref NWRPFrameData frameData)
+        {
+            RTHandle colorHandle = frameData.targets.cameraColorHandle;
+            if (colorHandle != null && colorHandle.rt != null)
+            {
+                return GetCameraTargetViewport(ref frameData);
+            }
+
+            return GetCameraViewport(frameData.camera);
+        }
+
+        internal static Rect GetCameraTargetViewport(ref NWRPFrameData frameData)
+        {
+            return new Rect(
+                0f,
+                0f,
+                Mathf.Max(frameData.cameraTargetWidth, 1),
+                Mathf.Max(frameData.cameraTargetHeight, 1));
+        }
+
         private static RenderTextureDescriptor CreateCameraColorDescriptor(
             Camera camera,
-            NewWorldRenderPipelineAsset asset)
+            NewWorldRenderPipelineAsset asset,
+            int width,
+            int height)
         {
             RenderTexture targetTexture = camera != null ? camera.targetTexture : null;
             RenderTextureDescriptor descriptor;
@@ -995,9 +1106,9 @@ namespace NWRP
             }
             else
             {
-                int width = Mathf.Max(camera != null ? camera.pixelWidth : 1, 1);
-                int height = Mathf.Max(camera != null ? camera.pixelHeight : 1, 1);
-                descriptor = new RenderTextureDescriptor(width, height)
+                descriptor = new RenderTextureDescriptor(
+                    Mathf.Max(width, 1),
+                    Mathf.Max(height, 1))
                 {
                     graphicsFormat = MakeCameraColorGraphicsFormat(
                         IsCameraHDRRenderingEnabled(camera, asset),
@@ -1061,11 +1172,11 @@ namespace NWRP
             return SystemInfo.IsFormatSupported(format, FormatUsage.Linear | FormatUsage.Render);
         }
 
-        private static RenderTextureDescriptor CreateCameraDepthDescriptor(Camera camera)
+        private static RenderTextureDescriptor CreateCameraDepthDescriptor(int width, int height)
         {
             RenderTextureDescriptor descriptor = new RenderTextureDescriptor(
-                Mathf.Max(camera.pixelWidth, 1),
-                Mathf.Max(camera.pixelHeight, 1),
+                Mathf.Max(width, 1),
+                Mathf.Max(height, 1),
                 RenderTextureFormat.Depth,
                 24)
             {
@@ -1079,18 +1190,19 @@ namespace NWRP
         }
 
         private static RenderTextureDescriptor CreateCameraDepthTextureDescriptor(
-            Camera camera,
+            int width,
+            int height,
             bool depthTarget)
         {
             RenderTextureDescriptor descriptor = depthTarget
                 ? new RenderTextureDescriptor(
-                    Mathf.Max(camera.pixelWidth, 1),
-                    Mathf.Max(camera.pixelHeight, 1),
+                    Mathf.Max(width, 1),
+                    Mathf.Max(height, 1),
                     RenderTextureFormat.Depth,
                     24)
                 : new RenderTextureDescriptor(
-                    Mathf.Max(camera.pixelWidth, 1),
-                    Mathf.Max(camera.pixelHeight, 1),
+                    Mathf.Max(width, 1),
+                    Mathf.Max(height, 1),
                     RenderTextureFormat.Default,
                     0);
 
@@ -1110,9 +1222,15 @@ namespace NWRP
 
         private static RenderTextureDescriptor CreateCameraOpaqueTextureDescriptor(
             Camera camera,
-            NewWorldRenderPipelineAsset asset)
+            NewWorldRenderPipelineAsset asset,
+            int width,
+            int height)
         {
-            RenderTextureDescriptor descriptor = CreateCameraColorDescriptor(camera, asset);
+            RenderTextureDescriptor descriptor = CreateCameraColorDescriptor(
+                camera,
+                asset,
+                width,
+                height);
             descriptor.depthBufferBits = 0;
             descriptor.depthStencilFormat = GraphicsFormat.None;
             descriptor.msaaSamples = 1;

@@ -16,6 +16,9 @@ namespace NWRP.Editor
         private SerializedProperty _supportsHDRProperty;
         private SerializedProperty _hdrColorBufferPrecisionProperty;
         private SerializedProperty _supportsPostProcessingProperty;
+        private SerializedProperty _enableRenderScaleProperty;
+        private SerializedProperty _renderScaleProperty;
+        private SerializedProperty _renderScaleFilterModeProperty;
         private SerializedProperty _featureSettingsProperty;
         private SerializedProperty _featureListProperty;
         private SerializedProperty _featureOutlineProperty;
@@ -79,6 +82,9 @@ namespace NWRP.Editor
             _supportsHDRProperty = serializedObject.FindProperty("supportsHDR");
             _hdrColorBufferPrecisionProperty = serializedObject.FindProperty("hdrColorBufferPrecision");
             _supportsPostProcessingProperty = serializedObject.FindProperty("supportsPostProcessing");
+            _enableRenderScaleProperty = serializedObject.FindProperty("enableRenderScale");
+            _renderScaleProperty = serializedObject.FindProperty("renderScale");
+            _renderScaleFilterModeProperty = serializedObject.FindProperty("renderScaleFilterMode");
             _featureSettingsProperty = serializedObject.FindProperty("featureSettings");
             _featureOutlineProperty = _featureSettingsProperty.FindPropertyRelative("outline");
             _featureOpaqueTextureProperty = _featureSettingsProperty.FindPropertyRelative("opaqueTexture");
@@ -219,6 +225,28 @@ namespace NWRP.Editor
             {
                 EditorGUILayout.HelpBox(
                     "NWRP camera post-processing is disabled at the pipeline capability level. Camera and Volume settings will be ignored.",
+                    MessageType.Info);
+            }
+
+            EditorGUILayout.Space(2f);
+            DrawSubsectionLabel("Render Scale");
+            EditorGUILayout.PropertyField(
+                _enableRenderScaleProperty,
+                new GUIContent("Enable Render Scale"));
+            using (new EditorGUI.DisabledScope(!_enableRenderScaleProperty.boolValue))
+            {
+                EditorGUILayout.PropertyField(
+                    _renderScaleProperty,
+                    new GUIContent("Render Scale"));
+                EditorGUILayout.PropertyField(
+                    _renderScaleFilterModeProperty,
+                    new GUIContent("Upscale Filter"));
+            }
+
+            if (_enableRenderScaleProperty.boolValue)
+            {
+                EditorGUILayout.HelpBox(
+                    "Eligible Game cameras render into a scaled intermediate color/depth target. Mark UI cameras as Force Native on NWRPCameraData to keep Screen Space Camera UI sharp.",
                     MessageType.Info);
             }
         }
