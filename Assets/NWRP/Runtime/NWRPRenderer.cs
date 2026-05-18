@@ -1433,6 +1433,7 @@ namespace NWRP
             List<NWRPFeature> features = frameData.asset.Features;
             bool hasSerializedMainLightShadowFeature = false;
             bool hasSerializedAdditionalLightShadowFeature = false;
+            bool hasSerializedVegetationIndirectShadowFeature = false;
             bool hasActiveSerializedOutlineFeature = false;
             bool hasActiveSerializedOpaqueTextureFeature = false;
             bool hasActiveSerializedPostProcessFeature = false;
@@ -1468,6 +1469,12 @@ namespace NWRP
                     hasSerializedAdditionalLightShadowFeature = true;
                 }
 
+                if (feature is VegetationIndirectShadowFeature)
+                {
+                    hasSerializedVegetationIndirectShadowFeature = true;
+                    continue;
+                }
+
                 if (feature is OutlineFeature)
                 {
                     hasActiveSerializedOutlineFeature = true;
@@ -1495,6 +1502,32 @@ namespace NWRP
                 {
                     runtimeMainLightShadowFeature.EnsureCreated();
                     runtimeMainLightShadowFeature.AddPasses(this, ref frameData);
+                }
+            }
+
+            if (hasSerializedVegetationIndirectShadowFeature)
+            {
+                for (int i = 0; i < features.Count; i++)
+                {
+                    if (features[i] is not VegetationIndirectShadowFeature feature
+                        || !feature.IsEnabled)
+                    {
+                        continue;
+                    }
+
+                    feature.EnsureCreated();
+                    feature.AddPasses(this, ref frameData);
+                }
+            }
+            else if (frameData.asset.EnableVegetationIndirectTreeShadows)
+            {
+                VegetationIndirectShadowFeature runtimeVegetationIndirectShadowFeature =
+                    frameData.asset.GetOrCreateVegetationIndirectShadowFeature();
+                if (runtimeVegetationIndirectShadowFeature != null
+                    && runtimeVegetationIndirectShadowFeature.IsEnabled)
+                {
+                    runtimeVegetationIndirectShadowFeature.EnsureCreated();
+                    runtimeVegetationIndirectShadowFeature.AddPasses(this, ref frameData);
                 }
             }
 

@@ -102,6 +102,7 @@ namespace NWRP.Runtime.Passes
             }
 
             bool renderedStaticAtlas;
+            VisibleLight staticVisibleLight = default;
             using (new ProfilingScope(frameData.cmd, MainLightShadowPassUtils.RenderCachedShadowSampler))
             {
                 if (!MainLightShadowPassUtils.ComputeCascadeData(
@@ -132,7 +133,7 @@ namespace NWRP.Runtime.Passes
                         staticCullResults,
                         mainLight,
                         out int staticLightIndex,
-                        out VisibleLight staticVisibleLight))
+                        out staticVisibleLight))
                 {
                     _cacheState.Invalidate();
                     UploadDisabledGlobals(ref frameData);
@@ -157,6 +158,14 @@ namespace NWRP.Runtime.Passes
                 frameData.context.SetupCameraProperties(frameData.camera);
                 return;
             }
+
+            MainLightShadowIndirectCasterContext.AddTarget(
+                _cacheState.StaticShadowmapTexture,
+                _cacheState.CascadeData,
+                cascadeCount,
+                MainLightShadowPassUtils.GetShadowLightDirection(staticVisibleLight),
+                includeStaticCasters: true,
+                includeDynamicCasters: false);
 
             _cacheState.CommitStaticCache(
                 asset,

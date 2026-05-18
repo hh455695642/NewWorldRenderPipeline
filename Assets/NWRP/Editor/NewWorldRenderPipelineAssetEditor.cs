@@ -24,6 +24,7 @@ namespace NWRP.Editor
         private SerializedProperty _featureOutlineProperty;
         private SerializedProperty _featureOpaqueTextureProperty;
         private SerializedProperty _featureDepthTextureProperty;
+        private SerializedProperty _featureVegetationIndirectShadowProperty;
 
         private SerializedProperty _mainLightShadowsProperty;
         private SerializedProperty _mainLightShadowTogglesProperty;
@@ -74,6 +75,7 @@ namespace NWRP.Editor
         private SerializedProperty _enableOpaqueTextureProperty;
         private SerializedProperty _enableDepthTextureProperty;
         private SerializedProperty _copyDepthModeProperty;
+        private SerializedProperty _enableVegetationIndirectTreeShadowsProperty;
 
         private void OnEnable()
         {
@@ -89,6 +91,8 @@ namespace NWRP.Editor
             _featureOutlineProperty = _featureSettingsProperty.FindPropertyRelative("outline");
             _featureOpaqueTextureProperty = _featureSettingsProperty.FindPropertyRelative("opaqueTexture");
             _featureDepthTextureProperty = _featureSettingsProperty.FindPropertyRelative("depthTexture");
+            _featureVegetationIndirectShadowProperty =
+                _featureSettingsProperty.FindPropertyRelative("vegetationIndirectShadows");
             _featureListProperty = _featureSettingsProperty.FindPropertyRelative("features");
 
             _mainLightShadowsProperty = serializedObject.FindProperty("mainLightShadows");
@@ -179,6 +183,12 @@ namespace NWRP.Editor
                 _featureDepthTextureProperty.FindPropertyRelative("enableDepthTexture");
             _copyDepthModeProperty =
                 _featureDepthTextureProperty.FindPropertyRelative("copyDepthMode");
+            if (_featureVegetationIndirectShadowProperty != null)
+            {
+                _enableVegetationIndirectTreeShadowsProperty =
+                    _featureVegetationIndirectShadowProperty.FindPropertyRelative(
+                        "enableVegetationIndirectTreeShadows");
+            }
         }
 
         public override void OnInspectorGUI()
@@ -294,6 +304,27 @@ namespace NWRP.Editor
                 EditorGUILayout.HelpBox(
                     "Copies or pre-renders opaque depth to _CameraDepthTexture. After Opaques is required when transparent materials sample scene depth; Force Prepass depends on DepthOnly passes.",
                     MessageType.Info);
+            }
+
+            EditorGUILayout.Space(2f);
+            DrawSubsectionLabel("Vegetation Indirect Shadows");
+            if (_enableVegetationIndirectTreeShadowsProperty == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "The pipeline asset has not serialized the Vegetation Indirect Shadows block yet. Reimport or resave the asset after script compilation.",
+                    MessageType.Warning);
+            }
+            else
+            {
+                EditorGUILayout.PropertyField(
+                    _enableVegetationIndirectTreeShadowsProperty,
+                    new GUIContent("Enable Vegetation Indirect Tree Shadows"));
+                if (_enableVegetationIndirectTreeShadowsProperty.boolValue)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Adds GPU indirect Tree/TreeLeaf ShadowCaster draws to the main-light shadow atlas. Additional light shadows stay on the regular renderer path.",
+                        MessageType.Info);
+                }
             }
 
             EditorGUILayout.Space(2f);

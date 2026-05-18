@@ -33,7 +33,11 @@ namespace NWRP.Runtime.Passes
                 return;
             }
 
-            if (!MainLightShadowPassUtils.TryGetMainLight(ref frameData, out _, out _, out Light mainLight)
+            if (!MainLightShadowPassUtils.TryGetMainLight(
+                    ref frameData,
+                    out _,
+                    out VisibleLight mainVisibleLight,
+                    out Light mainLight)
                 || mainLight == null
                 || mainLight.shadows == LightShadows.None
                 || mainLight.shadowStrength <= 0f
@@ -66,6 +70,20 @@ namespace NWRP.Runtime.Passes
                     if (copiedStaticAtlas)
                     {
                         receiverShadowmap = _cacheState.CombinedShadowmapTexture;
+                        executionPath = NewWorldRenderPipelineAsset
+                            .MainLightShadowExecutionPath
+                            .CachedStaticPlusDynamicOverlay;
+
+                        bool includeStaticIndirectCasters =
+                            MainLightShadowIndirectCasterContext.HasPendingStaticCacheDraw;
+                        MainLightShadowIndirectCasterContext.AddTarget(
+                            _cacheState.CombinedShadowmapTexture,
+                            _cacheState.CascadeData,
+                            _cacheState.CascadeCount,
+                            MainLightShadowPassUtils.GetShadowLightDirection(mainVisibleLight),
+                            includeStaticCasters: includeStaticIndirectCasters,
+                            includeDynamicCasters: true);
+
                         CullingResults dynamicCullResults = frameData.cullingResults;
                         int dynamicCasterLayerMask = asset.DynamicCasterLayerMask.value;
 
@@ -92,12 +110,7 @@ namespace NWRP.Runtime.Passes
                                 _cacheState
                             );
 
-                            if (renderedDynamicAtlas)
-                            {
-                                executionPath = NewWorldRenderPipelineAsset
-                                    .MainLightShadowExecutionPath
-                                    .CachedStaticPlusDynamicOverlay;
-                            }
+                            _ = renderedDynamicAtlas;
                         }
                     }
                 }

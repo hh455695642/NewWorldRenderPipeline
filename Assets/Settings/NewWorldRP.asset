@@ -100,5 +100,7 @@ MonoBehaviour:
     depthTexture:
       enableDepthTexture: 0
       copyDepthMode: 0
+    vegetationIndirectShadows:
+      enableVegetationIndirectTreeShadows: 0
     features:
     - {fileID: 0}

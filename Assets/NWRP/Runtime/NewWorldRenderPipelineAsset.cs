@@ -176,6 +176,9 @@ namespace NWRP
             public OutlineSettings outline = new OutlineSettings();
             public OpaqueTextureSettings opaqueTexture = new OpaqueTextureSettings();
             public DepthTextureSettings depthTexture = new DepthTextureSettings();
+            [InspectorName("Vegetation Indirect Shadows")]
+            public VegetationIndirectShadowSettings vegetationIndirectShadows =
+                new VegetationIndirectShadowSettings();
             public List<NWRPFeature> features = new List<NWRPFeature>();
 
             public void EnsureInitialized()
@@ -193,6 +196,11 @@ namespace NWRP
                 if (depthTexture == null)
                 {
                     depthTexture = new DepthTextureSettings();
+                }
+
+                if (vegetationIndirectShadows == null)
+                {
+                    vegetationIndirectShadows = new VegetationIndirectShadowSettings();
                 }
 
                 if (features == null)
@@ -227,6 +235,14 @@ namespace NWRP
             [InspectorName("Camera Depth Texture Mode")]
             [Tooltip("Controls when NWRP makes _CameraDepthTexture available.")]
             public DepthTextureCopyMode copyDepthMode = DepthTextureCopyMode.AfterOpaques;
+        }
+
+        [System.Serializable]
+        public sealed class VegetationIndirectShadowSettings
+        {
+            [InspectorName("Enable Vegetation Indirect Tree Shadows")]
+            [Tooltip("Render Tree/TreeLeaf ShadowCaster passes through NWRP main-light GPU indirect shadow draws. Extra light shadows stay on the regular renderer path.")]
+            public bool enableVegetationIndirectTreeShadows = false;
         }
 
         [System.Serializable]
@@ -497,6 +513,9 @@ namespace NWRP
         [System.NonSerialized]
         private PostProcessFeature _runtimePostProcessFeature;
 
+        [System.NonSerialized]
+        private VegetationIndirectShadowFeature _runtimeVegetationIndirectShadowFeature;
+
         private MainLightShadowSettings MainLightShadowSettingsData
         {
             get
@@ -576,6 +595,8 @@ namespace NWRP
         public bool EnableOpaqueTexture => FeatureSettingsData.opaqueTexture.enableOpaqueTexture;
         public bool EnableDepthTexture => FeatureSettingsData.depthTexture.enableDepthTexture;
         public DepthTextureCopyMode DepthTextureCopyModeSetting => FeatureSettingsData.depthTexture.copyDepthMode;
+        public bool EnableVegetationIndirectTreeShadows =>
+            FeatureSettingsData.vegetationIndirectShadows.enableVegetationIndirectTreeShadows;
         public bool SupportsHDR => supportsHDR;
         public HDRColorBufferPrecision HDRColorBufferPrecisionSetting => hdrColorBufferPrecision;
         public bool SupportsPostProcessing => supportsPostProcessing;
@@ -724,6 +745,21 @@ namespace NWRP
             return _runtimePostProcessFeature;
         }
 
+        internal VegetationIndirectShadowFeature GetOrCreateVegetationIndirectShadowFeature()
+        {
+            if (_runtimeVegetationIndirectShadowFeature != null)
+            {
+                return _runtimeVegetationIndirectShadowFeature;
+            }
+
+            _runtimeVegetationIndirectShadowFeature =
+                ScriptableObject.CreateInstance<VegetationIndirectShadowFeature>();
+            _runtimeVegetationIndirectShadowFeature.hideFlags = HideFlags.HideAndDontSave;
+            _runtimeVegetationIndirectShadowFeature.name =
+                "NWRP Runtime VegetationIndirectShadowFeature";
+            return _runtimeVegetationIndirectShadowFeature;
+        }
+
         internal void DisposeRuntimeFeatures()
         {
             if (_runtimeMainLightShadowFeature == null)
@@ -733,6 +769,7 @@ namespace NWRP
                 DisposeOpaqueTextureRuntimeFeature();
                 DisposeDepthTextureRuntimeFeature();
                 DisposePostProcessRuntimeFeature();
+                DisposeVegetationIndirectShadowRuntimeFeature();
                 return;
             }
 
@@ -751,6 +788,7 @@ namespace NWRP
             DisposeOpaqueTextureRuntimeFeature();
             DisposeDepthTextureRuntimeFeature();
             DisposePostProcessRuntimeFeature();
+            DisposeVegetationIndirectShadowRuntimeFeature();
         }
 
         private void DisposeAdditionalRuntimeFeature()
@@ -846,6 +884,25 @@ namespace NWRP
             }
 
             _runtimePostProcessFeature = null;
+        }
+
+        private void DisposeVegetationIndirectShadowRuntimeFeature()
+        {
+            if (_runtimeVegetationIndirectShadowFeature == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_runtimeVegetationIndirectShadowFeature);
+            }
+            else
+            {
+                DestroyImmediate(_runtimeVegetationIndirectShadowFeature);
+            }
+
+            _runtimeVegetationIndirectShadowFeature = null;
         }
 
         protected override RenderPipeline CreatePipeline()

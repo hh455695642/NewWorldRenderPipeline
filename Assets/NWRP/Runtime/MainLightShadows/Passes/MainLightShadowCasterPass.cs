@@ -11,6 +11,8 @@ namespace NWRP.Runtime.Passes
 
         private readonly Matrix4x4[] _mainLightWorldToShadow = new Matrix4x4[2];
         private readonly Vector4[] _cascadeSplitSpheres = new Vector4[2];
+        private readonly MainLightShadowCascadeData[] _cascadeData =
+            new MainLightShadowCascadeData[2];
 
         private RenderTexture _shadowmapTexture;
         private int _shadowmapWidth;
@@ -114,6 +116,7 @@ namespace NWRP.Runtime.Passes
                     {
                         _mainLightWorldToShadow[cascadeIndex] = Matrix4x4.identity;
                         _cascadeSplitSpheres[cascadeIndex] = Vector4.zero;
+                        _cascadeData[cascadeIndex] = default;
                         continue;
                     }
 
@@ -132,6 +135,17 @@ namespace NWRP.Runtime.Passes
 
                     frameData.context.DrawShadows(ref shadowDrawingSettings);
                     anyCascadeRendered = true;
+
+                    _cascadeData[cascadeIndex] = new MainLightShadowCascadeData
+                    {
+                        viewMatrix = viewMatrix,
+                        projectionMatrix = projMatrix,
+                        splitData = splitData,
+                        cullingSphere = splitData.cullingSphere,
+                        offsetX = offsetX,
+                        offsetY = offsetY,
+                        resolution = tileResolution
+                    };
 
                     _mainLightWorldToShadow[cascadeIndex] = BuildWorldToShadowMatrix(
                         projMatrix,
@@ -160,6 +174,14 @@ namespace NWRP.Runtime.Passes
             }
 
             frameData.context.SetupCameraProperties(frameData.camera);
+
+            MainLightShadowIndirectCasterContext.AddTarget(
+                _shadowmapTexture,
+                _cascadeData,
+                cascadeCount,
+                GetShadowLightDirection(ref frameData, mainLightIndex),
+                includeStaticCasters: true,
+                includeDynamicCasters: true);
 
             MainLightShadowPassUtils.UploadRealtimeReceiverGlobals(
                 ref frameData,

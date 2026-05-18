@@ -29,6 +29,8 @@ namespace NWRP
 
         public override void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData)
         {
+            MainLightShadowIndirectCasterContext.Clear();
+
             if (_mainLightShadowDisabledPass == null
                 || _mainLightShadowPass == null
                 || _staticCachePass == null

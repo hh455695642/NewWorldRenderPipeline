@@ -658,7 +658,7 @@ namespace NWRP.Runtime.Passes
                 (int)executionPath);
         }
 
-        private static Vector4 GetShadowLightDirection(VisibleLight visibleLight)
+        public static Vector4 GetShadowLightDirection(VisibleLight visibleLight)
         {
             Vector4 lightDirection = -visibleLight.localToWorldMatrix.GetColumn(2);
             lightDirection = lightDirection.normalized;

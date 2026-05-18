@@ -1,10 +1,11 @@
 using System.Collections.Generic;
+using NWRP;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Serialization;
 
 [ExecuteAlways]
-public class VegetationIndirectRenderer : MonoBehaviour
+public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShadowProvider
 {
     // Rendering flow:
     // 1) Collect MeshRenderers from VegetationRoots and group by Chunk, then by (mesh+material).
@@ -14,8 +15,9 @@ public class VegetationIndirectRenderer : MonoBehaviour
     //
     // Notes:
     // - GPU instancing path is used at runtime; editor non-play mode keeps original MeshRenderer rendering.
-    // - Until vegetation gets a dedicated NWRP indirect shadow pass, tree shadows use a shadow-only
-    //   MeshRenderer fallback so DrawShadows can see them in the current pipeline culling results.
+    // - Runtime tree shadows use NWRP's dedicated indirect shadow pass when the pipeline asset toggle
+    //   is enabled. Source MeshRenderers stay as ShadowsOnly fallback when the feature is disabled or
+    //   indirect rendering is unavailable.
     // - Scene view camera is separate from game camera; optional dual rendering keeps Scene preview consistent.
     //
     // IMPORTANT RUNTIME SETUP:
@@ -132,17 +134,27 @@ public class VegetationIndirectRenderer : MonoBehaviour
         public bool hasBounds;
         public ComputeBuffer allGrassBuffer;
         public ComputeBuffer visibleGrassBuffer;
+        public ComputeBuffer shadowVisibleGrassBuffer;
+        public ComputeBuffer shadowIndirectArgsBuffer;
         public GraphicsBuffer indirectCommandBuffer;
         public MaterialPropertyBlock mpb;
+        public MaterialPropertyBlock shadowMpb;
         public RenderParams rpTemplate;
+        public int shadowCasterPassIndex = -1;
+        public bool supportsIndirectShadows;
+        public bool isDynamicShadowCaster;
 
         public void ReleaseBuffers()
         {
             allGrassBuffer?.Release();
             visibleGrassBuffer?.Release();
+            shadowVisibleGrassBuffer?.Release();
+            shadowIndirectArgsBuffer?.Release();
             indirectCommandBuffer?.Release();
             allGrassBuffer = null;
             visibleGrassBuffer = null;
+            shadowVisibleGrassBuffer = null;
+            shadowIndirectArgsBuffer = null;
             indirectCommandBuffer = null;
         }
     }
@@ -213,6 +225,7 @@ public class VegetationIndirectRenderer : MonoBehaviour
     }
     void OnEnable()
     {
+        VegetationIndirectShadowRegistry.Register(this);
         RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
 
 #if UNITY_EDITOR
@@ -232,6 +245,7 @@ public class VegetationIndirectRenderer : MonoBehaviour
 
     void OnDisable()
     {
+        VegetationIndirectShadowRegistry.Unregister(this);
         RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
         RestoreOriginalRenderers();
         _cpuVisibleChunkCoords.Clear();
@@ -242,6 +256,7 @@ public class VegetationIndirectRenderer : MonoBehaviour
 
     void OnDestroy()
     {
+        VegetationIndirectShadowRegistry.Unregister(this);
         RestoreOriginalRenderers();
         _cpuVisibleChunkCoords.Clear();
         _submittedChunkCoords.Clear();
@@ -511,9 +526,14 @@ public class VegetationIndirectRenderer : MonoBehaviour
                     {
                         mesh = mesh,
                         material = material,
-                        mpb = new MaterialPropertyBlock()
+                        mpb = new MaterialPropertyBlock(),
+                        shadowMpb = new MaterialPropertyBlock()
                     };
                     group.rpTemplate = new RenderParams(material);
+                    group.shadowCasterPassIndex = material.FindPass("ShadowCaster");
+                    group.supportsIndirectShadows =
+                        group.shadowCasterPassIndex >= 0 && IsTreeIndirectShadowMaterial(material);
+                    group.isDynamicShadowCaster = IsDynamicTreeShadowMaterial(material);
                     chunk.groups.Add(group);
                 }
 
@@ -571,6 +591,25 @@ public class VegetationIndirectRenderer : MonoBehaviour
 
         // Use IndirectDrawIndexedArgs to avoid platform-dependent layout issues.
         group.indirectCommandBuffer.SetData(new[] { cmd });
+
+        if (group.supportsIndirectShadows)
+        {
+            group.shadowVisibleGrassBuffer = new ComputeBuffer(count, 64, ComputeBufferType.Append);
+            group.shadowIndirectArgsBuffer = new ComputeBuffer(
+                1,
+                sizeof(uint) * 5,
+                ComputeBufferType.IndirectArguments);
+
+            uint[] shadowArgs =
+            {
+                group.mesh.GetIndexCount(0),
+                0u,
+                group.mesh.GetIndexStart(0),
+                group.mesh.GetBaseVertex(0),
+                0u
+            };
+            group.shadowIndirectArgsBuffer.SetData(shadowArgs);
+        }
     }
 
     void ReleaseAllBuffers()
@@ -804,8 +843,8 @@ public class VegetationIndirectRenderer : MonoBehaviour
         rp.camera = cam;
         rp.layer = renderLayer;
         rp.worldBounds = drawBounds;
-        // Runtime tree shadows are supplied by the source renderers in ShadowsOnly mode.
-        // Keeping indirect draws non-casting avoids duplicate heavy shadow submission.
+        // Visible indirect draws never cast. Shadows come from the NWRP indirect shadow pass,
+        // or from the source renderers only when the fallback path is active.
         rp.shadowCastingMode = ShadowCastingMode.Off;
         rp.receiveShadows = receiveShadows;
         rp.matProps = group.mpb;
@@ -829,7 +868,7 @@ public class VegetationIndirectRenderer : MonoBehaviour
             return;
         }
 
-        if (castShadows && _cam != null && _cam.enabled)
+        if (ShouldUseShadowOnlyRendererFallback() && _cam != null && _cam.enabled)
         {
             UpdateShadowOnlyRenderersForCamera(_cam);
             return;
@@ -843,7 +882,7 @@ public class VegetationIndirectRenderer : MonoBehaviour
         if (!Application.isPlaying || debugUseOriginalRenderer)
             return;
 
-        if (!castShadows || cullCamera == null || !cullCamera.enabled)
+        if (!ShouldUseShadowOnlyRendererFallback() || cullCamera == null || !cullCamera.enabled)
         {
             DisableOriginalRenderers();
             return;
@@ -871,6 +910,114 @@ public class VegetationIndirectRenderer : MonoBehaviour
             renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
             renderer.receiveShadows = false;
         }
+    }
+
+    public bool TryCollectIndirectShadowDraws(
+        bool includeStaticCasters,
+        bool includeDynamicCasters,
+        List<VegetationIndirectShadowDraw> draws)
+    {
+        if (draws == null)
+            return false;
+
+        if (!Application.isPlaying
+            || debugUseOriginalRenderer
+            || _usingOriginalRendererFallback
+            || !_csReady
+            || !castShadows
+            || CullingComputeShader == null
+            || _kernelIndex < 0)
+        {
+            return false;
+        }
+
+        bool hasDraws = false;
+        foreach (var chunk in _chunks.Values)
+        {
+            foreach (var group in chunk.groups)
+            {
+                if (!CanSubmitIndirectShadowGroup(group))
+                    continue;
+
+                if (group.isDynamicShadowCaster)
+                {
+                    if (!includeDynamicCasters)
+                        continue;
+                }
+                else if (!includeStaticCasters)
+                {
+                    continue;
+                }
+
+                group.shadowMpb.SetBuffer(_idVisibleBuffer, group.shadowVisibleGrassBuffer);
+                draws.Add(new VegetationIndirectShadowDraw
+                {
+                    mesh = group.mesh,
+                    material = group.material,
+                    bounds = group.hasBounds ? group.bounds : chunk.bounds,
+                    cullingShader = CullingComputeShader,
+                    cullingKernelIndex = _kernelIndex,
+                    instanceCount = group.instances.Count,
+                    allInstancesBuffer = group.allGrassBuffer,
+                    shadowVisibleBuffer = group.shadowVisibleGrassBuffer,
+                    shadowArgsBuffer = group.shadowIndirectArgsBuffer,
+                    materialProperties = group.shadowMpb,
+                    shadowCasterPassIndex = group.shadowCasterPassIndex,
+                    isDynamicShadowCaster = group.isDynamicShadowCaster
+                });
+                hasDraws = true;
+            }
+        }
+
+        return hasDraws;
+    }
+
+    bool CanSubmitIndirectShadowGroup(RenderGroup group)
+    {
+        return group != null
+            && group.supportsIndirectShadows
+            && group.mesh != null
+            && group.material != null
+            && group.instances.Count > 0
+            && group.allGrassBuffer != null
+            && group.shadowVisibleGrassBuffer != null
+            && group.shadowIndirectArgsBuffer != null
+            && group.shadowMpb != null
+            && group.shadowCasterPassIndex >= 0
+            && (!group.material.HasProperty("_CastShadows") || group.material.GetFloat("_CastShadows") > 0.5f);
+    }
+
+    bool ShouldUseShadowOnlyRendererFallback()
+    {
+        return castShadows && !IsNWRPIndirectShadowFeatureActive();
+    }
+
+    static bool IsNWRPIndirectShadowFeatureActive()
+    {
+        return GraphicsSettings.currentRenderPipeline is NewWorldRenderPipelineAsset asset
+            && asset.EnableVegetationIndirectTreeShadows;
+    }
+
+    static bool IsTreeIndirectShadowMaterial(Material material)
+    {
+        if (material == null || material.shader == null)
+            return false;
+
+        string shaderName = material.shader.name;
+        return shaderName == "NewWorld/Env/Tree"
+            || shaderName == "NewWorld/Env/TreeLeaf"
+            || shaderName == "NewWorld/Env/MobileFallback/Tree"
+            || shaderName == "NewWorld/Env/MobileFallback/TreeLeaf";
+    }
+
+    static bool IsDynamicTreeShadowMaterial(Material material)
+    {
+        if (material == null || material.shader == null)
+            return false;
+
+        string shaderName = material.shader.name;
+        return shaderName == "NewWorld/Env/TreeLeaf"
+            || shaderName == "NewWorld/Env/MobileFallback/TreeLeaf";
     }
 
     void DisableOriginalRenderers()
