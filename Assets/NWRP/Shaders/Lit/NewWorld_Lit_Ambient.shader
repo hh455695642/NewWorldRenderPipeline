@@ -45,6 +45,7 @@ Shader "NewWorld/Lit/Ambient"
             {
                 float4 positionHCS : SV_POSITION;
                 float3 normalWS    : TEXCOORD0;
+                half fogFactor     : TEXCOORD1;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -92,8 +93,10 @@ Shader "NewWorld/Lit/Ambient"
             {
                 UNITY_SETUP_INSTANCE_ID(IN);
                 Varyings OUT;
-                OUT.positionHCS = TransformObjectToHClip(IN.positionOS.xyz);
+                float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
+                OUT.positionHCS = TransformWorldToHClip(positionWS);
                 OUT.normalWS    = TransformObjectToWorldNormal(IN.normalOS);
+                OUT.fogFactor   = (half)ComputeNWRPFogFactorFromPositionWS(positionWS);
                 return OUT;
             }
 
@@ -105,6 +108,7 @@ Shader "NewWorld/Lit/Ambient"
                 half3 ambient = SampleSH_Simple(normalWS);
 
                 half3 color = _BaseColor.rgb * ambient;
+                color = MixNWRPFog(color, IN.fogFactor);
 
                 return half4(color, 1.0);
             }

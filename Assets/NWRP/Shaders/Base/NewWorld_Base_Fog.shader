@@ -17,7 +17,6 @@ Shader "NewWorld/Base/Fog"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
-            #pragma multi_compile_fog
 
             #include "../../ShaderLibrary/Core.hlsl"
 
@@ -43,13 +42,13 @@ Shader "NewWorld/Base/Fog"
                 Varyings OUT;
                 float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
                 OUT.positionHCS = TransformWorldToHClip(positionWS);
-                OUT.fogFactor = ComputeFogFactor(OUT.positionHCS.z);
+                OUT.fogFactor = ComputeNWRPFogFactorFromPositionWS(positionWS);
                 return OUT;
             }
 
             half4 frag(Varyings IN) : SV_Target
             {
-                half3 mixColorAndFog = MixFog(_MainColor.rgb, IN.fogFactor);
+                half3 mixColorAndFog = MixNWRPFog(_MainColor.rgb, IN.fogFactor);
                 return half4(mixColorAndFog, 1);
             }
             ENDHLSL

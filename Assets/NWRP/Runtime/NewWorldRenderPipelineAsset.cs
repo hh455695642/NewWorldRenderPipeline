@@ -71,6 +71,14 @@ namespace NWRP
             Bilinear = 1
         }
 
+        public enum FogMode
+        {
+            Off = 0,
+            Linear = 1,
+            Exp = 2,
+            Exp2 = 3
+        }
+
         public const float MinRenderScale = 0.5f;
         public const float MaxRenderScale = 1.0f;
 
@@ -176,6 +184,7 @@ namespace NWRP
             public OutlineSettings outline = new OutlineSettings();
             public OpaqueTextureSettings opaqueTexture = new OpaqueTextureSettings();
             public DepthTextureSettings depthTexture = new DepthTextureSettings();
+            public FogSettings fog = new FogSettings();
             [InspectorName("Vegetation Indirect Shadows")]
             public VegetationIndirectShadowSettings vegetationIndirectShadows =
                 new VegetationIndirectShadowSettings();
@@ -196,6 +205,11 @@ namespace NWRP
                 if (depthTexture == null)
                 {
                     depthTexture = new DepthTextureSettings();
+                }
+
+                if (fog == null)
+                {
+                    fog = new FogSettings();
                 }
 
                 if (vegetationIndirectShadows == null)
@@ -235,6 +249,29 @@ namespace NWRP
             [InspectorName("Camera Depth Texture Mode")]
             [Tooltip("Controls when NWRP makes _CameraDepthTexture available.")]
             public DepthTextureCopyMode copyDepthMode = DepthTextureCopyMode.AfterOpaques;
+        }
+
+        [System.Serializable]
+        public sealed class FogSettings
+        {
+            [InspectorName("Enable Global Fog")]
+            [Tooltip("Enable NWRP uniform fog for Environment and Lit forward passes. Uses no shader keywords or extra render targets.")]
+            public bool enableFog = false;
+
+            [Tooltip("Global fog equation. Linear is the mobile baseline.")]
+            public FogMode mode = FogMode.Linear;
+
+            [ColorUsage(false, true)]
+            public Color color = new Color(0.5f, 0.55f, 0.6f, 1.0f);
+
+            [Min(0f)]
+            public float startDistance = 20f;
+
+            [Min(0.01f)]
+            public float endDistance = 100f;
+
+            [Min(0f)]
+            public float density = 0.01f;
         }
 
         [System.Serializable]
@@ -511,6 +548,9 @@ namespace NWRP
         private DepthTextureFeature _runtimeDepthTextureFeature;
 
         [System.NonSerialized]
+        private NWRPFogFeature _runtimeFogFeature;
+
+        [System.NonSerialized]
         private PostProcessFeature _runtimePostProcessFeature;
 
         [System.NonSerialized]
@@ -595,6 +635,12 @@ namespace NWRP
         public bool EnableOpaqueTexture => FeatureSettingsData.opaqueTexture.enableOpaqueTexture;
         public bool EnableDepthTexture => FeatureSettingsData.depthTexture.enableDepthTexture;
         public DepthTextureCopyMode DepthTextureCopyModeSetting => FeatureSettingsData.depthTexture.copyDepthMode;
+        public bool EnableFog => FeatureSettingsData.fog.enableFog;
+        public FogMode FogModeSetting => EnableFog ? FeatureSettingsData.fog.mode : FogMode.Off;
+        public Color FogColor => FeatureSettingsData.fog.color;
+        public float FogStartDistance => Mathf.Max(0f, FeatureSettingsData.fog.startDistance);
+        public float FogEndDistance => Mathf.Max(FogStartDistance + 0.01f, FeatureSettingsData.fog.endDistance);
+        public float FogDensity => Mathf.Max(0f, FeatureSettingsData.fog.density);
         public bool EnableVegetationIndirectTreeShadows =>
             FeatureSettingsData.vegetationIndirectShadows.enableVegetationIndirectTreeShadows;
         public bool SupportsHDR => supportsHDR;
@@ -732,6 +778,19 @@ namespace NWRP
             return _runtimeDepthTextureFeature;
         }
 
+        internal NWRPFogFeature GetOrCreateFogFeature()
+        {
+            if (_runtimeFogFeature != null)
+            {
+                return _runtimeFogFeature;
+            }
+
+            _runtimeFogFeature = ScriptableObject.CreateInstance<NWRPFogFeature>();
+            _runtimeFogFeature.hideFlags = HideFlags.HideAndDontSave;
+            _runtimeFogFeature.name = "NWRP Runtime FogFeature";
+            return _runtimeFogFeature;
+        }
+
         internal PostProcessFeature GetOrCreatePostProcessFeature()
         {
             if (_runtimePostProcessFeature != null)
@@ -768,6 +827,7 @@ namespace NWRP
                 DisposeOutlineRuntimeFeature();
                 DisposeOpaqueTextureRuntimeFeature();
                 DisposeDepthTextureRuntimeFeature();
+                DisposeFogRuntimeFeature();
                 DisposePostProcessRuntimeFeature();
                 DisposeVegetationIndirectShadowRuntimeFeature();
                 return;
@@ -787,6 +847,7 @@ namespace NWRP
             DisposeOutlineRuntimeFeature();
             DisposeOpaqueTextureRuntimeFeature();
             DisposeDepthTextureRuntimeFeature();
+            DisposeFogRuntimeFeature();
             DisposePostProcessRuntimeFeature();
             DisposeVegetationIndirectShadowRuntimeFeature();
         }
@@ -865,6 +926,25 @@ namespace NWRP
             }
 
             _runtimeDepthTextureFeature = null;
+        }
+
+        private void DisposeFogRuntimeFeature()
+        {
+            if (_runtimeFogFeature == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_runtimeFogFeature);
+            }
+            else
+            {
+                DestroyImmediate(_runtimeFogFeature);
+            }
+
+            _runtimeFogFeature = null;
         }
 
         private void DisposePostProcessRuntimeFeature()

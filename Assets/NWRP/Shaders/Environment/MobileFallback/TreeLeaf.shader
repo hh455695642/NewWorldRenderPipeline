@@ -71,6 +71,7 @@ Shader "NewWorld/Env/MobileFallback/TreeLeaf"
             float3 positionWS : TEXCOORD1;
             half3 normalWS : TEXCOORD2;
             half3 viewDirWS : TEXCOORD3;
+            half fogFactor : TEXCOORD4;
             UNITY_VERTEX_INPUT_INSTANCE_ID
             UNITY_VERTEX_OUTPUT_STEREO
         };
@@ -94,6 +95,7 @@ Shader "NewWorld/Env/MobileFallback/TreeLeaf"
             output.uv = input.texcoord;
             output.normalWS = normalize(TransformObjectToWorldNormal(input.normalOS));
             output.viewDirWS = SafeNormalize(_WorldSpaceCameraPos - output.positionWS);
+            output.fogFactor = (half)ComputeNWRPFogFactorFromPositionWS(output.positionWS);
             return output;
         }
         ENDHLSL
@@ -131,6 +133,7 @@ Shader "NewWorld/Env/MobileFallback/TreeLeaf"
                 half backLight = saturate(dot(-input.viewDirWS, mainLight.direction));
                 color += albedo * _TranslucencyColor.rgb * backLight * _TranslucencyInt * mainLight.shadowAttenuation;
                 color += SampleSH(normalWS) * albedo;
+                color = MixNWRPFog(color, input.fogFactor);
                 return half4(color, 1.0h);
             }
             ENDHLSL

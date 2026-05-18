@@ -174,7 +174,7 @@ Shader "NewWorld/Env/TreeLeaf"
             output.uv = input.texcoord;
             output.normalWS = normalize(TransformObjectToWorldNormal(input.normalOS));
             output.viewDirWS = normalize(GetWorldSpaceViewDir(output.positionWS));
-            output.fogFactor = ComputeFogFactor(output.positionCS.z);
+            output.fogFactor = ComputeNWRPFogFactorFromPositionWS(output.positionWS);
             return output;
         }
         ENDHLSL
@@ -194,7 +194,6 @@ Shader "NewWorld/Env/TreeLeaf"
             #pragma fragment ForwardFrag
             #pragma multi_compile_instancing
             #pragma instancing_options procedural:SetupInstancing
-            #pragma multi_compile_fog
             #pragma shader_feature_local _SECONDCOLOROVERLAYTYPE_WORLD_NOISE_3D _SECONDCOLOROVERLAYTYPE_UV_GRADIENT
 
             half4 ForwardFrag(LeafVaryings input) : SV_Target
@@ -230,7 +229,7 @@ Shader "NewWorld/Env/TreeLeaf"
                     finalColor += baseColor * light.color * addHalfLambert * light.distanceAttenuation * light.shadowAttenuation;
                 }
 
-                finalColor = MixFog(finalColor, input.fogFactor);
+                finalColor = MixNWRPFog(finalColor, input.fogFactor);
                 return half4(finalColor, 1.0h);
             }
             ENDHLSL

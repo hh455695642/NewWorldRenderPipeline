@@ -59,6 +59,7 @@ Shader "NewWorld/NPR/Outline (Shell Method)"
                 half4 _BaseColor;
                 half4 _OutlineColor;
                 half  _OutlineWidth;
+                half  _PixelWidth;
             CBUFFER_END
 
             Varyings vert(Attributes IN)
@@ -94,7 +95,6 @@ Shader "NewWorld/NPR/Outline (Shell Method)"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
-            #pragma shader_feature_local _PIXELWIDTH_ON
 
             #include "../../ShaderLibrary/Core.hlsl"
 
@@ -114,6 +114,7 @@ Shader "NewWorld/NPR/Outline (Shell Method)"
                 half4 _BaseColor;
                 half4 _OutlineColor;
                 half  _OutlineWidth;
+                half  _PixelWidth;
             CBUFFER_END
 
             Varyings vert(Attributes IN)
@@ -123,7 +124,8 @@ Shader "NewWorld/NPR/Outline (Shell Method)"
                 float3 positionWS = TransformObjectToWorld(IN.positionOS.xyz);
                 float3 normalWS = TransformObjectToWorldNormal(IN.normalOS);
 
-                #ifdef _PIXELWIDTH_ON
+                if (_PixelWidth > 0.5h)
+                {
                     // ── 像素等宽模式 ────────────────────────────
                     // 在裁剪空间中偏移，保证屏幕上宽度恒定
                     float3 normalHCS = mul((float3x3)UNITY_MATRIX_VP, normalWS);
@@ -132,7 +134,9 @@ Shader "NewWorld/NPR/Outline (Shell Method)"
                     float2 outlineOffset = (_OutlineWidth * OUT.positionHCS.w)
                                           / (_ScreenParams.xy * 0.5);
                     OUT.positionHCS.xy += normalize(normalHCS.xy) * outlineOffset;
-                #else
+                }
+                else
+                {
                     // ── 常规模式（观察空间扩张） ──────────────────
                     // 近大远小，更自然的 3D 描边
                     float3 positionVS = TransformWorldToView(positionWS);
@@ -141,7 +145,7 @@ Shader "NewWorld/NPR/Outline (Shell Method)"
                     normalVS.z = -0.4;
                     positionVS += normalize(normalVS) * _OutlineWidth;
                     OUT.positionHCS = TransformWViewToHClip(positionVS);
-                #endif
+                }
 
                 return OUT;
             }

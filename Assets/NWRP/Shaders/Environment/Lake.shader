@@ -102,7 +102,6 @@ Shader "NewWorld/Env/Lake"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
-            #pragma multi_compile_fog
 
             #include "../../ShaderLibrary/Core.hlsl"
             #include "../../ShaderLibrary/DepthWorldReconstruction.hlsl"
@@ -246,7 +245,7 @@ Shader "NewWorld/Env/Lake"
                 output.bitangentWS = (half3)normalInput.bitangentWS;
                 output.positionWS = positionWS;
                 output.positionCS = TransformWorldToHClip(positionWS);
-                output.fogFactor = (half)ComputeFogFactor(output.positionCS.z);
+                output.fogFactor = (half)ComputeNWRPFogFactorFromPositionWS(output.positionWS);
                 output.waveHeight = (half)waveDisplacement.y;
                 output.uv = input.uv;
                 return output;
@@ -377,7 +376,7 @@ Shader "NewWorld/Env/Lake"
 
                 half shadowMask = saturate((1.0h - mainLight.shadowAttenuation) * _ShadowColor.a);
                 color.rgb = lerp(color.rgb, _ShadowColor.rgb, shadowMask);
-                color.rgb = MixFog(color.rgb, input.fogFactor);
+                color.rgb = MixNWRPFog(color.rgb, input.fogFactor);
                 return color;
             }
             ENDHLSL

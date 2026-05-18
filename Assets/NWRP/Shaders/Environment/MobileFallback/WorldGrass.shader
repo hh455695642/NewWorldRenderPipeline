@@ -77,6 +77,7 @@ Shader "NewWorld/Env/MobileFallback/WorldGrass"
             float2 uv : TEXCOORD0;
             float3 positionWS : TEXCOORD1;
             float4 color : TEXCOORD2;
+            half fogFactor : TEXCOORD3;
             UNITY_VERTEX_INPUT_INSTANCE_ID
             UNITY_VERTEX_OUTPUT_STEREO
         };
@@ -92,6 +93,7 @@ Shader "NewWorld/Env/MobileFallback/WorldGrass"
             output.positionCS = TransformWorldToHClip(output.positionWS);
             output.uv = input.texcoord;
             output.color = input.color;
+            output.fogFactor = (half)ComputeNWRPFogFactorFromPositionWS(output.positionWS);
             return output;
         }
         ENDHLSL
@@ -124,6 +126,7 @@ Shader "NewWorld/Env/MobileFallback/WorldGrass"
                 half3 lit = albedo * mainLight.color * halfLambert * mainLight.shadowAttenuation;
                 half3 shade = lerp(lit, _ShadowColor.rgb * albedo, _ShadowStrength * (1.0h - mainLight.shadowAttenuation));
                 shade += SampleSH(normalWS) * albedo;
+                shade = MixNWRPFog(shade, input.fogFactor);
                 return half4(shade, 1.0h);
             }
             ENDHLSL

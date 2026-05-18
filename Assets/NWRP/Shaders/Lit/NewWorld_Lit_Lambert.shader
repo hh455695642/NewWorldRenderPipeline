@@ -40,6 +40,7 @@ Shader "NewWorld/Lit/Lambert"
                 float4 positionHCS : SV_POSITION;
                 float3 normalWS    : TEXCOORD0;
                 float3 positionWS  : TEXCOORD1;
+                half fogFactor     : TEXCOORD2;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -59,6 +60,7 @@ Shader "NewWorld/Lit/Lambert"
                 output.positionHCS = TransformWorldToHClip(positionWS);
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.positionWS = positionWS;
+                output.fogFactor = (half)ComputeNWRPFogFactorFromPositionWS(positionWS);
                 return output;
             }
 
@@ -75,6 +77,7 @@ Shader "NewWorld/Lit/Lambert"
                 half3 lightColor = light.color * light.distanceAttenuation * light.shadowAttenuation;
                 half NdotL = saturate(dot(normalWS, light.direction));
                 half3 diffuse = _BaseColor.rgb * lightColor * NdotL;
+                diffuse = MixNWRPFog(diffuse, input.fogFactor);
                 return half4(diffuse, 1.0);
             }
 

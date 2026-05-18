@@ -26,6 +26,9 @@ namespace NWRP
         public static readonly int VignetteColor = Shader.PropertyToID("_NWRPVignetteColor");
         public static readonly int VignetteParams = Shader.PropertyToID("_NWRPVignetteParams");
         public static readonly int VignetteParams2 = Shader.PropertyToID("_NWRPVignetteParams2");
+        public static readonly int FogMode = Shader.PropertyToID("_NWRPFogMode");
+        public static readonly int FogParams = Shader.PropertyToID("_NWRPFogParams");
+        public static readonly int FogColor = Shader.PropertyToID("_NWRPFogColor");
         public static readonly int BloomThresholdParams = Shader.PropertyToID("_NWRPBloomThresholdParams");
         public static readonly int BloomCompositeParams = Shader.PropertyToID("_NWRPBloomCompositeParams");
         public static readonly int BloomTexelSize = Shader.PropertyToID("_NWRPBloomTexelSize");

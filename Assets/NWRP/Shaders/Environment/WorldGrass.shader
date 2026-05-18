@@ -265,7 +265,7 @@ Shader "NewWorld/Env/WorldGrass"
             output.positionCS = TransformWorldToHClip(output.positionWS);
             output.uv = input.texcoord;
             output.color = input.color;
-            output.fogFactor = ComputeFogFactor(output.positionCS.z);
+            output.fogFactor = ComputeNWRPFogFactorFromPositionWS(output.positionWS);
             return output;
         }
         ENDHLSL
@@ -286,7 +286,6 @@ Shader "NewWorld/Env/WorldGrass"
             #pragma fragment ForwardFrag
             #pragma multi_compile_instancing
             #pragma instancing_options procedural:SetupInstancing
-            #pragma multi_compile_fog
 
             half4 ForwardFrag(Varyings input) : SV_Target
             {
@@ -316,7 +315,7 @@ Shader "NewWorld/Env/WorldGrass"
                         * 0.5h;
                 }
 
-                finalColor = MixFog(finalColor, input.fogFactor);
+                finalColor = MixNWRPFog(finalColor, input.fogFactor);
                 return half4(finalColor, 1.0h);
             }
             ENDHLSL

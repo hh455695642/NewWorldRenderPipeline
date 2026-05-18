@@ -67,6 +67,7 @@ Shader "NewWorld/Lit/Glass"
                 float3 tangentWS : TEXCOORD3;
                 float3 bitangentWS : TEXCOORD4;
                 float3 viewWS : TEXCOORD5;
+                half fogFactor : TEXCOORD6;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -151,6 +152,7 @@ Shader "NewWorld/Lit/Glass"
                 output.tangentWS = tbn.tangentWS;
                 output.bitangentWS = tbn.bitangentWS;
                 output.viewWS = GetWorldSpaceViewDir(positionWS);
+                output.fogFactor = (half)ComputeNWRPFogFactorFromPositionWS(positionWS);
                 return output;
             }
 
@@ -201,6 +203,7 @@ Shader "NewWorld/Lit/Glass"
                     * (1.0h + fresnel);
 
                 half3 finalColor = directColor + indirectDiffuse + indirectSpecular + tint * fresnel;
+                finalColor = MixNWRPFog(finalColor, input.fogFactor);
                 half alpha = saturate(baseColor.a + fresnel * 0.25h);
                 return half4(finalColor, alpha);
             }

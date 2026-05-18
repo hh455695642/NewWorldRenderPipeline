@@ -215,7 +215,7 @@ Shader "NewWorld/Env/Shrub"
             output.positionCS = TransformWorldToHClip(output.positionWS);
             output.uv = input.texcoord;
             output.normalWS = normalize(TransformObjectToWorldNormal(input.normalOS));
-            output.fogFactor = ComputeFogFactor(output.positionCS.z);
+            output.fogFactor = ComputeNWRPFogFactorFromPositionWS(output.positionWS);
             return output;
         }
         ENDHLSL
@@ -235,7 +235,6 @@ Shader "NewWorld/Env/Shrub"
             #pragma fragment ForwardFrag
             #pragma multi_compile_instancing
             #pragma instancing_options procedural:SetupInstancing
-            #pragma multi_compile_fog
 
             half4 ForwardFrag(Varyings input) : SV_Target
             {
@@ -259,7 +258,7 @@ Shader "NewWorld/Env/Shrub"
                     finalColor += albedo * addNdotL * light.color * light.distanceAttenuation * light.shadowAttenuation * 0.5h;
                 }
 
-                finalColor = MixFog(finalColor, input.fogFactor);
+                finalColor = MixNWRPFog(finalColor, input.fogFactor);
                 return half4(finalColor, 1.0h);
             }
             ENDHLSL

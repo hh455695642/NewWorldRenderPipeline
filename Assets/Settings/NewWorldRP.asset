@@ -14,9 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useSRPBatcher: 1
   useGPUInstancing: 1
-  supportsHDR: 0
+  supportsHDR: 1
   hdrColorBufferPrecision: 0
-  supportsPostProcessing: 0
+  supportsPostProcessing: 1
+  enableRenderScale: 0
+  renderScale: 1
+  renderScaleFilterMode: 1
   mainLightShadows:
     toggles:
       enableMainLightShadows: 1
@@ -35,8 +38,8 @@ MonoBehaviour:
       mainLightShadowReceiverNormalBias: 0
       mainLightShadowCasterCullMode: 2
     cached:
-      enableCachedMainLightShadows: 0
-      enableDynamicShadowOverlay: 0
+      enableCachedMainLightShadows: 1
+      enableDynamicShadowOverlay: 1
       staticCasterLayerMask:
         serializedVersion: 2
         m_Bits: 55
@@ -51,8 +54,8 @@ MonoBehaviour:
       debugViewMode: 0
     serializedVersion: 1
     enableMainLightShadows: 1
-    enableCachedMainLightShadows: 0
-    shadowMode: 0
+    enableCachedMainLightShadows: 1
+    shadowMode: 1
     cachedShadowSettingsMigrated: 1
     mainLightShadowResolution: 1024
     mainLightShadowDistance: 80
@@ -65,7 +68,7 @@ MonoBehaviour:
     mainLightShadowReceiverDepthBias: 0
     mainLightShadowReceiverNormalBias: 0
     mainLightShadowCasterCullMode: 2
-    enableDynamicShadowOverlay: 0
+    enableDynamicShadowOverlay: 1
     staticCasterLayerMask:
       serializedVersion: 2
       m_Bits: 55
@@ -78,7 +81,7 @@ MonoBehaviour:
     lightDirectionInvalidationThreshold: 0.5
   additionalLightShadows:
     toggles:
-      enableAdditionalLightShadows: 0
+      enableAdditionalLightShadows: 1
     budget:
       maxShadowedAdditionalLights: 1
     atlas:
@@ -96,11 +99,11 @@ MonoBehaviour:
     outline:
       enableOutline: 0
     opaqueTexture:
-      enableOpaqueTexture: 0
+      enableOpaqueTexture: 1
     depthTexture:
-      enableDepthTexture: 0
+      enableDepthTexture: 1
       copyDepthMode: 0
     vegetationIndirectShadows:
-      enableVegetationIndirectTreeShadows: 0
+      enableVegetationIndirectTreeShadows: 1
     features:
     - {fileID: 0}

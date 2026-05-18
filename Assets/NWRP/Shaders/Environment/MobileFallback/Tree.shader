@@ -47,6 +47,7 @@ Shader "NewWorld/Env/MobileFallback/Tree"
             float2 uv : TEXCOORD0;
             float3 positionWS : TEXCOORD1;
             half3 normalWS : TEXCOORD2;
+            half fogFactor : TEXCOORD3;
             UNITY_VERTEX_INPUT_INSTANCE_ID
             UNITY_VERTEX_OUTPUT_STEREO
         };
@@ -62,6 +63,7 @@ Shader "NewWorld/Env/MobileFallback/Tree"
             output.positionCS = TransformWorldToHClip(output.positionWS);
             output.uv = input.texcoord;
             output.normalWS = normalize(TransformObjectToWorldNormal(input.normalOS));
+            output.fogFactor = (half)ComputeNWRPFogFactorFromPositionWS(output.positionWS);
             return output;
         }
         ENDHLSL
@@ -91,6 +93,7 @@ Shader "NewWorld/Env/MobileFallback/Tree"
                 half nDotL = saturate(dot(normalWS, mainLight.direction));
                 half3 color = albedo * mainLight.color * nDotL * mainLight.shadowAttenuation;
                 color += SampleSH(normalWS) * albedo;
+                color = MixNWRPFog(color, input.fogFactor);
                 return half4(color, 1.0h);
             }
             ENDHLSL

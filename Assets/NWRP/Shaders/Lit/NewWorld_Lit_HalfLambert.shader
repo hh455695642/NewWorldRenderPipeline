@@ -44,6 +44,7 @@ Shader "NewWorld/Lit/HalfLambert"
                 float4 positionHCS : SV_POSITION;
                 float3 normalWS    : TEXCOORD0;
                 float3 positionWS  : TEXCOORD1;
+                half fogFactor     : TEXCOORD2;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -63,6 +64,7 @@ Shader "NewWorld/Lit/HalfLambert"
                 OUT.positionHCS = TransformWorldToHClip(positionWS);
                 OUT.normalWS    = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.positionWS  = positionWS;
+                OUT.fogFactor   = (half)ComputeNWRPFogFactorFromPositionWS(positionWS);
                 return OUT;
             }
 
@@ -84,6 +86,7 @@ Shader "NewWorld/Lit/HalfLambert"
                 half halfLambert = pow(NdotL * 0.5 + 0.5, 2.0);
 
                 half3 diffuse = _BaseColor.rgb * lightColor * halfLambert;
+                diffuse = MixNWRPFog(diffuse, IN.fogFactor);
 
                 return half4(diffuse, 1.0);
             }

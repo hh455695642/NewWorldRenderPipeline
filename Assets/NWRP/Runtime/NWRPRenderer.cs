@@ -1436,6 +1436,7 @@ namespace NWRP
             bool hasSerializedVegetationIndirectShadowFeature = false;
             bool hasActiveSerializedOutlineFeature = false;
             bool hasActiveSerializedOpaqueTextureFeature = false;
+            bool hasActiveSerializedFogFeature = false;
             bool hasActiveSerializedPostProcessFeature = false;
             bool hasActiveSerializedDepthTextureFeature =
                 HasActiveSerializedDepthTextureFeature(features);
@@ -1483,6 +1484,11 @@ namespace NWRP
                 if (feature is OpaqueTextureFeature)
                 {
                     hasActiveSerializedOpaqueTextureFeature = true;
+                }
+
+                if (feature is NWRPFogFeature)
+                {
+                    hasActiveSerializedFogFeature = true;
                 }
 
                 if (feature is PostProcessFeature)
@@ -1560,6 +1566,16 @@ namespace NWRP
                 {
                     runtimeOpaqueTextureFeature.EnsureCreated();
                     runtimeOpaqueTextureFeature.AddPasses(this, ref frameData);
+                }
+            }
+
+            if (!hasActiveSerializedFogFeature)
+            {
+                NWRPFogFeature runtimeFogFeature = frameData.asset.GetOrCreateFogFeature();
+                if (runtimeFogFeature != null && runtimeFogFeature.IsEnabled)
+                {
+                    runtimeFogFeature.EnsureCreated();
+                    runtimeFogFeature.AddPasses(this, ref frameData);
                 }
             }
 

@@ -4,54 +4,75 @@
 // ============================================================
 // NewWorld Render Pipeline - Fog.hlsl
 //
-// 自主实现的雾效系统。
-//
-// 使用方式：
-//   Shader 中声明: #pragma multi_compile_fog
-//   （这是 Unity 引擎级功能，非 URP 专属，会自动定义
-//    FOG_LINEAR / FOG_EXP / FOG_EXP2 之一）
-//
-// 全局变量依赖：
-//   unity_FogParams  — 由 SetupCameraProperties() 自动设置
-//   unity_FogColor   — 由 SetupCameraProperties() 自动设置
-//   来源: RenderSettings（Lighting > Environment > Fog）
+// Uniform fog path. No shader keywords or variants.
+// _NWRPFogMode: 0 Off, 1 Linear, 2 Exp, 3 Exp2.
+// _NWRPFogParams: x=start, y=end, z=1/(end-start), w=density.
 // ============================================================
 
-// 计算雾因子（顶点着色器中调用，传入 clip-space Z）
-// 返回: 1 = 无雾(保持原色), 0 = 全雾(变为雾色)
-float ComputeFogFactor(float z)
+float _NWRPFogMode;
+float4 _NWRPFogParams;
+half4 _NWRPFogColor;
+
+float ComputeNWRPFogFactorFromEyeDepth(float eyeDepth)
 {
-    #if defined(FOG_LINEAR)
-        // Linear: factor = (end - z) / (end - start)
-        // unity_FogParams: x = -1/(end-start), y = end/(end-start)
-        return saturate(z * unity_FogParams.x + unity_FogParams.y);
-    #elif defined(FOG_EXP)
-        // Exp: factor = exp(-density * z)
-        float f = unity_FogParams.x * z;
-        return saturate(exp2(-f));
-    #elif defined(FOG_EXP2)
-        // Exp2: factor = exp(-(density * z)^2)
-        float f = unity_FogParams.x * z;
-        return saturate(exp2(-f * f));
-    #else
+    eyeDepth = max(eyeDepth, 0.0);
+
+    if (_NWRPFogMode < 0.5)
+    {
         return 1.0;
-    #endif
+    }
+
+    if (_NWRPFogMode < 1.5)
+    {
+        return saturate((_NWRPFogParams.y - eyeDepth) * _NWRPFogParams.z);
+    }
+
+    if (_NWRPFogMode < 2.5)
+    {
+        float f = _NWRPFogParams.w * eyeDepth;
+        return saturate(exp2(-f));
+    }
+
+    if (_NWRPFogMode < 3.5)
+    {
+        float f = _NWRPFogParams.w * eyeDepth;
+        return saturate(exp2(-f * f));
+    }
+
+    return 1.0;
 }
 
-// 将雾混合到最终颜色
+float ComputeNWRPFogFactorFromPositionWS(float3 positionWS)
+{
+    float eyeDepth = -TransformWorldToView(positionWS).z;
+    return ComputeNWRPFogFactorFromEyeDepth(eyeDepth);
+}
+
+half3 MixNWRPFog(half3 fragColor, float fogFactor)
+{
+    return lerp(_NWRPFogColor.rgb, fragColor, fogFactor);
+}
+
+half4 MixNWRPFogColor(half4 fragColor, float fogFactor)
+{
+    fragColor.rgb = MixNWRPFog(fragColor.rgb, fogFactor);
+    return fragColor;
+}
+
+// Compatibility wrappers for shaders outside the current cleanup scope.
+float ComputeFogFactor(float eyeDepth)
+{
+    return ComputeNWRPFogFactorFromEyeDepth(eyeDepth);
+}
+
 half3 MixFog(half3 fragColor, float fogFactor)
 {
-    #if defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2)
-        return lerp(unity_FogColor.rgb, fragColor, fogFactor);
-    #else
-        return fragColor;
-    #endif
+    return MixNWRPFog(fragColor, fogFactor);
 }
 
 half4 MixFogColor(half4 fragColor, float fogFactor)
 {
-    fragColor.rgb = MixFog(fragColor.rgb, fogFactor);
-    return fragColor;
+    return MixNWRPFogColor(fragColor, fogFactor);
 }
 
 #endif // NEWWORLD_FOG_INCLUDED

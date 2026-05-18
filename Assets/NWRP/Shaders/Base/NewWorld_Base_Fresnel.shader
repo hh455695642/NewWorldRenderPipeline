@@ -19,7 +19,6 @@ Shader "NewWorld/Base/Fresnel"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
-            #pragma multi_compile __ _REFLECTION_ON
 
             #include "../../ShaderLibrary/Core.hlsl"
 
@@ -40,6 +39,7 @@ Shader "NewWorld/Base/Fresnel"
             CBUFFER_START(UnityPerMaterial)
                 half4 _Color;
                 half _Power;
+                half _Reflection;
             CBUFFER_END
 
             Varyings vert(Attributes IN)
@@ -76,10 +76,11 @@ Shader "NewWorld/Base/Fresnel"
                 half fresnel = Fresnel(normalWS, viewWS, _Power);
                 half4 totalColor = _Color * fresnel;
 
-                #if defined(_REFLECTION_ON)
+                if (_Reflection > 0.5h)
+                {
                     half3 cubemap = Reflection(viewWS, normalWS);
                     totalColor.xyz *= cubemap;
-                #endif
+                }
 
                 return totalColor;
             }

@@ -56,6 +56,7 @@ Shader "NewWorld/Lit/PBR"
                 float3 normalWS    : TEXCOORD0;
                 float3 viewWS      : TEXCOORD1;
                 float3 positionWS  : TEXCOORD2;
+                half fogFactor     : TEXCOORD3;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -79,6 +80,7 @@ Shader "NewWorld/Lit/PBR"
                 OUT.positionHCS = TransformWorldToHClip(positionWS);
                 OUT.normalWS    = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.viewWS      = GetWorldSpaceViewDir(positionWS);
+                OUT.fogFactor   = (half)ComputeNWRPFogFactorFromPositionWS(positionWS);
                 return OUT;
             }
 
@@ -93,6 +95,7 @@ Shader "NewWorld/Lit/PBR"
                     _Albedo, _Metallic, _Roughness
                 );
 
+                color = MixNWRPFog(color, IN.fogFactor);
                 return half4(color, 1.0);
             }
 

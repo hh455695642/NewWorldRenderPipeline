@@ -44,6 +44,7 @@ Shader "NewWorld/Lit/Phong"
                 float3 normalWS    : TEXCOORD0;
                 float3 viewWS      : TEXCOORD1;
                 float3 positionWS  : TEXCOORD2;
+                half fogFactor     : TEXCOORD3;
             };
 
             CBUFFER_START(UnityPerMaterial)
@@ -67,6 +68,7 @@ Shader "NewWorld/Lit/Phong"
                 OUT.normalWS      = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.viewWS        = GetWorldSpaceViewDir(positionWS);
                 OUT.positionWS    = positionWS;
+                OUT.fogFactor     = (half)ComputeNWRPFogFactorFromPositionWS(positionWS);
                 return OUT;
             }
 
@@ -98,7 +100,9 @@ Shader "NewWorld/Lit/Phong"
                 // 环境光（简单 SH L0）
                 half3 ambient = half3(unity_SHAr.w, unity_SHAg.w, unity_SHAb.w) * _BaseColor.rgb;
 
-                return half4(diffuse + specular + ambient, 1.0);
+                half3 color = diffuse + specular + ambient;
+                color = MixNWRPFog(color, IN.fogFactor);
+                return half4(color, 1.0);
             }
 
             ENDHLSL
