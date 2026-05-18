@@ -103,6 +103,13 @@ MonoBehaviour:
     depthTexture:
       enableDepthTexture: 1
       copyDepthMode: 0
+    fog:
+      enableFog: 1
+      mode: 1
+      color: {r: 0.5, g: 0.55, b: 0.6, a: 1}
+      startDistance: 20
+      endDistance: 100
+      density: 0.01
     vegetationIndirectShadows:
       enableVegetationIndirectTreeShadows: 1
     features:

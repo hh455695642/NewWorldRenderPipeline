@@ -184,6 +184,31 @@ MonoBehaviour:
   colorTemp:
     m_OverrideState: 0
     m_Value: 6550
+--- !u!114 &-4073496346347401567
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a3fa6932e37b4f7ebe60e47f85a406bb, type: 3}
+  m_Name: NWRPAntiAliasing
+  m_EditorClassIdentifier: 
+  active: 1
+  mode:
+    m_OverrideState: 1
+    m_Value: 1
+  fixedThreshold:
+    m_OverrideState: 1
+    m_Value: 0.0833
+  relativeThreshold:
+    m_OverrideState: 0
+    m_Value: 0.166
+  subpixelBlending:
+    m_OverrideState: 0
+    m_Value: 0.75
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -201,6 +226,7 @@ MonoBehaviour:
   - {fileID: -6140876894605714381}
   - {fileID: -6130318593233354419}
   - {fileID: -8600498653381225063}
+  - {fileID: -4073496346347401567}
 --- !u!114 &2038543448562684077
 MonoBehaviour:
   m_ObjectHideFlags: 3

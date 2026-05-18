@@ -51,7 +51,8 @@ namespace NWRP
             return IsTonemappingActive(ref frameData)
                 || IsBloomActive(ref frameData)
                 || IsColorAdjustmentsActive(ref frameData)
-                || IsVignetteActive(ref frameData);
+                || IsVignetteActive(ref frameData)
+                || IsAntiAliasingActive(ref frameData);
         }
 
         internal static bool IsTonemappingActive(ref NWRPFrameData frameData)
@@ -72,6 +73,11 @@ namespace NWRP
         internal static bool IsVignetteActive(ref NWRPFrameData frameData)
         {
             return IsPostProcessingEnabled(ref frameData) && frameData.vignetteActive;
+        }
+
+        internal static bool IsAntiAliasingActive(ref NWRPFrameData frameData)
+        {
+            return IsPostProcessingEnabled(ref frameData) && frameData.antiAliasingActive;
         }
 
         internal static bool IsPostProcessingEnabled(ref NWRPFrameData frameData)

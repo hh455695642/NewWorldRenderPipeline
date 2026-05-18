@@ -14,6 +14,7 @@ namespace NWRP.Runtime.Passes
     {
         private const string k_TonemappingShaderName = "Hidden/NWRP/PostProcess/Tonemapping";
         private const string k_BloomShaderName = "Hidden/NWRP/PostProcess/Bloom";
+        private const int k_FxaaPassOffset = 4;
         private const int k_BloomLastMip = 5;
         private const int k_BloomMipCount = k_BloomLastMip + 1;
 
@@ -247,12 +248,18 @@ namespace NWRP.Runtime.Passes
             }
 
             bool tonemappingActive = PostProcessFeature.IsTonemappingActive(ref frameData);
+            bool fxaaActive = PostProcessFeature.IsAntiAliasingActive(ref frameData);
             int passIndex = tonemappingActive
                 ? GetTonemappingPassIndex(frameData.tonemapping.mode.value)
                 : 0;
             if (passIndex < 0)
             {
                 return;
+            }
+
+            if (fxaaActive)
+            {
+                passIndex += k_FxaaPassOffset;
             }
 
             CommandBuffer cmd = frameData.cmd;
@@ -274,6 +281,7 @@ namespace NWRP.Runtime.Passes
                 frameData.camera,
                 frameData.vignette,
                 PostProcessFeature.IsVignetteActive(ref frameData));
+            UploadFxaaConstants(ref frameData, source, fxaaActive);
 
             CoreUtils.SetRenderTarget(
                 cmd,
@@ -640,6 +648,54 @@ namespace NWRP.Runtime.Passes
                     innerRing,
                     Mathf.Clamp01(fade),
                     active));
+        }
+
+        private static void UploadFxaaConstants(
+            ref NWRPFrameData frameData,
+            RTHandle source,
+            bool fxaaActive)
+        {
+            CommandBuffer cmd = frameData.cmd;
+            if (cmd == null)
+            {
+                return;
+            }
+
+            NWRPAntiAliasing antiAliasing = frameData.antiAliasing;
+            float fixedThreshold = NWRPAntiAliasing.DefaultFixedThreshold;
+            float relativeThreshold = NWRPAntiAliasing.DefaultRelativeThreshold;
+            float subpixelBlending = NWRPAntiAliasing.DefaultSubpixelBlending;
+            if (fxaaActive && antiAliasing != null)
+            {
+                fixedThreshold = GetFloat(
+                    antiAliasing.fixedThreshold,
+                    NWRPAntiAliasing.DefaultFixedThreshold);
+                relativeThreshold = GetFloat(
+                    antiAliasing.relativeThreshold,
+                    NWRPAntiAliasing.DefaultRelativeThreshold);
+                subpixelBlending = GetFloat(
+                    antiAliasing.subpixelBlending,
+                    NWRPAntiAliasing.DefaultSubpixelBlending);
+            }
+
+            RenderTexture sourceTexture = source != null ? source.rt : null;
+            float width = Mathf.Max(
+                sourceTexture != null ? sourceTexture.width : frameData.cameraTargetWidth,
+                1);
+            float height = Mathf.Max(
+                sourceTexture != null ? sourceTexture.height : frameData.cameraTargetHeight,
+                1);
+
+            cmd.SetGlobalVector(
+                NWRPShaderIds.FxaaParams,
+                new Vector4(
+                    Mathf.Max(0f, fixedThreshold),
+                    Mathf.Max(0f, relativeThreshold),
+                    Mathf.Clamp01(subpixelBlending),
+                    fxaaActive ? 1f : 0f));
+            cmd.SetGlobalVector(
+                NWRPShaderIds.FxaaTexelSize,
+                new Vector4(1f / width, 1f / height, width, height));
         }
 
         private static float GetFloat(FloatParameter parameter, float fallback)

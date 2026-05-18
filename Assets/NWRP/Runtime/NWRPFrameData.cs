@@ -20,10 +20,12 @@ namespace NWRP
         public bool bloomActive;
         public bool colorAdjustmentsActive;
         public bool vignetteActive;
+        public bool antiAliasingActive;
         public NWRPTonemapping tonemapping;
         public NWRPBloom bloom;
         public NWRPColorAdjustments colorAdjustments;
         public NWRPVignette vignette;
+        public NWRPAntiAliasing antiAliasing;
         public NWRPFrameTargets targets;
         public float resolvedRenderScale;
         public int cameraTargetWidth;

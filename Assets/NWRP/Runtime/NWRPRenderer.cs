@@ -412,10 +412,12 @@ namespace NWRP
             frameData.bloomActive = false;
             frameData.colorAdjustmentsActive = false;
             frameData.vignetteActive = false;
+            frameData.antiAliasingActive = false;
             frameData.tonemapping = null;
             frameData.bloom = null;
             frameData.colorAdjustments = null;
             frameData.vignette = null;
+            frameData.antiAliasing = null;
 
             Camera camera = frameData.camera;
             if (camera != null)
@@ -534,6 +536,13 @@ namespace NWRP
             frameData.vignetteActive =
                 vignette != null
                 && vignette.IsActive();
+
+            NWRPAntiAliasing antiAliasing =
+                frameData.volumeStack.GetComponent<NWRPAntiAliasing>();
+            frameData.antiAliasing = antiAliasing;
+            frameData.antiAliasingActive =
+                antiAliasing != null
+                && antiAliasing.IsActive();
         }
 
         private static void ResolveCameraRenderScale(ref NWRPFrameData frameData)

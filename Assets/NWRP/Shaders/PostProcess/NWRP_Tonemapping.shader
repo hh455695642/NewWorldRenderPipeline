@@ -16,6 +16,8 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
         float4 _NWRPVignetteParams;
         float4 _NWRPVignetteParams2;
         float4 _NWRPBloomCompositeParams;
+        float4 _NWRPFxaaParams;
+        float4 _NWRPFxaaTexelSize;
         TEXTURE2D_X(_NWRPBloomTexture);
         TEXTURE2D_X(_NWRPBloomDirtSourceTexture);
         TEXTURE2D(_NWRPBloomDirtTexture);
@@ -43,6 +45,18 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
         #define NWRP_BLOOM_DIRT_INTENSITY _NWRPBloomCompositeParams.y
         #define NWRP_BLOOM_DIRT_THRESHOLD _NWRPBloomCompositeParams.z
         #define NWRP_BLOOM_DIRT_CONTRIBUTION _NWRPBloomCompositeParams.w
+        #define NWRP_FXAA_FIXED_THRESHOLD _NWRPFxaaParams.x
+        #define NWRP_FXAA_RELATIVE_THRESHOLD _NWRPFxaaParams.y
+        #define NWRP_FXAA_SUBPIXEL_BLENDING _NWRPFxaaParams.z
+        #define NWRP_FXAA_TEXEL_SIZE _NWRPFxaaTexelSize.xy
+
+        #define NWRP_TONEMAP_LINEAR 0
+        #define NWRP_TONEMAP_ACES 1
+        #define NWRP_TONEMAP_ACES_FITTED 2
+        #define NWRP_TONEMAP_AGX 3
+        #define NWRP_FXAA_SPAN_MAX 8.0
+        #define NWRP_FXAA_REDUCE_MUL (1.0 / 8.0)
+        #define NWRP_FXAA_REDUCE_MIN (1.0 / 128.0)
 
         half NWRPGetLuma(half3 color)
         {
@@ -168,20 +182,24 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
             return color;
         }
 
-        float4 FetchTonemapInput(Varyings input)
+        float4 FetchTonemapInputAtUv(float2 uv)
         {
-            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-
             float maxInput = max(NWRP_TONEMAP_MAX_INPUT_BRIGHTNESS, 0.0);
             float4 color = SAMPLE_TEXTURE2D_X_LOD(
                 _BlitTexture,
                 sampler_LinearClamp,
-                input.texcoord.xy,
+                uv,
                 _BlitMipLevel);
-            color.rgb = ApplyNWRPBloom(input.texcoord.xy, color.rgb);
+            color.rgb = ApplyNWRPBloom(uv, color.rgb);
             color.rgb = min(max(color.rgb, float3(0.0, 0.0, 0.0)), float3(maxInput, maxInput, maxInput))
                 * NWRP_TONEMAP_PRE_EXPOSURE;
             return color;
+        }
+
+        float4 FetchTonemapInput(Varyings input)
+        {
+            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+            return FetchTonemapInputAtUv(input.texcoord.xy);
         }
 
         float4 PackTonemapOutput(float2 uv, float3 color, float alpha)
@@ -277,6 +295,84 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
             return pow(max(value, float3(0.0, 0.0, 0.0)), max(NWRP_TONEMAP_AGX_GAMMA, 0.0001));
         }
 
+        float4 ResolveNWRPFinalColor(float2 uv, int tonemapMode)
+        {
+            float4 color = FetchTonemapInputAtUv(uv);
+
+            if (tonemapMode == NWRP_TONEMAP_ACES)
+            {
+                color.rgb = TonemapACES(color.rgb);
+            }
+            else if (tonemapMode == NWRP_TONEMAP_ACES_FITTED)
+            {
+                color.rgb = TonemapACESFitted(color.rgb);
+            }
+            else if (tonemapMode == NWRP_TONEMAP_AGX)
+            {
+                color.rgb = TonemapAGX(color.rgb);
+            }
+
+            return PackTonemapOutput(uv, color.rgb, color.a);
+        }
+
+        float4 ApplyNWRPFxaa(float2 uv, int tonemapMode)
+        {
+            float2 texelSize = NWRP_FXAA_TEXEL_SIZE;
+            float4 colorM = ResolveNWRPFinalColor(uv, tonemapMode);
+
+            float4 colorNW = ResolveNWRPFinalColor(uv + texelSize * float2(-1.0, -1.0), tonemapMode);
+            float4 colorNE = ResolveNWRPFinalColor(uv + texelSize * float2(1.0, -1.0), tonemapMode);
+            float4 colorSW = ResolveNWRPFinalColor(uv + texelSize * float2(-1.0, 1.0), tonemapMode);
+            float4 colorSE = ResolveNWRPFinalColor(uv + texelSize * float2(1.0, 1.0), tonemapMode);
+
+            half lumaM = NWRPGetLuma((half3)colorM.rgb);
+            half lumaNW = NWRPGetLuma((half3)colorNW.rgb);
+            half lumaNE = NWRPGetLuma((half3)colorNE.rgb);
+            half lumaSW = NWRPGetLuma((half3)colorSW.rgb);
+            half lumaSE = NWRPGetLuma((half3)colorSE.rgb);
+
+            half lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+            half lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
+            half contrast = lumaMax - lumaMin;
+            half edgeThreshold = max(
+                (half)NWRP_FXAA_FIXED_THRESHOLD,
+                lumaMax * (half)NWRP_FXAA_RELATIVE_THRESHOLD);
+
+            UNITY_BRANCH
+            if (contrast < edgeThreshold)
+            {
+                return colorM;
+            }
+
+            float2 dir;
+            dir.x = -((float)(lumaNW + lumaNE) - (float)(lumaSW + lumaSE));
+            dir.y = ((float)(lumaNW + lumaSW) - (float)(lumaNE + lumaSE));
+
+            half lumaSum = lumaNW + lumaNE + lumaSW + lumaSE;
+            float dirReduce = max((float)lumaSum * (0.25 * NWRP_FXAA_REDUCE_MUL), NWRP_FXAA_REDUCE_MIN);
+            float rcpDirMin = rcp(min(abs(dir.x), abs(dir.y)) + dirReduce);
+            dir = clamp(dir * rcpDirMin, -NWRP_FXAA_SPAN_MAX, NWRP_FXAA_SPAN_MAX) * texelSize;
+
+            float4 colorA = 0.5 * (
+                ResolveNWRPFinalColor(uv + dir * (1.0 / 3.0 - 0.5), tonemapMode)
+                + ResolveNWRPFinalColor(uv + dir * (2.0 / 3.0 - 0.5), tonemapMode));
+            float4 colorB = colorA * 0.5 + 0.25 * (
+                ResolveNWRPFinalColor(uv - dir * 0.5, tonemapMode)
+                + ResolveNWRPFinalColor(uv + dir * 0.5, tonemapMode));
+
+            half lumaB = NWRPGetLuma((half3)colorB.rgb);
+            float4 edgeColor = (lumaB < lumaMin || lumaB > lumaMax) ? colorA : colorB;
+
+            half averageLuma = (lumaNW + lumaNE + lumaSW + lumaSE) * 0.25h;
+            half subpixelContrast = saturate(abs(averageLuma - lumaM) / max(contrast, 0.0001h));
+            subpixelContrast = smoothstep(0.0h, 1.0h, subpixelContrast);
+            half edgeBlend = saturate(0.5h + 0.5h * (half)NWRP_FXAA_SUBPIXEL_BLENDING * subpixelContrast);
+
+            return float4(
+                lerp(colorM.rgb, edgeColor.rgb, edgeBlend),
+                colorM.a);
+        }
+
         float4 FragLinear(Varyings input) : SV_Target
         {
             float4 color = FetchTonemapInput(input);
@@ -299,6 +395,30 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
         {
             float4 color = FetchTonemapInput(input);
             return PackTonemapOutput(input.texcoord.xy, TonemapAGX(color.rgb), color.a);
+        }
+
+        float4 FragLinearFXAA(Varyings input) : SV_Target
+        {
+            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+            return ApplyNWRPFxaa(input.texcoord.xy, NWRP_TONEMAP_LINEAR);
+        }
+
+        float4 FragACESFXAA(Varyings input) : SV_Target
+        {
+            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+            return ApplyNWRPFxaa(input.texcoord.xy, NWRP_TONEMAP_ACES);
+        }
+
+        float4 FragACESFittedFXAA(Varyings input) : SV_Target
+        {
+            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+            return ApplyNWRPFxaa(input.texcoord.xy, NWRP_TONEMAP_ACES_FITTED);
+        }
+
+        float4 FragAGXFXAA(Varyings input) : SV_Target
+        {
+            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+            return ApplyNWRPFxaa(input.texcoord.xy, NWRP_TONEMAP_AGX);
         }
 
     ENDHLSL
@@ -348,6 +468,50 @@ Shader "Hidden/NWRP/PostProcess/Tonemapping"
             HLSLPROGRAM
                 #pragma vertex Vert
                 #pragma fragment FragAGX
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "Linear FXAA"
+            ZWrite Off ZTest Always Blend Off Cull Off
+
+            HLSLPROGRAM
+                #pragma vertex Vert
+                #pragma fragment FragLinearFXAA
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "ACES FXAA"
+            ZWrite Off ZTest Always Blend Off Cull Off
+
+            HLSLPROGRAM
+                #pragma vertex Vert
+                #pragma fragment FragACESFXAA
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "ACES Fitted FXAA"
+            ZWrite Off ZTest Always Blend Off Cull Off
+
+            HLSLPROGRAM
+                #pragma vertex Vert
+                #pragma fragment FragACESFittedFXAA
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "AGX FXAA"
+            ZWrite Off ZTest Always Blend Off Cull Off
+
+            HLSLPROGRAM
+                #pragma vertex Vert
+                #pragma fragment FragAGXFXAA
             ENDHLSL
         }
     }
