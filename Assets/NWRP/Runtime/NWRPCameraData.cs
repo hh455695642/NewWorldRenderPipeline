@@ -29,11 +29,11 @@ namespace NWRP
         private float renderScaleOverride = 1.0f;
 
         [SerializeField]
-        [Tooltip("Volume layers sampled by NWRP post-processing for this camera.")]
+        [Tooltip("Volume layers sampled by NWRP volume-driven effects for this camera.")]
         private LayerMask volumeLayerMask = 1;
 
         [SerializeField]
-        [Tooltip("Optional transform used as the Volume sampling position. Falls back to the Camera transform.")]
+        [Tooltip("Optional transform used as the NWRP Volume sampling position. Falls back to the Camera transform.")]
         private Transform volumeTrigger;
 
         /// <summary>

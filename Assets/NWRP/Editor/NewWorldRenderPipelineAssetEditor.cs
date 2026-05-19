@@ -24,7 +24,6 @@ namespace NWRP.Editor
         private SerializedProperty _featureOutlineProperty;
         private SerializedProperty _featureOpaqueTextureProperty;
         private SerializedProperty _featureDepthTextureProperty;
-        private SerializedProperty _featureFogProperty;
         private SerializedProperty _featureVegetationIndirectShadowProperty;
 
         private SerializedProperty _mainLightShadowsProperty;
@@ -76,12 +75,6 @@ namespace NWRP.Editor
         private SerializedProperty _enableOpaqueTextureProperty;
         private SerializedProperty _enableDepthTextureProperty;
         private SerializedProperty _copyDepthModeProperty;
-        private SerializedProperty _enableFogProperty;
-        private SerializedProperty _fogModeProperty;
-        private SerializedProperty _fogColorProperty;
-        private SerializedProperty _fogStartDistanceProperty;
-        private SerializedProperty _fogEndDistanceProperty;
-        private SerializedProperty _fogDensityProperty;
         private SerializedProperty _enableVegetationIndirectTreeShadowsProperty;
 
         private void OnEnable()
@@ -98,7 +91,6 @@ namespace NWRP.Editor
             _featureOutlineProperty = _featureSettingsProperty.FindPropertyRelative("outline");
             _featureOpaqueTextureProperty = _featureSettingsProperty.FindPropertyRelative("opaqueTexture");
             _featureDepthTextureProperty = _featureSettingsProperty.FindPropertyRelative("depthTexture");
-            _featureFogProperty = _featureSettingsProperty.FindPropertyRelative("fog");
             _featureVegetationIndirectShadowProperty =
                 _featureSettingsProperty.FindPropertyRelative("vegetationIndirectShadows");
             _featureListProperty = _featureSettingsProperty.FindPropertyRelative("features");
@@ -191,12 +183,6 @@ namespace NWRP.Editor
                 _featureDepthTextureProperty.FindPropertyRelative("enableDepthTexture");
             _copyDepthModeProperty =
                 _featureDepthTextureProperty.FindPropertyRelative("copyDepthMode");
-            _enableFogProperty = _featureFogProperty.FindPropertyRelative("enableFog");
-            _fogModeProperty = _featureFogProperty.FindPropertyRelative("mode");
-            _fogColorProperty = _featureFogProperty.FindPropertyRelative("color");
-            _fogStartDistanceProperty = _featureFogProperty.FindPropertyRelative("startDistance");
-            _fogEndDistanceProperty = _featureFogProperty.FindPropertyRelative("endDistance");
-            _fogDensityProperty = _featureFogProperty.FindPropertyRelative("density");
             if (_featureVegetationIndirectShadowProperty != null)
             {
                 _enableVegetationIndirectTreeShadowsProperty =
@@ -248,7 +234,7 @@ namespace NWRP.Editor
             if (!_supportsPostProcessingProperty.boolValue)
             {
                 EditorGUILayout.HelpBox(
-                    "NWRP camera post-processing is disabled at the pipeline capability level. Camera and Volume settings will be ignored.",
+                    "NWRP camera post-processing passes are disabled at the pipeline capability level. Non-post-process Volume effects such as forward fog can still be sampled.",
                     MessageType.Info);
             }
 
@@ -317,38 +303,6 @@ namespace NWRP.Editor
                     new GUIContent("Camera Depth Texture Mode"));
                 EditorGUILayout.HelpBox(
                     "Copies or pre-renders opaque depth to _CameraDepthTexture. After Opaques is required when transparent materials sample scene depth; Force Prepass depends on DepthOnly passes.",
-                    MessageType.Info);
-            }
-
-            EditorGUILayout.Space(2f);
-            DrawSubsectionLabel("Fog");
-            EditorGUILayout.PropertyField(
-                _enableFogProperty,
-                new GUIContent("Enable Global Fog"));
-            if (_enableFogProperty.boolValue)
-            {
-                EditorGUILayout.PropertyField(_fogModeProperty, new GUIContent("Fog Mode"));
-                EditorGUILayout.PropertyField(_fogColorProperty, new GUIContent("Fog Color"));
-
-                NewWorldRenderPipelineAsset.FogMode mode =
-                    (NewWorldRenderPipelineAsset.FogMode)_fogModeProperty.enumValueIndex;
-                if (mode == NewWorldRenderPipelineAsset.FogMode.Linear)
-                {
-                    EditorGUILayout.PropertyField(
-                        _fogStartDistanceProperty,
-                        new GUIContent("Start Distance"));
-                    EditorGUILayout.PropertyField(
-                        _fogEndDistanceProperty,
-                        new GUIContent("End Distance"));
-                }
-                else if (mode == NewWorldRenderPipelineAsset.FogMode.Exp
-                    || mode == NewWorldRenderPipelineAsset.FogMode.Exp2)
-                {
-                    EditorGUILayout.PropertyField(_fogDensityProperty);
-                }
-
-                EditorGUILayout.HelpBox(
-                    "NWRP fog is a global uniform path for Environment and Lit forward passes. It does not add shader variants, render targets, or draw calls.",
                     MessageType.Info);
             }
 

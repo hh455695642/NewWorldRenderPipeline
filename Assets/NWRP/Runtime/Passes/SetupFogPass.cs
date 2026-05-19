@@ -11,20 +11,20 @@ namespace NWRP.Runtime.Passes
 
         public override void Execute(ref NWRPFrameData frameData)
         {
-            NewWorldRenderPipelineAsset asset = frameData.asset;
-            if (asset == null || asset.FogModeSetting == NewWorldRenderPipelineAsset.FogMode.Off)
+            if (!frameData.fogActive
+                || frameData.fogMode == NWRPFogMode.Off)
             {
                 SetDisabledFog(ref frameData);
                 return;
             }
 
-            float start = asset.FogStartDistance;
-            float end = asset.FogEndDistance;
+            float start = frameData.fogStartDistance;
+            float end = frameData.fogEndDistance;
             float invRange = 1.0f / Mathf.Max(end - start, 0.01f);
-            float density = asset.FogDensity;
-            Color fogColor = asset.FogColor.linear;
+            float density = frameData.fogDensity;
+            Color fogColor = frameData.fogColor.linear;
 
-            frameData.cmd.SetGlobalFloat(NWRPShaderIds.FogMode, (float)asset.FogModeSetting);
+            frameData.cmd.SetGlobalFloat(NWRPShaderIds.FogMode, (float)frameData.fogMode);
             frameData.cmd.SetGlobalVector(
                 NWRPShaderIds.FogParams,
                 new Vector4(start, end, invRange, density));
@@ -35,7 +35,7 @@ namespace NWRP.Runtime.Passes
         {
             frameData.cmd.SetGlobalFloat(
                 NWRPShaderIds.FogMode,
-                (float)NewWorldRenderPipelineAsset.FogMode.Off);
+                (float)NWRPFogMode.Off);
             frameData.cmd.SetGlobalVector(NWRPShaderIds.FogParams, Vector4.zero);
             frameData.cmd.SetGlobalColor(NWRPShaderIds.FogColor, Color.clear);
         }

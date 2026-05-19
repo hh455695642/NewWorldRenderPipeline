@@ -413,11 +413,18 @@ namespace NWRP
             frameData.colorAdjustmentsActive = false;
             frameData.vignetteActive = false;
             frameData.antiAliasingActive = false;
+            frameData.fogActive = false;
+            frameData.fogMode = NWRPFogMode.Off;
+            frameData.fogColor = Color.clear;
+            frameData.fogStartDistance = 0f;
+            frameData.fogEndDistance = 0f;
+            frameData.fogDensity = 0f;
             frameData.tonemapping = null;
             frameData.bloom = null;
             frameData.colorAdjustments = null;
             frameData.vignette = null;
             frameData.antiAliasing = null;
+            frameData.fog = null;
 
             Camera camera = frameData.camera;
             if (camera != null)
@@ -428,11 +435,15 @@ namespace NWRP
                 }
             }
 
-            if (camera == null
-                || frameData.asset == null
-                || !frameData.asset.SupportsPostProcessing
-                || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES2)
+            bool canSampleVolumes = camera != null && frameData.asset != null;
+            bool canRunPostProcessing =
+                canSampleVolumes
+                && frameData.asset.SupportsPostProcessing
+                && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES2;
+
+            if (!canSampleVolumes)
             {
+                ResolveFogSettings(ref frameData);
                 return;
             }
 
@@ -443,31 +454,40 @@ namespace NWRP
             // so they sample volumes from the Scene View camera instead.
             if (camera.cameraType == CameraType.SceneView)
             {
-                if (!IsSceneViewPostProcessingEnabled(camera))
+                if (IsSceneViewPostProcessingEnabled(camera))
                 {
-                    return;
+                    ConfigureVolumeStack(
+                        ref frameData,
+                        camera.transform,
+                        camera.cullingMask,
+                        null);
+
+                    if (canRunPostProcessing)
+                    {
+                        ResolvePostProcessingFromVolume(ref frameData);
+                    }
                 }
 
-                ConfigurePostProcessingFromVolume(
-                    ref frameData,
-                    camera.transform,
-                    camera.cullingMask,
-                    null);
+                ResolveFogSettings(ref frameData);
                 return;
             }
 #endif
 
-            if (frameData.cameraData == null
-                || !frameData.cameraData.renderPostProcessing)
+            if (frameData.cameraData != null)
             {
-                return;
+                ConfigureVolumeStack(
+                    ref frameData,
+                    frameData.cameraData.GetVolumeTrigger(camera),
+                    frameData.cameraData.VolumeLayerMask,
+                    frameData.cameraData);
+
+                if (frameData.cameraData.renderPostProcessing && canRunPostProcessing)
+                {
+                    ResolvePostProcessingFromVolume(ref frameData);
+                }
             }
 
-            ConfigurePostProcessingFromVolume(
-                ref frameData,
-                frameData.cameraData.GetVolumeTrigger(camera),
-                frameData.cameraData.VolumeLayerMask,
-                frameData.cameraData);
+            ResolveFogSettings(ref frameData);
         }
 
 #if UNITY_EDITOR
@@ -494,7 +514,7 @@ namespace NWRP
         }
 #endif
 
-        private static void ConfigurePostProcessingFromVolume(
+        private static void ConfigureVolumeStack(
             ref NWRPFrameData frameData,
             Transform volumeTrigger,
             LayerMask volumeLayerMask,
@@ -507,6 +527,14 @@ namespace NWRP
 
             frameData.cameraData = cameraData;
             frameData.volumeStack = VolumeManager.instance.stack;
+            if (frameData.volumeStack == null)
+            {
+                return;
+            }
+        }
+
+        private static void ResolvePostProcessingFromVolume(ref NWRPFrameData frameData)
+        {
             if (frameData.volumeStack == null)
             {
                 return;
@@ -543,6 +571,44 @@ namespace NWRP
             frameData.antiAliasingActive =
                 antiAliasing != null
                 && antiAliasing.IsActive();
+        }
+
+        private static void ResolveFogSettings(ref NWRPFrameData frameData)
+        {
+            NWRPFog fog = frameData.volumeStack != null
+                ? frameData.volumeStack.GetComponent<NWRPFog>()
+                : null;
+            frameData.fog = fog;
+
+            if (fog == null || !fog.IsActive())
+            {
+                frameData.fogActive = false;
+                frameData.fogMode = NWRPFogMode.Off;
+                frameData.fogColor = Color.clear;
+                frameData.fogStartDistance = 0f;
+                frameData.fogEndDistance = 0f;
+                frameData.fogDensity = 0f;
+                return;
+            }
+
+            NWRPFogMode fogMode = fog.mode.value;
+            Color fogColor = fog.color.value;
+            float startDistance = fog.startDistance.value;
+            float endDistance = fog.endDistance.value;
+            float density = fog.density.value;
+
+            startDistance = Mathf.Max(0f, startDistance);
+            endDistance = Mathf.Max(startDistance + 0.01f, endDistance);
+            density = Mathf.Max(0f, density);
+
+            frameData.fogActive = fogMode != NWRPFogMode.Off;
+            frameData.fogMode = frameData.fogActive
+                ? fogMode
+                : NWRPFogMode.Off;
+            frameData.fogColor = fogColor;
+            frameData.fogStartDistance = startDistance;
+            frameData.fogEndDistance = endDistance;
+            frameData.fogDensity = density;
         }
 
         private static void ResolveCameraRenderScale(ref NWRPFrameData frameData)

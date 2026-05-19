@@ -41,9 +41,9 @@ Shader 公共库：
 
 这些目录里仍存在较多旧 URP / 特效 shader variant，但不属于本阶段范围，避免把外部资源迁移和 NWRP 内部清理混在一起。
 
-## 全局雾效配置
+## 雾效控制入口
 
-`NewWorldRenderPipelineAsset.FeatureSettings` 增加全局 Fog 配置：
+雾效参数最终放在 `NWRPFog : VolumeComponent` 中，由场景或局部 Volume Profile 控制：
 - `enableFog`
 - `mode`
 - `color`
@@ -51,15 +51,15 @@ Shader 公共库：
 - `endDistance`
 - `density`
 
-`FogMode` 当前定义为：
+`NewWorldRenderPipelineAsset.FeatureSettings` 不再承载 Fog 参数；没有 Fog Volume 或 `enableFog` 未启用时，雾效默认关闭。这样可以避免 pipeline asset 成为跨场景的隐式雾效默认源。
+
+`NWRPFogMode` 当前定义为：
 - `Off`
 - `Linear`
 - `Exp`
 - `Exp2`
 
-Inspector 中增加对应 Fog 设置区，并继续遵守 NWRP 的配置原则：管线级功能必须有显式开关，配置集中在 pipeline asset，不通过散落的材质 keyword 或相机私有状态控制。
-
-本阶段刻意不做 per-camera fog override。原因是当前需求只需要全局环境雾，多相机差异会引入额外状态同步、Frame Debugger 判读成本和潜在的相机栈顺序问题；移动端 baseline 先保持简单、稳定、可验证。
+本阶段刻意不做相机私有 Fog 字段。Game Camera 复用 `NWRPCameraData` 的 Volume Layer Mask / Trigger 采样 Volume；Scene / 区域差异交给 Unity Volume 系统处理。
 
 ## Feature / Pass 结构
 
@@ -219,3 +219,24 @@ GPU：
 - 如果后续要处理特效 shader，应优先从高引用材质的 `Assets/Res/Effects/Shader` 与 `Assets/NewWorld/ArtResources/Effects/Scripts` 入手。
 - 特效 shader 清理不应简单全局替换 `multi_compile_fog`，需要先确认透明混合、软粒子、flipbook、distortion、UI 特效等路径是否真的需要场景雾。
 - 如果需要更严格的包体控制，可以后续增加 build-time shader variant 审计表，记录 shader、keyword、引用材质数和预估 variant 数，作为质量档位裁剪依据。
+
+## 2026-05-19 补充：Fog Volume 参数接入
+
+在后续确认中，发现仅把 Fog 配置放在 `NewWorldRenderPipelineAsset` 会导致不同场景不能单独调雾效。为保持场景调参能力，同时不把雾效改成高带宽的 screen-space post-process，本阶段追加了 `NWRPFog : VolumeComponent`。
+
+新增行为：
+- Volume 菜单：`NWRP/Environment/Fog`
+- Volume 参数：`enableFog`、`mode`、`color`、`startDistance`、`endDistance`、`density`
+- `NewWorldRenderPipelineAsset.FeatureSettings` 不再承载 Fog 参数，避免管线 asset 变成跨场景雾效默认源
+- 无 Fog Volume 或 `enableFog` 未启用时默认关闭雾效
+- Volume 中 `enableFog = true` 时，使用 Volume 自身的 `mode`、`color`、`startDistance`、`endDistance`、`density`，未单独覆盖的参数使用组件默认值
+
+实现上没有新增 full-screen pass、RenderTexture、DepthTexture 依赖或 shader keyword。`NWRPRenderer` 现在会把 VolumeStack 同时用于后处理和 Fog 参数解析；`supportsPostProcessing` 仍只控制真正的 PostProcess pass，不再阻止 Fog Volume 被采样。`SetupFogPass` 不再依赖 asset fog getter，而是读取 `NWRPFrameData` 中解析后的 fog 数据再上传全局 uniform。
+
+验证补充：
+- `dotnet build NWRP.Runtime.csproj --no-restore`：通过，`0` warning / `0` error
+- `dotnet build NWRP.Editor.csproj --no-restore`：通过，`0` error；仍有项目既有 NuGet / Unity 引用版本 warning
+- Unity `AssetDatabase.Refresh`：通过
+- Unity Console 最近 Error / Exception：为空
+- `ShaderUtil.GetShaderMessages` 扫描 `Environment` / `Lit` 目标 shader：无 compiler messages
+- 临时 Editor smoke test 验证无 Fog Volume 默认关闭、Volume `enableFog=false`、Volume `enableFog=true + Exp2` 均能正确解析到 frame data
