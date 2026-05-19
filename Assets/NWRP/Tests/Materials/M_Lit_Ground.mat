@@ -48,6 +48,6 @@ Material:
     - _ReceiveShadows: 1
     - _Smoothness: 0
     m_Colors:
-    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _BaseColor: {r: 0.5046279, g: 0.8490566, b: 0.66383135, a: 1}
     - _EmissiveColor: {r: 1782.8877, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

@@ -29,11 +29,11 @@ MonoBehaviour:
       mainLightShadowCascadeSplit: 0.35
     atlas:
       mainLightShadowResolution: 1024
-      mainLightShadowFilterMode: 0
+      mainLightShadowFilterMode: 1
       mainLightShadowFilterRadius: 1
     bias:
       mainLightShadowBias: 0.7
-      mainLightShadowNormalBias: 1
+      mainLightShadowNormalBias: 0.1
       mainLightShadowReceiverDepthBias: 0
       mainLightShadowReceiverNormalBias: 0
       mainLightShadowCasterCullMode: 2
@@ -62,8 +62,8 @@ MonoBehaviour:
     mainLightShadowCascadeCount: 2
     mainLightShadowCascadeSplit: 0.35
     mainLightShadowBias: 0.7
-    mainLightShadowNormalBias: 1
-    mainLightShadowFilterMode: 0
+    mainLightShadowNormalBias: 0.1
+    mainLightShadowFilterMode: 1
     mainLightShadowFilterRadius: 1
     mainLightShadowReceiverDepthBias: 0
     mainLightShadowReceiverNormalBias: 0
@@ -83,7 +83,7 @@ MonoBehaviour:
     toggles:
       enableAdditionalLightShadows: 1
     budget:
-      maxShadowedAdditionalLights: 1
+      maxShadowedAdditionalLights: 4
     atlas:
       additionalLightShadowResolution: 512
       additionalLightShadowAtlasMaxSize: 1024
@@ -93,7 +93,7 @@ MonoBehaviour:
       additionalLightShadowNormalBias: 0.6
       additionalLightShadowCasterCullMode: 2
     filter:
-      additionalLightShadowFilterMode: 0
+      additionalLightShadowFilterMode: 1
       additionalLightShadowFilterRadius: 1
   featureSettings:
     outline:
