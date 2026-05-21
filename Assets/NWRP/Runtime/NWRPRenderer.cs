@@ -413,6 +413,7 @@ namespace NWRP
             frameData.colorAdjustmentsActive = false;
             frameData.vignetteActive = false;
             frameData.antiAliasingActive = false;
+            frameData.valleyHeightFogActive = false;
             frameData.fogActive = false;
             frameData.fogMode = NWRPFogMode.Off;
             frameData.fogColor = Color.clear;
@@ -424,6 +425,7 @@ namespace NWRP
             frameData.colorAdjustments = null;
             frameData.vignette = null;
             frameData.antiAliasing = null;
+            frameData.valleyHeightFog = null;
             frameData.fog = null;
 
             Camera camera = frameData.camera;
@@ -571,6 +573,13 @@ namespace NWRP
             frameData.antiAliasingActive =
                 antiAliasing != null
                 && antiAliasing.IsActive();
+
+            NWRPValleyHeightFog valleyHeightFog =
+                frameData.volumeStack.GetComponent<NWRPValleyHeightFog>();
+            frameData.valleyHeightFog = valleyHeightFog;
+            frameData.valleyHeightFogActive =
+                valleyHeightFog != null
+                && valleyHeightFog.IsActive();
         }
 
         private static void ResolveFogSettings(ref NWRPFrameData frameData)

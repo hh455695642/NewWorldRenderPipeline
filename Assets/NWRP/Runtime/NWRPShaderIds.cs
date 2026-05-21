@@ -28,6 +28,17 @@ namespace NWRP
         public static readonly int VignetteParams2 = Shader.PropertyToID("_NWRPVignetteParams2");
         public static readonly int FxaaParams = Shader.PropertyToID("_NWRPFxaaParams");
         public static readonly int FxaaTexelSize = Shader.PropertyToID("_NWRPFxaaTexelSize");
+        public static readonly int ValleyHeightFogColor = Shader.PropertyToID("_NWRPValleyHeightFogColor");
+        public static readonly int ValleyHeightFogHeightParams = Shader.PropertyToID("_NWRPValleyHeightFogHeightParams");
+        public static readonly int ValleyHeightFogDistanceParams = Shader.PropertyToID("_NWRPValleyHeightFogDistanceParams");
+        public static readonly int ValleyHeightFogNoiseParams = Shader.PropertyToID("_NWRPValleyHeightFogNoiseParams");
+        public static readonly int ValleyHeightFogNoiseParams2 = Shader.PropertyToID("_NWRPValleyHeightFogNoiseParams2");
+        public static readonly int ValleyHeightFogBottomParams = Shader.PropertyToID("_NWRPValleyHeightFogBottomParams");
+        public static readonly int ValleyHeightFogBottomNoiseParams = Shader.PropertyToID("_NWRPValleyHeightFogBottomNoiseParams");
+        public static readonly int ValleyHeightFogMidParams = Shader.PropertyToID("_NWRPValleyHeightFogMidParams");
+        public static readonly int ValleyHeightFogMidNoiseParams = Shader.PropertyToID("_NWRPValleyHeightFogMidNoiseParams");
+        public static readonly int ValleyHeightFogTopParams = Shader.PropertyToID("_NWRPValleyHeightFogTopParams");
+        public static readonly int ValleyHeightFogThreeLayerNoiseParams = Shader.PropertyToID("_NWRPValleyHeightFogThreeLayerNoiseParams");
         public static readonly int FogMode = Shader.PropertyToID("_NWRPFogMode");
         public static readonly int FogParams = Shader.PropertyToID("_NWRPFogParams");
         public static readonly int FogColor = Shader.PropertyToID("_NWRPFogColor");

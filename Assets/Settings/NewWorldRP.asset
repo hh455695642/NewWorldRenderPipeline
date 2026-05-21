@@ -1,5 +1,31 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-6901768154398994806
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 72c04c20cb8e8544e83230c14570a96c, type: 3}
+  m_Name: Valley Height Fog Feature
+  m_EditorClassIdentifier:
+  isEnabled: 1
+--- !u!114 &-4768812527477539358
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 72c04c20cb8e8544e83230c14570a96c, type: 3}
+  m_Name: Valley Height Fog Feature
+  m_EditorClassIdentifier:
+  isEnabled: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -107,3 +133,4 @@ MonoBehaviour:
       enableVegetationIndirectTreeShadows: 1
     features:
     - {fileID: 0}
+    - {fileID: -4768812527477539358}

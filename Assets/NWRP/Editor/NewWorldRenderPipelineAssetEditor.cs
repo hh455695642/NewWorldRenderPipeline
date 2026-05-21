@@ -330,6 +330,101 @@ namespace NWRP.Editor
             EditorGUILayout.Space(2f);
             DrawSubsectionLabel("Explicit Features");
             EditorGUILayout.PropertyField(_featureListProperty, true);
+            DrawValleyHeightFogFeatureButton();
+        }
+
+        private void DrawValleyHeightFogFeatureButton()
+        {
+            NewWorldRenderPipelineAsset asset = target as NewWorldRenderPipelineAsset;
+            if (asset == null)
+            {
+                return;
+            }
+
+            bool hasValleyHeightFog = FindValleyHeightFogFeature(asset) != null;
+            string assetPath = AssetDatabase.GetAssetPath(asset);
+            bool canCreateSubAsset = !string.IsNullOrEmpty(assetPath);
+
+            using (new EditorGUI.DisabledScope(hasValleyHeightFog || !canCreateSubAsset))
+            {
+                if (GUILayout.Button("Add Valley Height Fog Feature"))
+                {
+                    serializedObject.ApplyModifiedProperties();
+                    EnsureValleyHeightFogFeature(asset);
+                    serializedObject.Update();
+                }
+            }
+
+            if (hasValleyHeightFog)
+            {
+                EditorGUILayout.HelpBox(
+                    "Valley Height Fog Feature is already referenced in Explicit Features.",
+                    MessageType.Info);
+            }
+            else if (!canCreateSubAsset)
+            {
+                EditorGUILayout.HelpBox(
+                    "Save the NWRP asset before adding Valley Height Fog as a sub-asset feature.",
+                    MessageType.Warning);
+            }
+        }
+
+        public static ValleyHeightFogFeature EnsureValleyHeightFogFeature(
+            NewWorldRenderPipelineAsset asset)
+        {
+            if (asset == null)
+            {
+                return null;
+            }
+
+            ValleyHeightFogFeature existingFeature = FindValleyHeightFogFeature(asset);
+            if (existingFeature != null)
+            {
+                return existingFeature;
+            }
+
+            string assetPath = AssetDatabase.GetAssetPath(asset);
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return null;
+            }
+
+            Undo.RecordObject(asset, "Add Valley Height Fog Feature");
+
+            ValleyHeightFogFeature feature =
+                ScriptableObject.CreateInstance<ValleyHeightFogFeature>();
+            feature.name = "Valley Height Fog Feature";
+
+            AssetDatabase.AddObjectToAsset(feature, asset);
+            Undo.RegisterCreatedObjectUndo(feature, "Add Valley Height Fog Feature");
+
+            asset.Features.Add(feature);
+            EditorUtility.SetDirty(feature);
+            EditorUtility.SetDirty(asset);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+
+            return feature;
+        }
+
+        private static ValleyHeightFogFeature FindValleyHeightFogFeature(
+            NewWorldRenderPipelineAsset asset)
+        {
+            if (asset == null)
+            {
+                return null;
+            }
+
+            System.Collections.Generic.List<NWRPFeature> features = asset.Features;
+            for (int i = 0; i < features.Count; i++)
+            {
+                if (features[i] is ValleyHeightFogFeature feature)
+                {
+                    return feature;
+                }
+            }
+
+            return null;
         }
 
         private void DrawMainLightShadowSettings()

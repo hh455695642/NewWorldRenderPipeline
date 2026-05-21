@@ -209,6 +209,112 @@ MonoBehaviour:
   subpixelBlending:
     m_OverrideState: 0
     m_Value: 0.75
+--- !u!114 &-1015162528043781625
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 28c94c8a1bbf7b84489f2aa8a1577d1b, type: 3}
+  m_Name: NWRPValleyHeightFog
+  m_EditorClassIdentifier:
+  active: 1
+  enable:
+    m_OverrideState: 1
+    m_Value: 1
+  mode:
+    m_OverrideState: 0
+    m_Value: 0
+  fogColor:
+    m_OverrideState: 1
+    m_Value: {r: 0.8, g: 0.9, b: 1, a: 1}
+  fogBaseHeight:
+    m_OverrideState: 1
+    m_Value: 3.7
+  heightDensity:
+    m_OverrideState: 1
+    m_Value: 0.3
+  fogStart:
+    m_OverrideState: 1
+    m_Value: 41.3
+  fogLength:
+    m_OverrideState: 1
+    m_Value: 100
+  noiseScale:
+    m_OverrideState: 1
+    m_Value: 0.005
+  noiseIntensity:
+    m_OverrideState: 1
+    m_Value: 20
+  noiseSpeed:
+    m_OverrideState: 1
+    m_Value: 0.1
+  noiseRoughness:
+    m_OverrideState: 1
+    m_Value: 2
+  noisePersistance:
+    m_OverrideState: 1
+    m_Value: 0.5
+  bottomHeight:
+    m_OverrideState: 0
+    m_Value: 10
+  bottomFade:
+    m_OverrideState: 0
+    m_Value: 6
+  bottomDensity:
+    m_OverrideState: 0
+    m_Value: 0.012
+  bottomIntensity:
+    m_OverrideState: 0
+    m_Value: 0.8
+  bottomNoiseScale:
+    m_OverrideState: 0
+    m_Value: 0.12
+  bottomNoiseIntensity:
+    m_OverrideState: 0
+    m_Value: 1
+  midHeight:
+    m_OverrideState: 0
+    m_Value: 300
+  midFade:
+    m_OverrideState: 0
+    m_Value: 60
+  midDensity:
+    m_OverrideState: 0
+    m_Value: 0.003
+  midIntensity:
+    m_OverrideState: 0
+    m_Value: 0.5
+  midNoiseScale:
+    m_OverrideState: 0
+    m_Value: 0.003
+  midNoiseIntensity:
+    m_OverrideState: 0
+    m_Value: 1.1
+  topIntensity:
+    m_OverrideState: 0
+    m_Value: 0
+  topDensity:
+    m_OverrideState: 0
+    m_Value: 0.0005
+  topNoiseScale:
+    m_OverrideState: 0
+    m_Value: 0.005
+  topNoiseIntensity:
+    m_OverrideState: 0
+    m_Value: 1.5
+  threeLayerNoiseSpeed:
+    m_OverrideState: 0
+    m_Value: 0.15
+  threeLayerNoiseRoughness:
+    m_OverrideState: 0
+    m_Value: 2
+  threeLayerNoisePersistance:
+    m_OverrideState: 0
+    m_Value: 0.35
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -228,6 +334,7 @@ MonoBehaviour:
   - {fileID: -8600498653381225063}
   - {fileID: -4073496346347401567}
   - {fileID: 4873266300171738336}
+  - {fileID: -1015162528043781625}
 --- !u!114 &2038543448562684077
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -268,10 +375,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8dfa3096b693487e9b85bd6f27499d96, type: 3}
   m_Name: NWRPFog
   m_EditorClassIdentifier: 
-  active: 1
+  active: 0
   enableFog:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 0
   mode:
     m_OverrideState: 1
     m_Value: 1

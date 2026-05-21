@@ -21,6 +21,7 @@ namespace NWRP
         public bool colorAdjustmentsActive;
         public bool vignetteActive;
         public bool antiAliasingActive;
+        public bool valleyHeightFogActive;
         public bool fogActive;
         public NWRPFogMode fogMode;
         public Color fogColor;
@@ -32,6 +33,7 @@ namespace NWRP
         public NWRPColorAdjustments colorAdjustments;
         public NWRPVignette vignette;
         public NWRPAntiAliasing antiAliasing;
+        public NWRPValleyHeightFog valleyHeightFog;
         public NWRPFog fog;
         public NWRPFrameTargets targets;
         public float resolvedRenderScale;
