@@ -1,0 +1,242 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-8700429664164777881
+MonoBehaviour:
+  m_ObjectHideFlags: 11
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0353a89b1f911e48b9e16bdc9f2e058, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  version: 7
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: M_FX_Point_09
+  m_Shader: {fileID: 4800000, guid: d90867002083406192cb5ca8d58c697a, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords:
+  - _MASKLOOP_ON
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - Texture2D_aa22deb2aa4244b99e7c2bf5b8f9ae7e:
+        m_Texture: {fileID: 2800000, guid: 0bd920a2c517b814d9ca83318b0ca46c, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BaseMap:
+        m_Texture: {fileID: 2800000, guid: bb96955e415b78d439daed975a1a3a03, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailAlbedoMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailNormalMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DissvoleTex:
+        m_Texture: {fileID: 2800000, guid: 0bd920a2c517b814d9ca83318b0ca46c, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _EmissionMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 2800000, guid: 467b942ca17a2d144bb354b8f214c09f, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Mask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Mask1:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MaskTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MetallicGlossMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _OcclusionMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ParallaxMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SpecGlossMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TextureSample1:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _dissolvetex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _maintex:
+        m_Texture: {fileID: 2800000, guid: 508ab4c56a3706a44b66c00ab0a7cfeb, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _noise:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_Lightmaps:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_LightmapsInd:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_ShadowMasks:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AlphaClip: 0
+    - _AlphaCutoff: 0.5
+    - _AlphaToMask: 0
+    - _Another: 1
+    - _Blend: 0
+    - _BlendModePreserveSpecular: 1
+    - _BumpScale: 1
+    - _ClearCoatMask: 0
+    - _ClearCoatSmoothness: 0
+    - _Cull: 2
+    - _Cutoff: 0.5
+    - _DetailAlbedoMapScale: 1
+    - _DetailNormalMapScale: 1
+    - _Dissvolepanner: 1
+    - _DstBlend: 0
+    - _DstBlendAlpha: 0
+    - _Eage: 0.029
+    - _EnvironmentReflections: 1
+    - _FlipbookBlending: 0
+    - _Float1: 10
+    - _Float10: 0
+    - _Float11: 0
+    - _Float12: 0
+    - _Float14: 1
+    - _Float15: 1
+    - _Float16: 0.5
+    - _Float17: 0
+    - _Float18: 0
+    - _Float2: 0
+    - _Float25: 0
+    - _Float28: 1
+    - _Float30: 1
+    - _Float33: 0
+    - _Float39: 0
+    - _Float4: 0
+    - _Float41: 0
+    - _Float42: 0
+    - _Float43: 0
+    - _Float44: 0
+    - _Float5: 0
+    - _Float53: 0
+    - _Float54: 0
+    - _Float57: 0
+    - _Float6: 0
+    - _Float60: 15
+    - _Float8: 0.5
+    - _Float9: 0
+    - _GlossMapScale: 0
+    - _Glossiness: 0
+    - _GlossyReflections: 0
+    - _Hardness: 0
+    - _InvFade: 3
+    - _Keyword0: 0
+    - _Keyword10: 0
+    - _Keyword11: 0
+    - _Keyword12: 0
+    - _Keyword14: 0
+    - _Keyword4: 1
+    - _Keyword6: 1
+    - _Keyword8: 0
+    - _Loop: 0
+    - _MaskLoop: 1
+    - _Metallic: 0
+    - _OcclusionStrength: 1
+    - _Parallax: 0.005
+    - _Power1: 1
+    - _Power2: 1
+    - _QueueControl: 0
+    - _QueueOffset: 1
+    - _ReceiveShadows: 1
+    - _Smoothness: 0.5
+    - _SmoothnessTextureChannel: 0
+    - _SpecularHighlights: 1
+    - _SrcBlend: 1
+    - _SrcBlendAlpha: 1
+    - _Surface: 0
+    - _Swtich: 0
+    - _Use_mask2: 0
+    - _WorkflowMode: 1
+    - _ZWrite: 1
+    - _Ztestmode: 4
+    - doublenoise: 0
+    m_Colors:
+    - _AnotherColor: {r: 1, g: 1, b: 1, a: 1}
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 2.9960785, g: 2.9960785, b: 2.9960785, a: 1}
+    - _Color0: {r: 1.4980392, g: 1.4980392, b: 1.4980392, a: 1}
+    - _Color1: {r: 1, g: 1, b: 1, a: 1}
+    - _DissvoleTexT_O: {r: 1, g: 1, b: 2.12, a: 0}
+    - _EalgeColor: {r: 1, g: 1, b: 1, a: 1}
+    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _MainColor: {r: 766.9961, g: 766.9961, b: 766.9961, a: 1}
+    - _MainTexT_O: {r: 1, g: 1, b: 1.29, a: 0}
+    - _MaskT_O: {r: 1, g: 1, b: 1, a: 0}
+    - _MaskTiling_Offset: {r: 1, g: 1, b: -0.02, a: 0.01}
+    - _NosieT_O: {r: 1, g: 1, b: 1, a: 0}
+    - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
+    - _Tiling_Offset: {r: 1, g: 1, b: 0, a: 0}
+    - _Vector0: {r: 0, g: 0, b: 0, a: 0}
+    - _Vector10: {r: 1, g: 1, b: 0, a: 0}
+    - _Vector11: {r: 0, g: 0, b: 0, a: 0}
+    - _Vector12: {r: 1, g: 1, b: 0, a: 0}
+    - _Vector13: {r: 0, g: 0, b: 0, a: 0}
+    - _Vector14: {r: 1, g: 1, b: 0, a: 0}
+    - _Vector15: {r: 0, g: 0, b: 0, a: 0}
+    - _Vector16: {r: 1, g: 1, b: 0, a: 0}
+    - _Vector17: {r: 0, g: 0, b: 0, a: 0}
+    - _Vector8: {r: 1, g: 1, b: 0, a: 0}
+  m_BuildTextureStacks: []
