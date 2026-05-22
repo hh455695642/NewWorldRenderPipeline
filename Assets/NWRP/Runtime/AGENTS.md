@@ -5,6 +5,9 @@ Local rules for `Assets/NWRP/Runtime`.
 ## Ownership
 
 - Runtime orchestration lives here: renderer, feature scheduling, pass lifecycle, shader global uploads.
+- Keep the `Runtime` root for pipeline core contracts and global orchestration types.
+- Put concrete feature implementations in domain folders such as `CameraTextures`, `Fog`, `Outlines`, `MainLightShadows`, `PostProcessing`, and `VegetationIndirectRendering`.
+- Feature-owned passes should live beside their feature in a local `Passes` folder unless they are shared built-in renderer passes.
 - Keep custom SRP architecture (`NWRPFeature` + focused `NWRPPass`) and avoid monolithic logic.
 - Do not use `UnityEngine.Rendering.Universal`, `ScriptableRendererFeature`, or `ScriptableRenderPass` in NWRP runtime code.
 - URP-style shader global names are allowed for migration compatibility when their values are uploaded by NWRP-owned runtime code.
@@ -14,6 +17,8 @@ Local rules for `Assets/NWRP/Runtime`.
 - New runtime rendering behavior must be introduced by one focused feature and one or more focused passes.
 - Pass ordering must follow `NWRPPassEvent` contract. Do not add ad hoc ordering outside the enum flow.
 - Any feature affecting runtime cost must have an explicit enable/disable path in `NewWorldRenderPipelineAsset`.
+- GPU-driven renderer integrations should expose explicit provider/registry interfaces instead of adding renderer-specific loops to shadow or camera passes.
+- NWRP-owned runtime systems should not be placed in plugin-style folders unless they are actually third-party package boundaries.
 
 ## Mobile Cost Constraints
 

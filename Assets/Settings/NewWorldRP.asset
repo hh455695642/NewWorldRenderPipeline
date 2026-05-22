@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 72c04c20cb8e8544e83230c14570a96c, type: 3}
   m_Name: Valley Height Fog Feature
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   isEnabled: 1
 --- !u!114 &-4768812527477539358
 MonoBehaviour:
@@ -24,7 +24,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 72c04c20cb8e8544e83230c14570a96c, type: 3}
   m_Name: Valley Height Fog Feature
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   isEnabled: 1
 --- !u!114 &11400000
 MonoBehaviour:
@@ -43,7 +43,7 @@ MonoBehaviour:
   supportsHDR: 1
   hdrColorBufferPrecision: 0
   supportsPostProcessing: 1
-  enableRenderScale: 0
+  enableRenderScale: 1
   renderScale: 1
   renderScaleFilterMode: 1
   mainLightShadows:
@@ -132,5 +132,4 @@ MonoBehaviour:
     vegetationIndirectShadows:
       enableVegetationIndirectTreeShadows: 1
     features:
-    - {fileID: 0}
     - {fileID: -4768812527477539358}

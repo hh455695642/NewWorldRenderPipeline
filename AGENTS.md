@@ -21,6 +21,8 @@ The primary audience for this file is coding agents working inside this project.
 - Runtime pipeline code lives in [`Assets/NWRP/Runtime`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Runtime)
 - Shared shader library lives in [`Assets/NWRP/ShaderLibrary`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/ShaderLibrary)
 - NWRP-owned shaders live in [`Assets/NWRP/Shaders`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Shaders)
+- NWRP compute shaders live under [`Assets/NWRP/Shaders/Compute`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Shaders/Compute)
+- NWRP editor tooling lives in [`Assets/NWRP/Editor`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Editor), grouped by domain while keeping the root asmdef there.
 - Pipeline asset lives in [`Assets/Settings/NewWorldRP.asset`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/Settings/NewWorldRP.asset)
 - Sample scenes live in [`Assets/Scenes`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/Scenes) and [`Assets/NWRP/Tests/Scenes`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Tests/Scenes)
 
@@ -34,6 +36,15 @@ The primary audience for this file is coding agents working inside this project.
   - explicit toggles/config in `NewWorldRenderPipelineAsset`
 - Do not build a "super feature" that owns unrelated systems.
 - Pass communication must be explicit through frame data, global shader params, or named render targets. Avoid hidden coupling.
+
+## Directory and Naming Rules
+
+- Keep `Assets/NWRP/Runtime` root for pipeline core types only, such as renderer, frame data, base pass/feature contracts, shader IDs, and the pipeline asset.
+- Runtime feature systems should live under `Assets/NWRP/Runtime/<FeatureArea>` with focused `Passes` subfolders when they own dedicated passes.
+- Do not place NWRP-owned runtime systems under `Assets/NWRP/Plugins`; reserve plugin-style folders for third-party or externally sourced packages.
+- Keep compute shaders under `Assets/NWRP/Shaders/Compute/<Domain>` and keep material-facing shaders under their shader family folders.
+- Keep `Assets/NWRP/Editor` grouped by domain (`Pipeline`, `Shaders`, `PostProcessing`, `Lighting`, `Cameras`) while preserving existing namespaces and shader `CustomEditor` strings.
+- New test assets and folders should use stable English names without typo drift, spaces, or parenthesized variants when avoidable. Do not mass-rename scene instance names unless a task explicitly requires YAML churn.
 
 ## Pass Order Contract
 

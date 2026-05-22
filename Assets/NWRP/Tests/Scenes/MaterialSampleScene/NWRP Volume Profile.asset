@@ -220,13 +220,13 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 28c94c8a1bbf7b84489f2aa8a1577d1b, type: 3}
   m_Name: NWRPValleyHeightFog
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   active: 1
   enable:
     m_OverrideState: 1
     m_Value: 1
   mode:
-    m_OverrideState: 0
+    m_OverrideState: 1
     m_Value: 0
   fogColor:
     m_OverrideState: 1
@@ -259,8 +259,8 @@ MonoBehaviour:
     m_OverrideState: 1
     m_Value: 0.5
   bottomHeight:
-    m_OverrideState: 0
-    m_Value: 10
+    m_OverrideState: 1
+    m_Value: 4.3
   bottomFade:
     m_OverrideState: 0
     m_Value: 6
@@ -277,8 +277,8 @@ MonoBehaviour:
     m_OverrideState: 0
     m_Value: 1
   midHeight:
-    m_OverrideState: 0
-    m_Value: 300
+    m_OverrideState: 1
+    m_Value: 18.5
   midFade:
     m_OverrideState: 0
     m_Value: 60
@@ -295,8 +295,8 @@ MonoBehaviour:
     m_OverrideState: 0
     m_Value: 1.1
   topIntensity:
-    m_OverrideState: 0
-    m_Value: 0
+    m_OverrideState: 1
+    m_Value: 0.5
   topDensity:
     m_OverrideState: 0
     m_Value: 0.0005
@@ -325,7 +325,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d7fd9488000d3734a9e00ee676215985, type: 3}
-  m_Name: NWRP Volime Profile
+  m_Name: NWRP Volume Profile
   m_EditorClassIdentifier: 
   components:
   - {fileID: 2038543448562684077}

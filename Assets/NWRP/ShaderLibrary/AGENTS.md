@@ -6,6 +6,8 @@ Local rules for `Assets/NWRP/ShaderLibrary`.
 
 - Shared shader functions, shared lighting/shadow sampling, and cross-shader pass includes live here.
 - Keep this folder reusable across lit/NPR/effect shaders.
+- Keep material-facing `.shader` files in `Assets/NWRP/Shaders`.
+- Keep `.compute` files in `Assets/NWRP/Shaders/Compute`; this folder is for shared HLSL include code.
 
 ## Include Organization
 
@@ -14,6 +16,7 @@ Local rules for `Assets/NWRP/ShaderLibrary`.
 - Avoid duplicating pass logic across shader families.
 - Do not include `Packages/com.unity.render-pipelines.universal/...` from NWRP-owned shader libraries.
 - URP-style helper names are allowed for migration compatibility, but implementations must live in NWRP or Unity Core includes.
+- New shared includes should use NWRP-owned names unless a URP-compatible alias materially reduces migration cost.
 
 ## Mobile Shader Constraints
 
