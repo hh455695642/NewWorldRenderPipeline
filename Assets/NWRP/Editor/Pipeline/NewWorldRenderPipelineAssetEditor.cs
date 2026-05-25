@@ -391,6 +391,17 @@ namespace NWRP.Editor
 
             Undo.RecordObject(asset, "Add Valley Height Fog Feature");
 
+            ValleyHeightFogFeature unreferencedFeature =
+                FindValleyHeightFogFeatureSubAsset(assetPath);
+            if (unreferencedFeature != null)
+            {
+                asset.Features.Add(unreferencedFeature);
+                EditorUtility.SetDirty(asset);
+                AssetDatabase.SaveAssets();
+                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+                return unreferencedFeature;
+            }
+
             ValleyHeightFogFeature feature =
                 ScriptableObject.CreateInstance<ValleyHeightFogFeature>();
             feature.name = "Valley Height Fog Feature";
@@ -419,6 +430,21 @@ namespace NWRP.Editor
             for (int i = 0; i < features.Count; i++)
             {
                 if (features[i] is ValleyHeightFogFeature feature)
+                {
+                    return feature;
+                }
+            }
+
+            return null;
+        }
+
+        private static ValleyHeightFogFeature FindValleyHeightFogFeatureSubAsset(
+            string assetPath)
+        {
+            Object[] subAssets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            for (int i = 0; i < subAssets.Length; i++)
+            {
+                if (subAssets[i] is ValleyHeightFogFeature feature)
                 {
                     return feature;
                 }
