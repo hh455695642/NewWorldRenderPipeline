@@ -10,6 +10,7 @@ namespace NWRP.Editor
     {
         private const string kFeatureEnabledPropertyName = "isEnabled";
         private const string kValleyHeightFogFeatureName = "Valley Height Fog Feature";
+        private const string kValleyHeightFogOverlayFeatureName = "Valley Height Fog Overlay Feature";
         private const float kFeatureRowDragHandleWidth = 18f;
 
         private SerializedProperty _featureSettingsProperty;
@@ -390,6 +391,11 @@ namespace NWRP.Editor
                             AddValleyHeightFogFeatureFromMenu);
                     }
 
+                    menu.AddItem(
+                        new GUIContent("Valley Height Fog Overlay"),
+                        false,
+                        AddValleyHeightFogOverlayFeatureFromMenu);
+
                     menu.ShowAsContext();
                 }
             }
@@ -419,6 +425,57 @@ namespace NWRP.Editor
                 _featureReorderableList.index = index;
                 SetExpanded(feature, true);
             }
+        }
+
+        private void AddValleyHeightFogOverlayFeatureFromMenu()
+        {
+            serializedObject.ApplyModifiedProperties();
+            NWRPRendererData rendererData = target as NWRPRendererData;
+            ValleyHeightFogOverlayFeature feature =
+                AddValleyHeightFogOverlayFeature(rendererData);
+            serializedObject.Update();
+            if (feature == null)
+            {
+                return;
+            }
+
+            int index = IndexOfFeature(rendererData, feature);
+            if (index >= 0)
+            {
+                _featureReorderableList.index = index;
+                SetExpanded(feature, true);
+            }
+        }
+
+        internal static ValleyHeightFogOverlayFeature AddValleyHeightFogOverlayFeature(
+            NWRPRendererData rendererData)
+        {
+            if (rendererData == null)
+            {
+                return null;
+            }
+
+            string assetPath = AssetDatabase.GetAssetPath(rendererData);
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return null;
+            }
+
+            Undo.RecordObject(rendererData, "Add Valley Height Fog Overlay Feature");
+            ValleyHeightFogOverlayFeature feature =
+                ScriptableObject.CreateInstance<ValleyHeightFogOverlayFeature>();
+            feature.name = kValleyHeightFogOverlayFeatureName;
+            AssetDatabase.AddObjectToAsset(feature, rendererData);
+            Undo.RegisterCreatedObjectUndo(
+                feature,
+                "Add Valley Height Fog Overlay Feature");
+
+            rendererData.Features.Add(feature);
+            EditorUtility.SetDirty(feature);
+            EditorUtility.SetDirty(rendererData);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+            return feature;
         }
 
         internal static ValleyHeightFogFeature AddValleyHeightFogFeature(

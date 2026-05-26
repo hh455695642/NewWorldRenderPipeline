@@ -24,7 +24,8 @@ MonoBehaviour:
       enableVegetationIndirectTreeShadows: 1
     features:
     - {fileID: 3887250939672980424}
---- !u!114 &-1748222523674684751
+    - {fileID: -679942319511359571}
+--- !u!114 &-679942319511359571
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -33,8 +34,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 72c04c20cb8e8544e83230c14570a96c, type: 3}
-  m_Name: Valley Height Fog Feature
+  m_Script: {fileID: 11500000, guid: dcdb95db6724a274291038fb29c01d9d, type: 3}
+  m_Name: Valley Height Fog Overlay Feature
   m_EditorClassIdentifier: 
   isEnabled: 1
 --- !u!114 &11400000
@@ -146,32 +147,7 @@ MonoBehaviour:
     - {fileID: 0}
   rendererDataList:
   - {fileID: -2629907331226510980}
-  - {fileID: 1371338752282139463}
   defaultRendererIndex: 0
---- !u!114 &1371338752282139463
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4ec819d38f994ecebe9ff96c617d20e8, type: 3}
-  m_Name: NWRP Renderer Data 1
-  m_EditorClassIdentifier: 
-  featureSettings:
-    outline:
-      enableOutline: 0
-    opaqueTexture:
-      enableOpaqueTexture: 0
-    depthTexture:
-      enableDepthTexture: 0
-      copyDepthMode: 0
-    vegetationIndirectShadows:
-      enableVegetationIndirectTreeShadows: 0
-    features:
-    - {fileID: -1748222523674684751}
 --- !u!114 &3887250939672980424
 MonoBehaviour:
   m_ObjectHideFlags: 0
