@@ -11,7 +11,7 @@
 - 旧项目的 `ParabolaLine.shader` 使用 `LightMode="AfterFog"`，依赖一个在 Valley Height Fog 之后、后处理之前执行的透明补画 pass。
 - 当前 NWRP 需要把该逻辑拆成可插拔 `NWRPFeature / NWRPPass`，不能把旧 URP `ScriptableRendererFeature` 直接搬进主渲染流程。
 - 实际场景里的 `Task Line` 又暴露了两个运行时问题: clone 出来的 `LineRenderer` prefab 被脚本默认隐藏，`progress` 在 Inspector 中改值后不再实时写入材质属性。
-- 最终对当前任务线采用常规透明渲染路径: `ParabolaLine.shader` 使用 `NewWorldUnlit` pass，让任务线直接进入 NWRP Transparent 阶段；`ValleyHeightFogOverlay` 保留为后续确实需要“雾后补画”的特效扩展点。
+- 最终对当前任务线采用雾后 overlay 渲染路径: `ParabolaLine.shader` 使用 `AfterFog` pass，由 `ValleyHeightFogOverlayPass` 在 Valley Height Fog 之后、PostProcess 之前绘制。
 
 本阶段没有修改 `CameraRenderer` / `NWRPRenderer` 主流程，遵守 NWRP 的 Feature / Pass 扩展边界。
 
@@ -93,13 +93,13 @@ NWRPAfterFog
 Tags { "LightMode"="AfterFog" }
 ```
 
-这条路径适合需要在 Valley Height Fog 之后补画的特殊特效，但当前场景 `Task Line` 的需求更直接: prefab clone 后应该在默认层正常显示，并且不依赖旧项目 `MainMap` layer 或雾后补画 pass。
+这条路径正是当前 `Task Line` 需要的结果: 抛物线 LineRenderer 应该作为雾后 overlay 特效绘制，保证它出现在 Valley Height Fog 之后、PostProcess 之前。旧项目 `MainMap` layer 仍不参与，本项目只依赖默认 layer 与 shader pass tag。
 
-因此当前最终实现让任务线 shader 走 NWRP 常规透明阶段:
+因此当前最终实现让任务线 shader 走 `ValleyHeightFogOverlayPass`:
 
 ```hlsl
-Name "NewWorldUnlit"
-Tags { "LightMode"="NewWorldUnlit" }
+Name "AfterFogParabolaLine"
+Tags { "LightMode"="AfterFog" }
 ```
 
 透明队列保持:
@@ -109,12 +109,13 @@ Tags { "LightMode"="NewWorldUnlit" }
 "Queue"="Transparent"
 ```
 
-这样 `LineRenderer` 会被 NWRP 现有 Transparent 阶段识别，不需要为了普通任务线额外依赖 `ValleyHeightFogOverlayFeature`。
+这样 `LineRenderer` 不会被 NWRP 常规 `Draw Transparent Objects` 阶段捕获，而是由 `ValleyHeightFogOverlayPass` 通过 `ShaderTagId("AfterFog")` 绘制。
 
 保留规则:
 
-- 需要“雾后再补画”的特效，继续使用 `AfterFog` / `NWRPAfterFog` 并挂载 `ValleyHeightFogOverlayFeature`。
-- 普通任务线、地图路线、当前 `Task Line` 默认使用 `NewWorldUnlit`。
+- 当前 `ParabolaLine` / `Task Line` 使用 `AfterFog`，保持旧项目兼容语义。
+- 后续新增 NWRP 自有雾后 overlay shader 时，可使用 `NWRPAfterFog`。
+- 普通无雾后需求的透明特效仍可使用 `NewWorldUnlit`。
 
 ## TaskPointParabolaGenerator 修复
 
@@ -195,7 +196,7 @@ CPU:
 
 GPU:
 
-- 当前 Task Line 不新增 RenderPass。
+- 当前 Task Line 依赖已启用的 `ValleyHeightFogOverlayPass`。
 - 当前 Task Line 不新增 RenderTexture。
 - 当前 Task Line 不做 fullscreen blit。
 - `LineRenderer` 仍在透明队列中，主要成本来自透明 overdraw 和 2 次纹理采样。
@@ -235,17 +236,26 @@ Unity Console Warning: 0
 Play Mode 验证:
 
 ```text
-TaskLineRecheck: isPlaying=True
-lineCount=2, generatorProgress=1
-active=True/True, enabled=True, pos=257, layer=Default(0), shader=NewWorld/Env/ParabolaLine, queue=3000, mpbProgress=1
-active=True/True, enabled=True, pos=337, layer=Default(0), shader=NewWorld/Env/ParabolaLine, queue=3000, mpbProgress=1
+isPlaying=True
+taskLineFound=True
+lineCount=2
+line[0] name=P_FX_ParabolaLine_Big(Clone), active=True/True, enabled=True, layer=Default(0), shader=NewWorld/Env/ParabolaLine, lightMode=AfterFog, queue=3000, mpbProgress=0.5278745
+line[1] name=P_FX_ParabolaLine_Big(Clone), active=True/True, enabled=True, layer=Default(0), shader=NewWorld/Env/ParabolaLine, lightMode=AfterFog, queue=3000, mpbProgress=0
+```
+
+运行时将 `TaskPointParabolaGenerator.progress` 设置为 `1` 后再次验证:
+
+```text
+lineCount=2
+line[0] active=True, enabled=True, lightMode=AfterFog, mpbProgress=1
+line[1] active=True, enabled=True, lightMode=AfterFog, mpbProgress=0.9999999
 ```
 
 结论:
 
 - `P_FX_ParabolaLine(Clone)` 不再被脚本默认隐藏。
 - clone 对象保持 `Default(0)` layer。
-- 当前任务线材质进入 NWRP 可识别的 `NewWorldUnlit` pass。
+- 当前任务线材质进入 NWRP 可识别的 `AfterFog` pass，并由 `ValleyHeightFogOverlayPass` 绘制。
 - `_Progress` 能通过 `MaterialPropertyBlock` 写入并更新。
 - 验证后已退出 Play Mode。
 
@@ -253,5 +263,5 @@ active=True/True, enabled=True, pos=337, layer=Default(0), shader=NewWorld/Env/P
 
 - 如果任务线需要业务显隐控制，应提供明确接口，不要在生成阶段默认隐藏所有 clone。
 - 如果 `progress` 只由业务系统驱动，可后续把每帧刷新改为外部 dirty 调用。
-- 如果未来确实需要“雾后透明补画”的特效层，启用 `ValleyHeightFogOverlayFeature` 并让对应 shader 使用 `AfterFog` 或 `NWRPAfterFog`。
+- 如果未来还需要其他“雾后透明补画”的特效层，继续复用 `ValleyHeightFogOverlayFeature`，对应 shader 使用 `AfterFog` 或 `NWRPAfterFog`。
 - 如果后续路线数量增多，应考虑批处理或 GPU-driven 方案，不要扩展成大量独立 `LineRenderer`。

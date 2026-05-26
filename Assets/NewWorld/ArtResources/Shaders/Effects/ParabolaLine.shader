@@ -27,8 +27,8 @@ Shader "NewWorld/Env/ParabolaLine"
 
         Pass
         {
-            Name "NewWorldUnlit"
-            Tags { "LightMode"="NewWorldUnlit" }
+            Name "AfterFogParabolaLine"
+            Tags { "LightMode"="AfterFog" }
 
             Cull Off
             Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
