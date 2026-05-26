@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace NWRP
 {
-    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Depth Texture Feature")]
     public sealed class DepthTextureFeature : NWRPFeature
     {
         private CopyDepthPass _copyDepthPass;
@@ -20,26 +19,26 @@ namespace NWRP
             out NWRPFrameTargetRequirements requirements)
         {
             requirements = default;
-            if (frameData.asset == null || !frameData.asset.EnableDepthTexture)
+            if (frameData.rendererData == null || !frameData.rendererData.EnableDepthTexture)
             {
                 return false;
             }
 
             requirements = GetFrameTargetRequirements(
-                frameData.asset.DepthTextureCopyModeSetting,
+                frameData.rendererData.DepthTextureCopyModeSetting,
                 frameData.camera);
             return true;
         }
 
         public override void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData)
         {
-            if (frameData.asset == null || !frameData.asset.EnableDepthTexture)
+            if (frameData.rendererData == null || !frameData.rendererData.EnableDepthTexture)
             {
                 return;
             }
 
             NewWorldRenderPipelineAsset.DepthTextureCopyMode copyMode =
-                frameData.asset.DepthTextureCopyModeSetting;
+                frameData.rendererData.DepthTextureCopyModeSetting;
             if (ShouldUseDepthPrepass(copyMode, frameData.camera))
             {
                 _depthPrepass ??= new DepthPrepass();

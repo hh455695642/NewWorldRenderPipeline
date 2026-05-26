@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace NWRP
 {
-    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Outline Feature")]
     public sealed class OutlineFeature : NWRPFeature
     {
         private DrawOutlinePass _outlinePass;

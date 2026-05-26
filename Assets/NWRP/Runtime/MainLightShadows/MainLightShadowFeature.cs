@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace NWRP
 {
-    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Main Light Shadow Feature")]
     public sealed class MainLightShadowFeature : NWRPFeature
     {
         private MainLightShadowDisabledPass _mainLightShadowDisabledPass;

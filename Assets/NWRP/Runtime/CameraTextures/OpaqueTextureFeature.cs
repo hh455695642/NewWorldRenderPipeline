@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace NWRP
 {
-    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Opaque Texture Feature")]
     public sealed class OpaqueTextureFeature : NWRPFeature
     {
         private CopyColorPass _copyColorPass;
@@ -18,7 +17,7 @@ namespace NWRP
             out NWRPFrameTargetRequirements requirements)
         {
             requirements = default;
-            if (frameData.asset == null || !frameData.asset.EnableOpaqueTexture)
+            if (frameData.rendererData == null || !frameData.rendererData.EnableOpaqueTexture)
             {
                 return false;
             }
@@ -31,8 +30,8 @@ namespace NWRP
 
         public override void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData)
         {
-            if (frameData.asset == null
-                || !frameData.asset.EnableOpaqueTexture)
+            if (frameData.rendererData == null
+                || !frameData.rendererData.EnableOpaqueTexture)
             {
                 return;
             }

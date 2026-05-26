@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace NWRP
 {
-    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Vegetation Indirect Shadow Feature")]
     public sealed class VegetationIndirectShadowFeature : NWRPFeature
     {
         private VegetationIndirectShadowPass _shadowPass;
@@ -18,8 +17,9 @@ namespace NWRP
             if (renderer == null
                 || _shadowPass == null
                 || frameData.asset == null
+                || frameData.rendererData == null
                 || !frameData.asset.EnableMainLightShadows
-                || !frameData.asset.EnableVegetationIndirectTreeShadows)
+                || !frameData.rendererData.EnableVegetationIndirectTreeShadows)
             {
                 return;
             }

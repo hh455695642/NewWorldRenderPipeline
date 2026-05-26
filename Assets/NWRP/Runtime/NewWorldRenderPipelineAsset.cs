@@ -492,8 +492,13 @@ namespace NWRP
         [Header("Additional Punctual Light Shadows")]
         public AdditionalLightShadowSettings additionalLightShadows = new AdditionalLightShadowSettings();
 
-        [Header("Feature Settings")]
+        [HideInInspector]
         public FeatureSettings featureSettings = new FeatureSettings();
+
+        [Header("Renderer List")]
+        public NWRPRendererData[] rendererDataList = new NWRPRendererData[1];
+
+        public int defaultRendererIndex = 0;
 
         [System.NonSerialized]
         private MainLightShadowFeature _runtimeMainLightShadowFeature;
@@ -518,6 +523,9 @@ namespace NWRP
 
         [System.NonSerialized]
         private VegetationIndirectShadowFeature _runtimeVegetationIndirectShadowFeature;
+
+        [System.NonSerialized]
+        private NWRPRendererData _runtimeLegacyRendererData;
 
         private MainLightShadowSettings MainLightShadowSettingsData
         {
@@ -546,13 +554,112 @@ namespace NWRP
             }
         }
 
+        public int DefaultRendererIndex
+        {
+            get
+            {
+                ResolveDefaultRendererIndex();
+                return defaultRendererIndex;
+            }
+        }
+
+        public int RendererDataCount => rendererDataList != null ? rendererDataList.Length : 0;
+
         public List<NWRPFeature> Features
         {
             get
             {
-                return FeatureSettingsData.features;
+                NWRPRendererData rendererData = GetRendererData(-1);
+                return rendererData != null
+                    ? rendererData.Features
+                    : FeatureSettingsData.features;
             }
         }
+
+        public NWRPRendererData GetRendererData(int index)
+        {
+            return GetRendererData(index, out _);
+        }
+
+        public NWRPRendererData GetRendererDataForCamera(Camera camera, out int resolvedIndex)
+        {
+            int rendererIndex = -1;
+            if (camera != null && camera.TryGetComponent(out NWRPCameraData cameraData))
+            {
+                rendererIndex = cameraData.RendererIndex;
+            }
+
+            return GetRendererData(rendererIndex, out resolvedIndex);
+        }
+
+        public bool ValidateRendererData(int index)
+        {
+            int resolvedIndex = index == -1 ? ResolveDefaultRendererIndex() : index;
+            return IsRendererDataIndexValid(resolvedIndex);
+        }
+
+        public bool ValidateRendererDataList(bool requireAllValid = false)
+        {
+            if (rendererDataList == null || rendererDataList.Length == 0)
+            {
+                return false;
+            }
+
+            int invalidCount = 0;
+            for (int i = 0; i < rendererDataList.Length; i++)
+            {
+                if (rendererDataList[i] == null)
+                {
+                    invalidCount++;
+                }
+            }
+
+            return requireAllValid
+                ? invalidCount == 0
+                : invalidCount != rendererDataList.Length;
+        }
+
+#if UNITY_EDITOR
+        public GUIContent[] rendererDisplayList
+        {
+            get
+            {
+                int rendererCount = rendererDataList != null ? rendererDataList.Length : 0;
+                GUIContent[] list = new GUIContent[rendererCount + 1];
+                list[0] = new GUIContent(
+                    $"Default Renderer ({RendererDataDisplayName(GetRendererData(-1))})");
+
+                for (int i = 1; i < list.Length; i++)
+                {
+                    NWRPRendererData data = rendererDataList[i - 1];
+                    list[i] = new GUIContent(
+                        $"{i - 1}: {RendererDataDisplayName(data)}");
+                }
+
+                return list;
+            }
+        }
+
+        public int[] rendererIndexList
+        {
+            get
+            {
+                int rendererCount = rendererDataList != null ? rendererDataList.Length : 0;
+                int[] list = new int[rendererCount + 1];
+                for (int i = 0; i < list.Length; i++)
+                {
+                    list[i] = i - 1;
+                }
+
+                return list;
+            }
+        }
+
+        private static string RendererDataDisplayName(NWRPRendererData data)
+        {
+            return data != null ? data.name : "NULL (Missing RendererData)";
+        }
+#endif
 
         public bool EnableMainLightShadows => MainLightShadowSettingsData.toggles.enableMainLightShadows;
         public bool EnableCachedMainLightShadows => MainLightShadowSettingsData.cached.enableCachedMainLightShadows;
@@ -594,12 +701,12 @@ namespace NWRP
             AdditionalLightShadowSettingsData.filter.additionalLightShadowFilterMode;
         public float AdditionalLightShadowFilterRadius =>
             AdditionalLightShadowSettingsData.filter.additionalLightShadowFilterRadius;
-        public bool EnableOutline => FeatureSettingsData.outline.enableOutline;
-        public bool EnableOpaqueTexture => FeatureSettingsData.opaqueTexture.enableOpaqueTexture;
-        public bool EnableDepthTexture => FeatureSettingsData.depthTexture.enableDepthTexture;
-        public DepthTextureCopyMode DepthTextureCopyModeSetting => FeatureSettingsData.depthTexture.copyDepthMode;
+        public bool EnableOutline => GetRendererData(-1).EnableOutline;
+        public bool EnableOpaqueTexture => GetRendererData(-1).EnableOpaqueTexture;
+        public bool EnableDepthTexture => GetRendererData(-1).EnableDepthTexture;
+        public DepthTextureCopyMode DepthTextureCopyModeSetting => GetRendererData(-1).DepthTextureCopyModeSetting;
         public bool EnableVegetationIndirectTreeShadows =>
-            FeatureSettingsData.vegetationIndirectShadows.enableVegetationIndirectTreeShadows;
+            GetRendererData(-1).EnableVegetationIndirectTreeShadows;
         public bool SupportsHDR => supportsHDR;
         public HDRColorBufferPrecision HDRColorBufferPrecisionSetting => hdrColorBufferPrecision;
         public bool SupportsPostProcessing => supportsPostProcessing;
@@ -610,27 +717,47 @@ namespace NWRP
                 ? FilterMode.Point
                 : FilterMode.Bilinear;
 
+        internal NWRPRendererData GetRendererData(int index, out int resolvedIndex)
+        {
+            resolvedIndex = -1;
+
+            if (rendererDataList != null && rendererDataList.Length > 0)
+            {
+                int requestedIndex = index == -1
+                    ? ResolveDefaultRendererIndex()
+                    : index;
+                if (IsRendererDataIndexValid(requestedIndex))
+                {
+                    resolvedIndex = requestedIndex;
+                    return rendererDataList[requestedIndex];
+                }
+
+                int defaultIndex = ResolveDefaultRendererIndex();
+                if (IsRendererDataIndexValid(defaultIndex))
+                {
+                    resolvedIndex = defaultIndex;
+                    return rendererDataList[defaultIndex];
+                }
+
+                int firstValidIndex = FindFirstValidRendererDataIndex();
+                if (firstValidIndex >= 0)
+                {
+                    defaultRendererIndex = firstValidIndex;
+                    resolvedIndex = firstValidIndex;
+                    return rendererDataList[firstValidIndex];
+                }
+            }
+
+            return GetOrCreateLegacyRendererData();
+        }
+
         /// <summary>
         /// Marks the cached main light shadow atlas dirty. If the pipeline asset has no serialized feature instance,
         /// the runtime fallback main light shadow feature is used instead.
         /// </summary>
         public void MarkMainLightShadowCacheDirty()
         {
-            bool handled = false;
-            List<NWRPFeature> features = Features;
-            for (int i = 0; i < features.Count; i++)
-            {
-                if (features[i] is not MainLightShadowFeature feature)
-                {
-                    continue;
-                }
-
-                feature.EnsureCreated();
-                feature.MarkCacheDirty();
-                handled = true;
-            }
-
-            if (handled)
+            if (ApplyToSerializedMainLightShadowFeatures(markDirty: true))
             {
                 return;
             }
@@ -646,8 +773,55 @@ namespace NWRP
         /// </summary>
         public void ClearMainLightShadowCache()
         {
+            if (ApplyToSerializedMainLightShadowFeatures(markDirty: false))
+            {
+                return;
+            }
+
+            MainLightShadowFeature runtimeFeature = GetOrCreateMainLightShadowFeature();
+            runtimeFeature.EnsureCreated();
+            runtimeFeature.ClearCache();
+        }
+
+        private bool ApplyToSerializedMainLightShadowFeatures(bool markDirty)
+        {
             bool handled = false;
-            List<NWRPFeature> features = Features;
+            if (rendererDataList != null)
+            {
+                for (int i = 0; i < rendererDataList.Length; i++)
+                {
+                    NWRPRendererData rendererData = rendererDataList[i];
+                    if (rendererData == null)
+                    {
+                        continue;
+                    }
+
+                    handled |= ApplyToMainLightShadowFeatures(
+                        rendererData.Features,
+                        markDirty);
+                }
+            }
+
+            if (!handled && !ValidateRendererDataList())
+            {
+                handled |= ApplyToMainLightShadowFeatures(
+                    GetOrCreateLegacyRendererData().Features,
+                    markDirty);
+            }
+
+            return handled;
+        }
+
+        private static bool ApplyToMainLightShadowFeatures(
+            List<NWRPFeature> features,
+            bool markDirty)
+        {
+            bool handled = false;
+            if (features == null)
+            {
+                return false;
+            }
+
             for (int i = 0; i < features.Count; i++)
             {
                 if (features[i] is not MainLightShadowFeature feature)
@@ -656,18 +830,19 @@ namespace NWRP
                 }
 
                 feature.EnsureCreated();
-                feature.ClearCache();
+                if (markDirty)
+                {
+                    feature.MarkCacheDirty();
+                }
+                else
+                {
+                    feature.ClearCache();
+                }
+
                 handled = true;
             }
 
-            if (handled)
-            {
-                return;
-            }
-
-            MainLightShadowFeature runtimeFeature = GetOrCreateMainLightShadowFeature();
-            runtimeFeature.EnsureCreated();
-            runtimeFeature.ClearCache();
+            return handled;
         }
 
         internal MainLightShadowFeature GetOrCreateMainLightShadowFeature()
@@ -776,8 +951,79 @@ namespace NWRP
             return _runtimeVegetationIndirectShadowFeature;
         }
 
+        private NWRPRendererData GetOrCreateLegacyRendererData()
+        {
+            if (_runtimeLegacyRendererData != null)
+            {
+                return _runtimeLegacyRendererData;
+            }
+
+            _runtimeLegacyRendererData =
+                ScriptableObject.CreateInstance<NWRPRendererData>();
+            _runtimeLegacyRendererData.hideFlags = HideFlags.HideAndDontSave;
+            _runtimeLegacyRendererData.name = "NWRP Runtime Legacy RendererData";
+            _runtimeLegacyRendererData.CopyFeatureSettingsFrom(FeatureSettingsData);
+            return _runtimeLegacyRendererData;
+        }
+
+        private int ResolveDefaultRendererIndex()
+        {
+            if (rendererDataList == null || rendererDataList.Length == 0)
+            {
+                defaultRendererIndex = 0;
+                return -1;
+            }
+
+            if (IsRendererDataIndexValid(defaultRendererIndex))
+            {
+                return defaultRendererIndex;
+            }
+
+            int firstValidIndex = FindFirstValidRendererDataIndex();
+            if (firstValidIndex >= 0)
+            {
+                defaultRendererIndex = firstValidIndex;
+                return firstValidIndex;
+            }
+
+            defaultRendererIndex = Mathf.Clamp(
+                defaultRendererIndex,
+                0,
+                Mathf.Max(rendererDataList.Length - 1, 0));
+            return -1;
+        }
+
+        private bool IsRendererDataIndexValid(int index)
+        {
+            return rendererDataList != null
+                && index >= 0
+                && index < rendererDataList.Length
+                && rendererDataList[index] != null;
+        }
+
+        private int FindFirstValidRendererDataIndex()
+        {
+            if (rendererDataList == null)
+            {
+                return -1;
+            }
+
+            for (int i = 0; i < rendererDataList.Length; i++)
+            {
+                if (rendererDataList[i] != null)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
         internal void DisposeRuntimeFeatures()
         {
+            DisposeRendererDataRuntimeFeatures();
+            DisposeLegacyRendererData();
+
             if (_runtimeMainLightShadowFeature == null)
             {
                 DisposeAdditionalRuntimeFeature();
@@ -807,6 +1053,42 @@ namespace NWRP
             DisposeFogRuntimeFeature();
             DisposePostProcessRuntimeFeature();
             DisposeVegetationIndirectShadowRuntimeFeature();
+        }
+
+        private void DisposeRendererDataRuntimeFeatures()
+        {
+            if (rendererDataList == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < rendererDataList.Length; i++)
+            {
+                if (rendererDataList[i] != null)
+                {
+                    rendererDataList[i].DisposeRuntimeFeatures();
+                }
+            }
+        }
+
+        private void DisposeLegacyRendererData()
+        {
+            if (_runtimeLegacyRendererData == null)
+            {
+                return;
+            }
+
+            _runtimeLegacyRendererData.DisposeRuntimeFeatures();
+            if (Application.isPlaying)
+            {
+                Destroy(_runtimeLegacyRendererData);
+            }
+            else
+            {
+                DestroyImmediate(_runtimeLegacyRendererData);
+            }
+
+            _runtimeLegacyRendererData = null;
         }
 
         private void DisposeAdditionalRuntimeFeature()
@@ -950,6 +1232,7 @@ namespace NWRP
         void ISerializationCallbackReceiver.OnBeforeSerialize()
         {
             EnsureFeatureSettings();
+            ResolveDefaultRendererIndex();
 
             if (mainLightShadows == null)
             {
@@ -970,6 +1253,7 @@ namespace NWRP
             EnsureMainLightShadowSettings(allowAssetFileMigration: false);
             EnsureAdditionalLightShadowSettings();
             EnsureFeatureSettings();
+            ResolveDefaultRendererIndex();
         }
 
 #if UNITY_EDITOR
@@ -978,6 +1262,7 @@ namespace NWRP
             EnsureMainLightShadowSettings(allowAssetFileMigration: true);
             EnsureAdditionalLightShadowSettings();
             EnsureFeatureSettings();
+            ResolveDefaultRendererIndex();
 
             renderScale = ValidateRenderScale(renderScale);
 

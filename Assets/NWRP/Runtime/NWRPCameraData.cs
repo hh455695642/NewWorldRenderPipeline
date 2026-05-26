@@ -36,6 +36,10 @@ namespace NWRP
         [Tooltip("Optional transform used as the NWRP Volume sampling position. Falls back to the Camera transform.")]
         private Transform volumeTrigger;
 
+        [SerializeField]
+        [Tooltip("Renderer Data index from the active NWRP asset. -1 uses the pipeline default renderer.")]
+        private int m_RendererIndex = -1;
+
         /// <summary>
         /// Matches URP AdditionalCameraData.renderPostProcessing naming. This is the
         /// user-facing camera setting, not the resolved per-frame runtime state.
@@ -79,6 +83,13 @@ namespace NWRP
                 : camera != null
                     ? camera.transform
                     : transform;
+        }
+
+        public int RendererIndex => m_RendererIndex;
+
+        public void SetRenderer(int index)
+        {
+            m_RendererIndex = index;
         }
 
 #if UNITY_EDITOR

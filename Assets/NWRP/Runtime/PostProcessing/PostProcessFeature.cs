@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace NWRP
 {
-    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Post Process Feature")]
     public sealed class PostProcessFeature : NWRPFeature
     {
         private PostProcessPass _postProcessPass;

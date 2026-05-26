@@ -97,7 +97,9 @@ namespace NWRP
         public void Render(
             ScriptableRenderContext context,
             Camera camera,
-            NewWorldRenderPipelineAsset asset
+            NewWorldRenderPipelineAsset asset,
+            NWRPRendererData rendererData,
+            int rendererDataIndex
         )
         {
 #if UNITY_EDITOR
@@ -116,7 +118,9 @@ namespace NWRP
                 camera = camera,
                 cullingResults = cullingResults,
                 cmd = cmd,
-                asset = asset
+                asset = asset,
+                rendererData = rendererData,
+                rendererDataIndex = rendererDataIndex
             };
 
             try
@@ -946,14 +950,31 @@ namespace NWRP
                 return requirements;
             }
 
-            List<NWRPFeature> features = frameData.asset.Features;
+            NWRPRendererData rendererData = frameData.rendererData;
+            if (rendererData == null)
+            {
+                return requirements;
+            }
+
+            List<NWRPFeature> features = rendererData.Features;
             bool hasActiveSerializedPostProcessFeature = false;
+            bool hasActiveSerializedValleyHeightFogFeature = false;
             for (int i = 0; i < features.Count; i++)
             {
                 NWRPFeature feature = features[i];
                 if (feature == null || !feature.IsEnabled)
                 {
                     continue;
+                }
+
+                if (feature is ValleyHeightFogFeature)
+                {
+                    if (hasActiveSerializedValleyHeightFogFeature)
+                    {
+                        continue;
+                    }
+
+                    hasActiveSerializedValleyHeightFogFeature = true;
                 }
 
                 if (feature is PostProcessFeature)
@@ -972,7 +993,7 @@ namespace NWRP
             if (!hasActiveSerializedPostProcessFeature && PostProcessFeature.HasAnyActivePostProcess(ref frameData))
             {
                 PostProcessFeature runtimePostProcessFeature =
-                    frameData.asset.GetOrCreatePostProcessFeature();
+                    rendererData.GetOrCreatePostProcessFeature();
                 runtimePostProcessFeature.EnsureCreated();
                 if (runtimePostProcessFeature.TryGetFrameTargetRequirements(
                         ref frameData,
@@ -982,17 +1003,17 @@ namespace NWRP
                 }
             }
 
-            if (frameData.asset.EnableOpaqueTexture)
+            if (rendererData.EnableOpaqueTexture)
             {
                 requirements.requiresIntermediateColor = true;
                 requirements.requiresIntermediateDepth = true;
                 requirements.requiresOpaqueTexture = true;
             }
 
-            if (frameData.asset.EnableDepthTexture)
+            if (rendererData.EnableDepthTexture)
             {
                 requirements.Merge(DepthTextureFeature.GetFrameTargetRequirements(
-                    frameData.asset.DepthTextureCopyModeSetting,
+                    rendererData.DepthTextureCopyModeSetting,
                     frameData.camera));
             }
 
@@ -1514,7 +1535,13 @@ namespace NWRP
 
         private void EnqueueFeaturePasses(ref NWRPFrameData frameData)
         {
-            List<NWRPFeature> features = frameData.asset.Features;
+            NWRPRendererData rendererData = frameData.rendererData;
+            if (rendererData == null)
+            {
+                return;
+            }
+
+            List<NWRPFeature> features = rendererData.Features;
             bool hasSerializedMainLightShadowFeature = false;
             bool hasSerializedAdditionalLightShadowFeature = false;
             bool hasSerializedVegetationIndirectShadowFeature = false;
@@ -1522,13 +1549,14 @@ namespace NWRP
             bool hasActiveSerializedOpaqueTextureFeature = false;
             bool hasActiveSerializedFogFeature = false;
             bool hasActiveSerializedPostProcessFeature = false;
+            bool hasActiveSerializedValleyHeightFogFeature = false;
             bool hasActiveSerializedDepthTextureFeature =
                 HasActiveSerializedDepthTextureFeature(features);
 
-            if (!hasActiveSerializedDepthTextureFeature && frameData.asset.EnableDepthTexture)
+            if (!hasActiveSerializedDepthTextureFeature && rendererData.EnableDepthTexture)
             {
                 DepthTextureFeature runtimeDepthTextureFeature =
-                    frameData.asset.GetOrCreateDepthTextureFeature();
+                    rendererData.GetOrCreateDepthTextureFeature();
                 if (runtimeDepthTextureFeature != null && runtimeDepthTextureFeature.IsEnabled)
                 {
                     runtimeDepthTextureFeature.EnsureCreated();
@@ -1558,6 +1586,16 @@ namespace NWRP
                 {
                     hasSerializedVegetationIndirectShadowFeature = true;
                     continue;
+                }
+
+                if (feature is ValleyHeightFogFeature)
+                {
+                    if (hasActiveSerializedValleyHeightFogFeature)
+                    {
+                        continue;
+                    }
+
+                    hasActiveSerializedValleyHeightFogFeature = true;
                 }
 
                 if (feature is OutlineFeature)
@@ -1609,10 +1647,10 @@ namespace NWRP
                     feature.AddPasses(this, ref frameData);
                 }
             }
-            else if (frameData.asset.EnableVegetationIndirectTreeShadows)
+            else if (rendererData.EnableVegetationIndirectTreeShadows)
             {
                 VegetationIndirectShadowFeature runtimeVegetationIndirectShadowFeature =
-                    frameData.asset.GetOrCreateVegetationIndirectShadowFeature();
+                    rendererData.GetOrCreateVegetationIndirectShadowFeature();
                 if (runtimeVegetationIndirectShadowFeature != null
                     && runtimeVegetationIndirectShadowFeature.IsEnabled)
                 {
@@ -1632,9 +1670,9 @@ namespace NWRP
                 }
             }
 
-            if (!hasActiveSerializedOutlineFeature && frameData.asset.EnableOutline)
+            if (!hasActiveSerializedOutlineFeature && rendererData.EnableOutline)
             {
-                OutlineFeature runtimeOutlineFeature = frameData.asset.GetOrCreateOutlineFeature();
+                OutlineFeature runtimeOutlineFeature = rendererData.GetOrCreateOutlineFeature();
                 if (runtimeOutlineFeature != null && runtimeOutlineFeature.IsEnabled)
                 {
                     runtimeOutlineFeature.EnsureCreated();
@@ -1642,10 +1680,10 @@ namespace NWRP
                 }
             }
 
-            if (!hasActiveSerializedOpaqueTextureFeature && frameData.asset.EnableOpaqueTexture)
+            if (!hasActiveSerializedOpaqueTextureFeature && rendererData.EnableOpaqueTexture)
             {
                 OpaqueTextureFeature runtimeOpaqueTextureFeature =
-                    frameData.asset.GetOrCreateOpaqueTextureFeature();
+                    rendererData.GetOrCreateOpaqueTextureFeature();
                 if (runtimeOpaqueTextureFeature != null && runtimeOpaqueTextureFeature.IsEnabled)
                 {
                     runtimeOpaqueTextureFeature.EnsureCreated();
@@ -1655,7 +1693,7 @@ namespace NWRP
 
             if (!hasActiveSerializedFogFeature)
             {
-                NWRPFogFeature runtimeFogFeature = frameData.asset.GetOrCreateFogFeature();
+                NWRPFogFeature runtimeFogFeature = rendererData.GetOrCreateFogFeature();
                 if (runtimeFogFeature != null && runtimeFogFeature.IsEnabled)
                 {
                     runtimeFogFeature.EnsureCreated();
@@ -1666,7 +1704,7 @@ namespace NWRP
             if (!hasActiveSerializedPostProcessFeature && PostProcessFeature.HasAnyActivePostProcess(ref frameData))
             {
                 PostProcessFeature runtimePostProcessFeature =
-                    frameData.asset.GetOrCreatePostProcessFeature();
+                    rendererData.GetOrCreatePostProcessFeature();
                 if (runtimePostProcessFeature != null && runtimePostProcessFeature.IsEnabled)
                 {
                     runtimePostProcessFeature.EnsureCreated();

@@ -13,6 +13,8 @@ namespace NWRP
         public CullingResults cullingResults;
         public CommandBuffer cmd;
         public NewWorldRenderPipelineAsset asset;
+        public NWRPRendererData rendererData;
+        public int rendererDataIndex;
         public NWRPCameraData cameraData;
         public VolumeStack volumeStack;
         public bool postProcessingEnabled;

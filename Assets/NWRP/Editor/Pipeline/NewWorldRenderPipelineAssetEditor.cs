@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine;
 
 namespace NWRP.Editor
@@ -10,6 +12,8 @@ namespace NWRP.Editor
             "NWRP.NewWorldRenderPipelineAssetEditor.MainLightSectionExpanded";
         private const string kAdditionalLightSectionStateKey =
             "NWRP.NewWorldRenderPipelineAssetEditor.AdditionalLightSectionExpanded";
+        private const string kDefaultRendererDataName = "NWRP Default Renderer";
+        private const string kGeneratedRendererDataPrefix = "NWRP Renderer Data ";
 
         private SerializedProperty _useSRPBatcherProperty;
         private SerializedProperty _useGPUInstancingProperty;
@@ -19,6 +23,8 @@ namespace NWRP.Editor
         private SerializedProperty _enableRenderScaleProperty;
         private SerializedProperty _renderScaleProperty;
         private SerializedProperty _renderScaleFilterModeProperty;
+        private SerializedProperty _rendererDataListProperty;
+        private SerializedProperty _defaultRendererIndexProperty;
         private SerializedProperty _featureSettingsProperty;
         private SerializedProperty _featureListProperty;
         private SerializedProperty _featureOutlineProperty;
@@ -76,9 +82,13 @@ namespace NWRP.Editor
         private SerializedProperty _enableDepthTextureProperty;
         private SerializedProperty _copyDepthModeProperty;
         private SerializedProperty _enableVegetationIndirectTreeShadowsProperty;
+        private ReorderableList _rendererDataList;
 
         private void OnEnable()
         {
+            EnsureDefaultRendererDataForInspector(target as NewWorldRenderPipelineAsset);
+            serializedObject.Update();
+
             _useSRPBatcherProperty = serializedObject.FindProperty("useSRPBatcher");
             _useGPUInstancingProperty = serializedObject.FindProperty("useGPUInstancing");
             _supportsHDRProperty = serializedObject.FindProperty("supportsHDR");
@@ -87,6 +97,10 @@ namespace NWRP.Editor
             _enableRenderScaleProperty = serializedObject.FindProperty("enableRenderScale");
             _renderScaleProperty = serializedObject.FindProperty("renderScale");
             _renderScaleFilterModeProperty = serializedObject.FindProperty("renderScaleFilterMode");
+            _rendererDataListProperty = serializedObject.FindProperty("rendererDataList");
+            _defaultRendererIndexProperty = serializedObject.FindProperty("defaultRendererIndex");
+            CreateRendererDataList();
+
             _featureSettingsProperty = serializedObject.FindProperty("featureSettings");
             _featureOutlineProperty = _featureSettingsProperty.FindPropertyRelative("outline");
             _featureOpaqueTextureProperty = _featureSettingsProperty.FindPropertyRelative("opaqueTexture");
@@ -199,7 +213,7 @@ namespace NWRP.Editor
             EditorGUILayout.Space();
             DrawShadowSettings();
             EditorGUILayout.Space();
-            DrawFeatureSettings();
+            DrawRendererSettings();
 
             serializedObject.ApplyModifiedProperties();
         }
@@ -271,6 +285,197 @@ namespace NWRP.Editor
                 DrawAdditionalLightShadowSettings);
         }
 
+        private void DrawRendererSettings()
+        {
+            EditorGUILayout.LabelField("Renderer List", EditorStyles.boldLabel);
+            _rendererDataList?.DoLayoutList();
+
+            NewWorldRenderPipelineAsset asset = target as NewWorldRenderPipelineAsset;
+            if (asset == null)
+            {
+                return;
+            }
+
+            if (!asset.ValidateRendererDataList())
+            {
+                EditorGUILayout.HelpBox(
+                    "No valid NWRP Renderer Data is assigned. Runtime will fall back to legacy Feature Settings until a renderer data asset is assigned.",
+                    MessageType.Error);
+            }
+            else if (!asset.ValidateRendererData(-1))
+            {
+                EditorGUILayout.HelpBox(
+                    "Default Renderer is missing. NWRP will fall back to the first valid renderer data entry.",
+                    MessageType.Warning);
+            }
+
+            EditorGUILayout.HelpBox(
+                "Renderer Data owns feature/pass toggles and explicit NWRPFeature lists. Select a renderer data asset to edit its Feature Settings.",
+                MessageType.None);
+        }
+
+        private void CreateRendererDataList()
+        {
+            _rendererDataList = new ReorderableList(
+                serializedObject,
+                _rendererDataListProperty,
+                true,
+                true,
+                true,
+                true)
+            {
+                drawHeaderCallback = rect => EditorGUI.LabelField(rect, "Renderers"),
+                drawElementCallback = DrawRendererDataElement,
+                onAddCallback = AddRendererDataElement,
+                onRemoveCallback = RemoveRendererDataElement,
+                onCanRemoveCallback = list => list.count > 1,
+                onReorderCallbackWithDetails = (_, oldIndex, newIndex) =>
+                    UpdateDefaultRendererIndexOnReorder(oldIndex, newIndex)
+            };
+        }
+
+        private void DrawRendererDataElement(
+            Rect rect,
+            int index,
+            bool isActive,
+            bool isFocused)
+        {
+            rect.y += 2f;
+            SerializedProperty element =
+                _rendererDataListProperty.GetArrayElementAtIndex(index);
+            Rect indexRect = new Rect(
+                rect.x,
+                rect.y,
+                22f,
+                EditorGUIUtility.singleLineHeight);
+            EditorGUI.LabelField(indexRect, index.ToString());
+
+            Rect objectRect = new Rect(
+                rect.x + 24f,
+                rect.y,
+                rect.width - 150f,
+                EditorGUIUtility.singleLineHeight);
+            EditorGUI.PropertyField(objectRect, element, GUIContent.none);
+
+            Rect defaultRect = new Rect(
+                rect.x + rect.width - 122f,
+                rect.y,
+                78f,
+                EditorGUIUtility.singleLineHeight);
+            bool isDefault = index == _defaultRendererIndexProperty.intValue;
+            using (new EditorGUI.DisabledScope(isDefault))
+            {
+                if (GUI.Button(defaultRect, isDefault ? "Default" : "Set Default"))
+                {
+                    _defaultRendererIndexProperty.intValue = index;
+                    EditorUtility.SetDirty(target);
+                }
+            }
+
+            Rect selectRect = new Rect(
+                rect.x + rect.width - 40f,
+                rect.y,
+                40f,
+                EditorGUIUtility.singleLineHeight);
+            using (new EditorGUI.DisabledScope(element.objectReferenceValue == null))
+            {
+                if (GUI.Button(selectRect, "Select"))
+                {
+                    Selection.activeObject = element.objectReferenceValue;
+                }
+            }
+        }
+
+        private void AddRendererDataElement(ReorderableList list)
+        {
+            serializedObject.ApplyModifiedProperties();
+
+            NewWorldRenderPipelineAsset asset = target as NewWorldRenderPipelineAsset;
+            NWRPRendererData rendererData = CreateRendererDataSubAsset(
+                asset,
+                $"NWRP Renderer Data {list.count}");
+
+            serializedObject.Update();
+            int newIndex = _rendererDataListProperty.arraySize;
+            _rendererDataListProperty.InsertArrayElementAtIndex(newIndex);
+            SerializedProperty element =
+                _rendererDataListProperty.GetArrayElementAtIndex(newIndex);
+            element.objectReferenceValue = rendererData;
+            _rendererDataList.index = newIndex;
+            EditorUtility.SetDirty(target);
+            serializedObject.ApplyModifiedProperties();
+            SaveAndImportAsset(asset);
+            serializedObject.Update();
+        }
+
+        private void RemoveRendererDataElement(ReorderableList list)
+        {
+            int removeIndex = list.index;
+            if (removeIndex == _defaultRendererIndexProperty.intValue)
+            {
+                EditorUtility.DisplayDialog(
+                    "Default Renderer",
+                    "Cannot remove the default renderer. Set another renderer as default first.",
+                    "Close");
+                return;
+            }
+
+            Object rendererDataToRemove = _rendererDataListProperty
+                .GetArrayElementAtIndex(removeIndex)
+                .objectReferenceValue;
+            NWRPRendererData ownedRendererDataToDestroy =
+                IsOwnedRendererDataSubAsset(rendererDataToRemove)
+                    ? rendererDataToRemove as NWRPRendererData
+                    : null;
+
+            Undo.RecordObject(target, $"Remove renderer at index {removeIndex}");
+            int oldSize = _rendererDataListProperty.arraySize;
+            _rendererDataListProperty.DeleteArrayElementAtIndex(removeIndex);
+            if (_rendererDataListProperty.arraySize == oldSize)
+            {
+                _rendererDataListProperty.DeleteArrayElementAtIndex(removeIndex);
+            }
+
+            if (_defaultRendererIndexProperty.intValue > removeIndex)
+            {
+                _defaultRendererIndexProperty.intValue--;
+            }
+
+            _defaultRendererIndexProperty.intValue = Mathf.Clamp(
+                _defaultRendererIndexProperty.intValue,
+                0,
+                Mathf.Max(_rendererDataListProperty.arraySize - 1, 0));
+            EditorUtility.SetDirty(target);
+
+            if (ownedRendererDataToDestroy != null)
+            {
+                serializedObject.ApplyModifiedProperties();
+                DestroyOwnedRendererDataSubAsset(
+                    target as NewWorldRenderPipelineAsset,
+                    ownedRendererDataToDestroy);
+                serializedObject.Update();
+            }
+        }
+
+        private void UpdateDefaultRendererIndexOnReorder(int oldIndex, int newIndex)
+        {
+            int defaultIndex = _defaultRendererIndexProperty.intValue;
+            if (defaultIndex == oldIndex)
+            {
+                _defaultRendererIndexProperty.intValue = newIndex;
+            }
+            else if (oldIndex < defaultIndex && newIndex >= defaultIndex)
+            {
+                _defaultRendererIndexProperty.intValue--;
+            }
+            else if (oldIndex > defaultIndex && newIndex <= defaultIndex)
+            {
+                _defaultRendererIndexProperty.intValue++;
+            }
+
+            EditorUtility.SetDirty(target);
+        }
+
         private void DrawFeatureSettings()
         {
             EditorGUILayout.LabelField("Feature Settings", EditorStyles.boldLabel);
@@ -330,57 +535,14 @@ namespace NWRP.Editor
             EditorGUILayout.Space(2f);
             DrawSubsectionLabel("Explicit Features");
             EditorGUILayout.PropertyField(_featureListProperty, true);
-            DrawValleyHeightFogFeatureButton();
         }
 
-        private void DrawValleyHeightFogFeatureButton()
-        {
-            NewWorldRenderPipelineAsset asset = target as NewWorldRenderPipelineAsset;
-            if (asset == null)
-            {
-                return;
-            }
-
-            bool hasValleyHeightFog = FindValleyHeightFogFeature(asset) != null;
-            string assetPath = AssetDatabase.GetAssetPath(asset);
-            bool canCreateSubAsset = !string.IsNullOrEmpty(assetPath);
-
-            using (new EditorGUI.DisabledScope(hasValleyHeightFog || !canCreateSubAsset))
-            {
-                if (GUILayout.Button("Add Valley Height Fog Feature"))
-                {
-                    serializedObject.ApplyModifiedProperties();
-                    EnsureValleyHeightFogFeature(asset);
-                    serializedObject.Update();
-                }
-            }
-
-            if (hasValleyHeightFog)
-            {
-                EditorGUILayout.HelpBox(
-                    "Valley Height Fog Feature is already referenced in Explicit Features.",
-                    MessageType.Info);
-            }
-            else if (!canCreateSubAsset)
-            {
-                EditorGUILayout.HelpBox(
-                    "Save the NWRP asset before adding Valley Height Fog as a sub-asset feature.",
-                    MessageType.Warning);
-            }
-        }
-
-        public static ValleyHeightFogFeature EnsureValleyHeightFogFeature(
+        internal static NWRPRendererData EnsureDefaultRendererDataForInspector(
             NewWorldRenderPipelineAsset asset)
         {
             if (asset == null)
             {
                 return null;
-            }
-
-            ValleyHeightFogFeature existingFeature = FindValleyHeightFogFeature(asset);
-            if (existingFeature != null)
-            {
-                return existingFeature;
             }
 
             string assetPath = AssetDatabase.GetAssetPath(asset);
@@ -389,64 +551,274 @@ namespace NWRP.Editor
                 return null;
             }
 
-            Undo.RecordObject(asset, "Add Valley Height Fog Feature");
-
-            ValleyHeightFogFeature unreferencedFeature =
-                FindValleyHeightFogFeatureSubAsset(assetPath);
-            if (unreferencedFeature != null)
+            if (asset.ValidateRendererDataList())
             {
-                asset.Features.Add(unreferencedFeature);
+                NWRPRendererData namedDefault =
+                    FindRendererDataSubAsset(assetPath, kDefaultRendererDataName);
+                if (RepairNamedDefaultRendererReference(asset, namedDefault))
+                {
+                    EditorUtility.SetDirty(asset);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.ImportAsset(
+                        assetPath,
+                        ImportAssetOptions.ForceUpdate);
+                }
+
+                NWRPRendererData existing = asset.GetRendererData(-1);
                 EditorUtility.SetDirty(asset);
-                AssetDatabase.SaveAssets();
-                AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-                return unreferencedFeature;
+                return existing;
             }
 
-            ValleyHeightFogFeature feature =
-                ScriptableObject.CreateInstance<ValleyHeightFogFeature>();
-            feature.name = "Valley Height Fog Feature";
+            Undo.RecordObject(asset, "Create NWRP Default Renderer Data");
+            NWRPRendererData rendererData =
+                FindRendererDataSubAsset(assetPath, kDefaultRendererDataName)
+                ?? FindRendererDataSubAsset(assetPath)
+                ?? CreateRendererDataSubAsset(asset, kDefaultRendererDataName);
+            if (rendererData == null)
+            {
+                return null;
+            }
 
-            AssetDatabase.AddObjectToAsset(feature, asset);
-            Undo.RegisterCreatedObjectUndo(feature, "Add Valley Height Fog Feature");
+            rendererData.CopyFeatureSettingsFrom(asset.featureSettings);
+            asset.rendererDataList = new[] { rendererData };
+            asset.defaultRendererIndex = 0;
 
-            asset.Features.Add(feature);
-            EditorUtility.SetDirty(feature);
+            EditorUtility.SetDirty(rendererData);
             EditorUtility.SetDirty(asset);
             AssetDatabase.SaveAssets();
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-
-            return feature;
+            return rendererData;
         }
 
-        private static ValleyHeightFogFeature FindValleyHeightFogFeature(
-            NewWorldRenderPipelineAsset asset)
+        private static NWRPRendererData CreateRendererDataSubAsset(
+            NewWorldRenderPipelineAsset asset,
+            string rendererName)
         {
             if (asset == null)
             {
                 return null;
             }
 
-            System.Collections.Generic.List<NWRPFeature> features = asset.Features;
+            string assetPath = AssetDatabase.GetAssetPath(asset);
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return null;
+            }
+
+            NWRPRendererData rendererData =
+                ScriptableObject.CreateInstance<NWRPRendererData>();
+            rendererData.name = rendererName;
+            AssetDatabase.AddObjectToAsset(rendererData, asset);
+            Undo.RegisterCreatedObjectUndo(rendererData, $"Create {rendererName}");
+            EditorUtility.SetDirty(rendererData);
+            return rendererData;
+        }
+
+        private bool IsOwnedRendererDataSubAsset(Object rendererData)
+        {
+            return IsOwnedRendererDataSubAsset(target, rendererData);
+        }
+
+        private static bool IsOwnedRendererDataSubAsset(
+            Object owner,
+            Object rendererData)
+        {
+            if (rendererData == null || owner == null)
+            {
+                return false;
+            }
+
+            return rendererData is NWRPRendererData
+                && AssetDatabase.IsSubAsset(rendererData)
+                && AssetDatabase.GetAssetPath(rendererData)
+                    == AssetDatabase.GetAssetPath(owner);
+        }
+
+        internal static void DestroyOwnedRendererDataSubAsset(
+            NewWorldRenderPipelineAsset asset,
+            NWRPRendererData rendererData)
+        {
+            if (!IsOwnedRendererDataSubAsset(asset, rendererData))
+            {
+                return;
+            }
+
+            string assetPath = AssetDatabase.GetAssetPath(asset);
+            List<NWRPFeature> ownedFeatures =
+                CollectDestroyableOwnedFeatures(rendererData, assetPath);
+            for (int i = 0; i < ownedFeatures.Count; i++)
+            {
+                Undo.DestroyObjectImmediate(ownedFeatures[i]);
+            }
+
+            Undo.DestroyObjectImmediate(rendererData);
+            SaveAndImportAsset(assetPath);
+        }
+
+        private static List<NWRPFeature> CollectDestroyableOwnedFeatures(
+            NWRPRendererData rendererData,
+            string assetPath)
+        {
+            List<NWRPFeature> ownedFeatures = new List<NWRPFeature>();
+            List<NWRPFeature> features = rendererData.Features;
             for (int i = 0; i < features.Count; i++)
             {
-                if (features[i] is ValleyHeightFogFeature feature)
+                NWRPFeature feature = features[i];
+                if (feature == null
+                    || !AssetDatabase.IsSubAsset(feature)
+                    || AssetDatabase.GetAssetPath(feature) != assetPath
+                    || IsFeatureReferencedByOtherRendererDataAtPath(
+                        feature,
+                        assetPath,
+                        rendererData)
+                    || ownedFeatures.Contains(feature))
                 {
-                    return feature;
+                    continue;
+                }
+
+                ownedFeatures.Add(feature);
+            }
+
+            return ownedFeatures;
+        }
+
+        private static bool IsFeatureReferencedByOtherRendererDataAtPath(
+            NWRPFeature feature,
+            string assetPath,
+            NWRPRendererData rendererDataToSkip)
+        {
+            Object[] assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            for (int i = 0; i < assets.Length; i++)
+            {
+                if (assets[i] is not NWRPRendererData rendererData
+                    || rendererData == rendererDataToSkip)
+                {
+                    continue;
+                }
+
+                if (rendererData.Features.Contains(feature))
+                {
+                    return true;
                 }
             }
 
-            return null;
+            return false;
         }
 
-        private static ValleyHeightFogFeature FindValleyHeightFogFeatureSubAsset(
-            string assetPath)
+        private static void SaveAndImportAsset(Object asset)
+        {
+            if (asset == null)
+            {
+                return;
+            }
+
+            SaveAndImportAsset(AssetDatabase.GetAssetPath(asset));
+        }
+
+        private static void SaveAndImportAsset(string assetPath)
+        {
+            AssetDatabase.SaveAssets();
+            if (!string.IsNullOrEmpty(assetPath))
+            {
+                AssetDatabase.ImportAsset(
+                    assetPath,
+                    ImportAssetOptions.ForceUpdate);
+            }
+        }
+
+        private static bool RepairNamedDefaultRendererReference(
+            NewWorldRenderPipelineAsset asset,
+            NWRPRendererData namedDefault)
+        {
+            if (asset == null
+                || namedDefault == null
+                || asset.rendererDataList == null
+                || asset.rendererDataList.Length == 0)
+            {
+                return false;
+            }
+
+            int namedDefaultIndex =
+                IndexOfRendererData(asset.rendererDataList, namedDefault);
+            int defaultIndex = Mathf.Clamp(
+                asset.defaultRendererIndex,
+                0,
+                asset.rendererDataList.Length - 1);
+            if (namedDefaultIndex == defaultIndex)
+            {
+                return false;
+            }
+
+            NWRPRendererData currentDefault =
+                asset.rendererDataList[defaultIndex];
+            if (currentDefault == null
+                || !currentDefault.name.StartsWith(
+                    kGeneratedRendererDataPrefix,
+                    System.StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (namedDefaultIndex >= 0)
+            {
+                asset.defaultRendererIndex = namedDefaultIndex;
+                return true;
+            }
+
+            asset.rendererDataList[defaultIndex] = namedDefault;
+            AppendRendererData(asset, currentDefault);
+            asset.defaultRendererIndex = defaultIndex;
+            return true;
+        }
+
+        private static int IndexOfRendererData(
+            NWRPRendererData[] rendererDataList,
+            NWRPRendererData rendererData)
+        {
+            for (int i = 0; i < rendererDataList.Length; i++)
+            {
+                if (rendererDataList[i] == rendererData)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static void AppendRendererData(
+            NewWorldRenderPipelineAsset asset,
+            NWRPRendererData rendererData)
+        {
+            if (asset == null || rendererData == null)
+            {
+                return;
+            }
+
+            if (IndexOfRendererData(asset.rendererDataList, rendererData) >= 0)
+            {
+                return;
+            }
+
+            int oldLength = asset.rendererDataList.Length;
+            System.Array.Resize(ref asset.rendererDataList, oldLength + 1);
+            asset.rendererDataList[oldLength] = rendererData;
+        }
+
+        private static NWRPRendererData FindRendererDataSubAsset(
+            string assetPath,
+            string rendererName = null)
         {
             Object[] subAssets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
             for (int i = 0; i < subAssets.Length; i++)
             {
-                if (subAssets[i] is ValleyHeightFogFeature feature)
+                if (subAssets[i] is NWRPRendererData rendererData)
                 {
-                    return feature;
+                    if (string.IsNullOrEmpty(rendererName)
+                        || rendererData.name == rendererName)
+                    {
+                        return rendererData;
+                    }
                 }
             }
 

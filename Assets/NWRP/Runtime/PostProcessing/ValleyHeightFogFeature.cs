@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace NWRP
 {
-    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Valley Height Fog Feature")]
     public sealed class ValleyHeightFogFeature : NWRPFeature
     {
         private CopyDepthPass _copyDepthPass;
@@ -74,13 +73,13 @@ namespace NWRP
 
         private static bool NeedsOwnEarlyDepthTexture(ref NWRPFrameData frameData)
         {
-            if (frameData.asset == null)
+            if (frameData.rendererData == null)
             {
                 return false;
             }
 
-            return !frameData.asset.EnableDepthTexture
-                || frameData.asset.DepthTextureCopyModeSetting
+            return !frameData.rendererData.EnableDepthTexture
+                || frameData.rendererData.DepthTextureCopyModeSetting
                     == NewWorldRenderPipelineAsset.DepthTextureCopyMode.AfterTransparents;
         }
 

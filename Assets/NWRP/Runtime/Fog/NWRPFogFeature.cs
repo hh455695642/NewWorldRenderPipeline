@@ -3,7 +3,6 @@ using UnityEngine;
 
 namespace NWRP
 {
-    [CreateAssetMenu(menuName = "Rendering/NWRP Features/Fog Feature")]
     public sealed class NWRPFogFeature : NWRPFeature
     {
         private SetupFogPass _setupFogPass;

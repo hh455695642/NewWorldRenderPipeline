@@ -65,8 +65,9 @@ namespace NWRP.Runtime.Passes
         private static bool CanRender(ref NWRPFrameData frameData)
         {
             return frameData.asset != null
+                && frameData.rendererData != null
                 && frameData.asset.EnableMainLightShadows
-                && frameData.asset.EnableVegetationIndirectTreeShadows
+                && frameData.rendererData.EnableVegetationIndirectTreeShadows
                 && MainLightShadowIndirectCasterContext.IsValid
                 && MainLightShadowIndirectCasterContext.TargetCount > 0;
         }

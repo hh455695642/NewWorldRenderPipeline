@@ -17,7 +17,17 @@ namespace NWRP
             NewWorldRenderPipelineAsset asset
         )
         {
-            _renderer.Render(context, camera, asset);
+            int rendererDataIndex = -1;
+            NWRPRendererData rendererData =
+                asset != null
+                    ? asset.GetRendererDataForCamera(camera, out rendererDataIndex)
+                    : null;
+            _renderer.Render(
+                context,
+                camera,
+                asset,
+                rendererData,
+                rendererDataIndex);
         }
     }
 }
