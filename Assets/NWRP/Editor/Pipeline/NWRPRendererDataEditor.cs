@@ -216,9 +216,15 @@ namespace NWRP.Editor
                 }
                 else
                 {
+                    string duplicateFeatureName =
+                        assignedFeature is ValleyHeightFogOverlayFeature
+                            ? "Valley Height Fog Overlay"
+                            : "Valley Height Fog";
                     EditorUtility.DisplayDialog(
                         "Duplicate Feature",
-                        "This renderer data already contains a Valley Height Fog feature.",
+                        "This renderer data already contains a "
+                            + duplicateFeatureName
+                            + " feature.",
                         "Close");
                 }
             }
@@ -378,6 +384,8 @@ namespace NWRP.Editor
                     GenericMenu menu = new GenericMenu();
                     bool hasValleyHeightFog =
                         IndexOfFeature<ValleyHeightFogFeature>(rendererData) >= 0;
+                    bool hasValleyHeightFogOverlay =
+                        IndexOfFeature<ValleyHeightFogOverlayFeature>(rendererData) >= 0;
                     if (hasValleyHeightFog)
                     {
                         menu.AddDisabledItem(
@@ -391,10 +399,18 @@ namespace NWRP.Editor
                             AddValleyHeightFogFeatureFromMenu);
                     }
 
-                    menu.AddItem(
-                        new GUIContent("Valley Height Fog Overlay"),
-                        false,
-                        AddValleyHeightFogOverlayFeatureFromMenu);
+                    if (hasValleyHeightFogOverlay)
+                    {
+                        menu.AddDisabledItem(
+                            new GUIContent("Valley Height Fog Overlay"));
+                    }
+                    else
+                    {
+                        menu.AddItem(
+                            new GUIContent("Valley Height Fog Overlay"),
+                            false,
+                            AddValleyHeightFogOverlayFeatureFromMenu);
+                    }
 
                     menu.ShowAsContext();
                 }
@@ -453,6 +469,14 @@ namespace NWRP.Editor
             if (rendererData == null)
             {
                 return null;
+            }
+
+            int existingIndex =
+                IndexOfFeature<ValleyHeightFogOverlayFeature>(rendererData);
+            if (existingIndex >= 0)
+            {
+                return rendererData.Features[existingIndex]
+                    as ValleyHeightFogOverlayFeature;
             }
 
             string assetPath = AssetDatabase.GetAssetPath(rendererData);
@@ -549,15 +573,27 @@ namespace NWRP.Editor
 
         private bool CanAssignFeatureAt(NWRPFeature feature, int index)
         {
-            if (feature is not ValleyHeightFogFeature)
+            if (feature == null)
             {
                 return true;
             }
 
             NWRPRendererData rendererData = target as NWRPRendererData;
-            int existingIndex =
-                IndexOfFeature<ValleyHeightFogFeature>(rendererData);
-            return existingIndex < 0 || existingIndex == index;
+            if (feature is ValleyHeightFogFeature)
+            {
+                int existingIndex =
+                    IndexOfFeature<ValleyHeightFogFeature>(rendererData);
+                return existingIndex < 0 || existingIndex == index;
+            }
+
+            if (feature is ValleyHeightFogOverlayFeature)
+            {
+                int existingIndex =
+                    IndexOfFeature<ValleyHeightFogOverlayFeature>(rendererData);
+                return existingIndex < 0 || existingIndex == index;
+            }
+
+            return true;
         }
 
         private static bool ShouldDestroyOwnedFeature(
