@@ -25,6 +25,9 @@ namespace NWRP
             _asset = asset;
             GraphicsSettings.useScriptableRenderPipelineBatching = asset.useSRPBatcher;
             GraphicsSettings.lightsUseLinearIntensity = true;
+#if UNITY_EDITOR
+            NWRPSceneViewDrawMode.SetupDrawMode();
+#endif
         }
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
@@ -45,6 +48,9 @@ namespace NWRP
             {
                 _renderer.Dispose();
                 _asset.DisposeRuntimeFeatures();
+#if UNITY_EDITOR
+                NWRPSceneViewDrawMode.ResetDrawMode();
+#endif
             }
 
             base.Dispose(disposing);

@@ -52,6 +52,7 @@ namespace NWRP
         private readonly DrawTransparentPass _drawTransparentPass;
 #if UNITY_EDITOR
         private readonly DrawGizmosPass _drawGizmosPreImageEffectsPass;
+        private readonly DrawSceneViewWireOverlayPass _drawSceneViewWireOverlayPass;
         private readonly DrawGizmosPass _drawGizmosPostImageEffectsPass;
 #endif
         private readonly FinalBlitPass _finalBlitPass;
@@ -76,6 +77,7 @@ namespace NWRP
                 NWRPPassEvent.AfterTransparent,
                 GizmoSubset.PreImageEffects,
                 "Draw Gizmos Pre Image Effects");
+            _drawSceneViewWireOverlayPass = new DrawSceneViewWireOverlayPass(this);
             _drawGizmosPostImageEffectsPass = new DrawGizmosPass(
                 this,
                 NWRPPassEvent.DebugOverlay,
@@ -388,6 +390,17 @@ namespace NWRP
             }
 
             frameData.context.DrawGizmos(frameData.camera, gizmoSubset);
+        }
+
+        internal void ExecuteDrawSceneViewWireOverlay(ref NWRPFrameData frameData)
+        {
+            if (!ShouldDrawSceneViewWireOverlay(frameData.camera))
+            {
+                return;
+            }
+
+            ExecuteBuffer(ref frameData);
+            frameData.context.DrawWireOverlay(frameData.camera);
         }
 #endif
 
@@ -1059,6 +1072,33 @@ namespace NWRP
                     ClearFlag.None,
                     Color.clear);
                 frameData.cmd.SetViewport(cameraViewport);
+#if UNITY_EDITOR
+                if (ShouldUseSceneViewWireframeBlit(frameData.camera))
+                {
+                    frameData.cmd.SetRenderTarget(
+                        BuiltinRenderTextureType.CameraTarget,
+                        loadAction,
+                        RenderBufferStoreAction.Store,
+                        RenderBufferLoadAction.DontCare,
+                        RenderBufferStoreAction.DontCare);
+
+                    // Unity's Blitter renders only the fullscreen triangle edges
+                    // while SceneView pure wireframe mode has GL.wireframe enabled.
+                    if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Vulkan)
+                    {
+                        frameData.cmd.SetWireframe(false);
+                        frameData.cmd.Blit(source, frameData.targets.backBufferColor);
+                        frameData.cmd.SetWireframe(true);
+                    }
+                    else
+                    {
+                        frameData.cmd.Blit(source, frameData.targets.backBufferColor);
+                    }
+
+                    frameData.targets.cameraColorPresented = true;
+                    return;
+                }
+#endif
                 Blitter.BlitTexture(
                     frameData.cmd,
                     source,
@@ -1369,12 +1409,13 @@ namespace NWRP
 
             EnqueueFeaturePasses(ref frameData);
 
-#if UNITY_EDITOR
-            EnqueueEditorGizmoPasses();
-#endif
-
-            // Final blit must stay last after all rendering/debug passes.
+            // Present camera color before editor overlays so SceneView wireframe
+            // modes draw into the final SceneView target.
             EnqueuePass(_finalBlitPass);
+
+#if UNITY_EDITOR
+            EnqueueEditorOverlayPasses();
+#endif
 
             _activePasses.Sort(s_QueuedPassComparer);
         }
@@ -1727,9 +1768,10 @@ namespace NWRP
         }
 
 #if UNITY_EDITOR
-        private void EnqueueEditorGizmoPasses()
+        private void EnqueueEditorOverlayPasses()
         {
             EnqueuePass(_drawGizmosPreImageEffectsPass);
+            EnqueuePass(_drawSceneViewWireOverlayPass);
             EnqueuePass(_drawGizmosPostImageEffectsPass);
         }
 #endif
@@ -1798,6 +1840,19 @@ namespace NWRP
             return camera != null
                 && camera.sceneViewFilterMode != Camera.SceneViewFilterMode.ShowFiltered
                 && Handles.ShouldRenderGizmos();
+        }
+
+        private static bool ShouldDrawSceneViewWireOverlay(Camera camera)
+        {
+            return NWRPSceneViewDrawMode.TryGetDrawMode(camera, out DrawCameraMode drawMode)
+                && NWRPSceneViewDrawMode.IsWireOverlayMode(drawMode);
+        }
+
+        private static bool ShouldUseSceneViewWireframeBlit(Camera camera)
+        {
+            return camera != null
+                && camera.cameraType == CameraType.SceneView
+                && GL.wireframe;
         }
 #endif
 
