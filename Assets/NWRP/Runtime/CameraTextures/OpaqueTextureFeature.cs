@@ -3,9 +3,16 @@ using UnityEngine;
 
 namespace NWRP
 {
-    public sealed class OpaqueTextureFeature : NWRPFeature
+    [NWRPFeatureMetadata(
+        "Opaque Texture",
+        MenuPath = "Camera/Opaque Texture",
+        ShowInAddMenu = false,
+        SortOrder = 50)]
+    public sealed class OpaqueTextureFeature : NWRPFeature, INWRPSerializedFeatureStateProvider
     {
         private CopyColorPass _copyColorPass;
+
+        bool INWRPSerializedFeatureStateProvider.DeferSerializedPasses => false;
 
         protected override void Create()
         {
@@ -42,6 +49,12 @@ namespace NWRP
             }
 
             renderer.EnqueuePass(_copyColorPass);
+        }
+
+        void INWRPSerializedFeatureStateProvider.RecordSerializedFeatureState(
+            ref NWRPSerializedFeatureState state)
+        {
+            state.hasOpaqueTexture = true;
         }
 
         private void OnDisable()

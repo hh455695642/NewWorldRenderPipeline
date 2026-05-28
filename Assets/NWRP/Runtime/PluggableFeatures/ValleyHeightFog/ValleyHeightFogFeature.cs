@@ -3,6 +3,11 @@ using UnityEngine;
 
 namespace NWRP
 {
+    [NWRPFeatureMetadata(
+        "Valley Height Fog",
+        MenuPath = "Post Processing/Valley Height Fog",
+        VolumeDriven = true,
+        SortOrder = 220)]
     public sealed class ValleyHeightFogFeature : NWRPFeature
     {
         private CopyDepthPass _copyDepthPass;

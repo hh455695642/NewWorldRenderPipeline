@@ -287,7 +287,7 @@ namespace NWRP.Runtime.Passes
                 PostProcessFeature.IsVignetteActive(ref frameData));
             UploadFxaaConstants(ref frameData, source, fxaaActive);
 
-            if (NWRPScreenBlurFeature.IsAfterPostProcessActive(ref frameData))
+            if (ScreenBlurFeature.IsAfterPostProcessActive(ref frameData))
             {
                 ExecuteFinalCompositeToCameraColor(ref frameData, source, passIndex);
                 return;

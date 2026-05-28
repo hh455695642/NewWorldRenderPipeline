@@ -3,10 +3,17 @@ using UnityEngine;
 
 namespace NWRP
 {
-    public sealed class AdditionalLightShadowFeature : NWRPFeature
+    [NWRPFeatureMetadata(
+        "Additional Light Shadows",
+        MenuPath = "Lighting/Additional Light Shadows",
+        ShowInAddMenu = false,
+        SortOrder = 20)]
+    public sealed class AdditionalLightShadowFeature : NWRPFeature, INWRPSerializedFeatureStateProvider
     {
         private AdditionalLightShadowDisabledPass _disabledPass;
         private AdditionalLightShadowCasterPass _shadowPass;
+
+        bool INWRPSerializedFeatureStateProvider.DeferSerializedPasses => false;
 
         protected override void Create()
         {
@@ -28,6 +35,12 @@ namespace NWRP
             }
 
             renderer.EnqueuePass(_shadowPass);
+        }
+
+        void INWRPSerializedFeatureStateProvider.RecordSerializedFeatureState(
+            ref NWRPSerializedFeatureState state)
+        {
+            state.hasAdditionalLightShadow = true;
         }
 
         private void OnDisable()

@@ -3,9 +3,17 @@ using UnityEngine;
 
 namespace NWRP
 {
-    public sealed class PostProcessFeature : NWRPFeature
+    [NWRPFeatureMetadata(
+        "Post Process",
+        MenuPath = "Post Processing/Post Process",
+        ShowInAddMenu = false,
+        VolumeDriven = true,
+        SortOrder = 200)]
+    public sealed class PostProcessFeature : NWRPFeature, INWRPSerializedFeatureStateProvider
     {
         private PostProcessPass _postProcessPass;
+
+        bool INWRPSerializedFeatureStateProvider.DeferSerializedPasses => false;
 
         protected override void Create()
         {
@@ -41,6 +49,12 @@ namespace NWRP
             }
 
             renderer.EnqueuePass(_postProcessPass);
+        }
+
+        void INWRPSerializedFeatureStateProvider.RecordSerializedFeatureState(
+            ref NWRPSerializedFeatureState state)
+        {
+            state.hasPostProcess = true;
         }
 
         internal static bool HasAnyActivePostProcess(ref NWRPFrameData frameData)

@@ -3,7 +3,12 @@ using UnityEngine;
 
 namespace NWRP
 {
-    public sealed class MainLightShadowFeature : NWRPFeature
+    [NWRPFeatureMetadata(
+        "Main Light Shadows",
+        MenuPath = "Lighting/Main Light Shadows",
+        ShowInAddMenu = false,
+        SortOrder = 10)]
+    public sealed class MainLightShadowFeature : NWRPFeature, INWRPSerializedFeatureStateProvider
     {
         private MainLightShadowDisabledPass _mainLightShadowDisabledPass;
         private MainLightShadowCasterPass _mainLightShadowPass;
@@ -15,6 +20,8 @@ namespace NWRP
             = NewWorldRenderPipelineAsset.MainLightShadowExecutionPath.Unknown;
 
         internal NewWorldRenderPipelineAsset.MainLightShadowExecutionPath LastExecutionPath => _lastExecutionPath;
+
+        bool INWRPSerializedFeatureStateProvider.DeferSerializedPasses => false;
 
         protected override void Create()
         {
@@ -102,6 +109,12 @@ namespace NWRP
         public void ClearCache()
         {
             _cacheState?.Clear();
+        }
+
+        void INWRPSerializedFeatureStateProvider.RecordSerializedFeatureState(
+            ref NWRPSerializedFeatureState state)
+        {
+            state.hasMainLightShadow = true;
         }
 
         private void OnDisable()

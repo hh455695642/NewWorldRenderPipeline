@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 
 namespace NWRP.Runtime.Passes
 {
-    public sealed class NWRPScreenBlurPass : NWRPPass
+    public sealed class ScreenBlurPass : NWRPPass
     {
         private const string k_ShaderName = "Hidden/NWRP/PostProcess/ScreenBlur";
 
@@ -20,7 +20,7 @@ namespace NWRP.Runtime.Passes
 
         private Material _blurMaterial;
 
-        public NWRPScreenBlurPass()
+        public ScreenBlurPass()
             : base(NWRPPassEvent.BeforePostProcess, "NWRP Screen Blur")
         {
         }
@@ -32,7 +32,7 @@ namespace NWRP.Runtime.Passes
 
         public override void Execute(ref NWRPFrameData frameData)
         {
-            if (!NWRPScreenBlurFeature.IsActive(ref frameData)
+            if (!ScreenBlurFeature.IsActive(ref frameData)
                 || frameData.targets.cameraColorHandle == null
                 || frameData.targets.cameraColorHandle.rt == null
                 || frameData.camera == null)

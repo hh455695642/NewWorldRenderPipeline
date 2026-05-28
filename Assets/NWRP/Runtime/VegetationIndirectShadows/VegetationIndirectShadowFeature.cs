@@ -3,9 +3,16 @@ using UnityEngine;
 
 namespace NWRP
 {
-    public sealed class VegetationIndirectShadowFeature : NWRPFeature
+    [NWRPFeatureMetadata(
+        "Vegetation Indirect Shadows",
+        MenuPath = "Vegetation/Indirect Shadows",
+        ShowInAddMenu = false,
+        SortOrder = 80)]
+    public sealed class VegetationIndirectShadowFeature : NWRPFeature, INWRPSerializedFeatureStateProvider
     {
         private VegetationIndirectShadowPass _shadowPass;
+
+        bool INWRPSerializedFeatureStateProvider.DeferSerializedPasses => true;
 
         protected override void Create()
         {
@@ -25,6 +32,12 @@ namespace NWRP
             }
 
             renderer.EnqueuePass(_shadowPass);
+        }
+
+        void INWRPSerializedFeatureStateProvider.RecordSerializedFeatureState(
+            ref NWRPSerializedFeatureState state)
+        {
+            state.hasVegetationIndirectShadow = true;
         }
     }
 }

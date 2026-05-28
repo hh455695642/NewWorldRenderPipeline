@@ -208,6 +208,29 @@ namespace NWRP
                     features = new List<NWRPFeature>();
                 }
             }
+
+            internal bool RemoveNullFeatures()
+            {
+                if (features == null)
+                {
+                    features = new List<NWRPFeature>();
+                    return true;
+                }
+
+                bool changed = false;
+                for (int i = features.Count - 1; i >= 0; i--)
+                {
+                    if (features[i] != null)
+                    {
+                        continue;
+                    }
+
+                    features.RemoveAt(i);
+                    changed = true;
+                }
+
+                return changed;
+            }
         }
 
         [System.Serializable]
@@ -501,28 +524,7 @@ namespace NWRP
         public int defaultRendererIndex = 0;
 
         [System.NonSerialized]
-        private MainLightShadowFeature _runtimeMainLightShadowFeature;
-
-        [System.NonSerialized]
-        private AdditionalLightShadowFeature _runtimeAdditionalLightShadowFeature;
-
-        [System.NonSerialized]
-        private OutlineFeature _runtimeOutlineFeature;
-
-        [System.NonSerialized]
-        private OpaqueTextureFeature _runtimeOpaqueTextureFeature;
-
-        [System.NonSerialized]
-        private DepthTextureFeature _runtimeDepthTextureFeature;
-
-        [System.NonSerialized]
-        private NWRPFogFeature _runtimeFogFeature;
-
-        [System.NonSerialized]
-        private PostProcessFeature _runtimePostProcessFeature;
-
-        [System.NonSerialized]
-        private VegetationIndirectShadowFeature _runtimeVegetationIndirectShadowFeature;
+        private NWRPRuntimeFeatureStore _runtimeFeatures;
 
         [System.NonSerialized]
         private NWRPRendererData _runtimeLegacyRendererData;
@@ -762,7 +764,8 @@ namespace NWRP
                 return;
             }
 
-            MainLightShadowFeature runtimeFeature = GetOrCreateMainLightShadowFeature();
+            MainLightShadowFeature runtimeFeature =
+                GetOrCreateRuntimeFeature<MainLightShadowFeature>();
             runtimeFeature.EnsureCreated();
             runtimeFeature.MarkCacheDirty();
         }
@@ -778,7 +781,8 @@ namespace NWRP
                 return;
             }
 
-            MainLightShadowFeature runtimeFeature = GetOrCreateMainLightShadowFeature();
+            MainLightShadowFeature runtimeFeature =
+                GetOrCreateRuntimeFeature<MainLightShadowFeature>();
             runtimeFeature.EnsureCreated();
             runtimeFeature.ClearCache();
         }
@@ -845,110 +849,11 @@ namespace NWRP
             return handled;
         }
 
-        internal MainLightShadowFeature GetOrCreateMainLightShadowFeature()
+        internal T GetOrCreateRuntimeFeature<T>()
+            where T : NWRPFeature
         {
-            if (_runtimeMainLightShadowFeature != null)
-            {
-                return _runtimeMainLightShadowFeature;
-            }
-
-            _runtimeMainLightShadowFeature = ScriptableObject.CreateInstance<MainLightShadowFeature>();
-            _runtimeMainLightShadowFeature.hideFlags = HideFlags.HideAndDontSave;
-            _runtimeMainLightShadowFeature.name = "NWRP Runtime MainLightShadowFeature";
-            return _runtimeMainLightShadowFeature;
-        }
-
-        internal AdditionalLightShadowFeature GetOrCreateAdditionalLightShadowFeature()
-        {
-            if (_runtimeAdditionalLightShadowFeature != null)
-            {
-                return _runtimeAdditionalLightShadowFeature;
-            }
-
-            _runtimeAdditionalLightShadowFeature = ScriptableObject.CreateInstance<AdditionalLightShadowFeature>();
-            _runtimeAdditionalLightShadowFeature.hideFlags = HideFlags.HideAndDontSave;
-            _runtimeAdditionalLightShadowFeature.name = "NWRP Runtime AdditionalPunctualLightShadowFeature";
-            return _runtimeAdditionalLightShadowFeature;
-        }
-
-        internal OutlineFeature GetOrCreateOutlineFeature()
-        {
-            if (_runtimeOutlineFeature != null)
-            {
-                return _runtimeOutlineFeature;
-            }
-
-            _runtimeOutlineFeature = ScriptableObject.CreateInstance<OutlineFeature>();
-            _runtimeOutlineFeature.hideFlags = HideFlags.HideAndDontSave;
-            _runtimeOutlineFeature.name = "NWRP Runtime OutlineFeature";
-            return _runtimeOutlineFeature;
-        }
-
-        internal OpaqueTextureFeature GetOrCreateOpaqueTextureFeature()
-        {
-            if (_runtimeOpaqueTextureFeature != null)
-            {
-                return _runtimeOpaqueTextureFeature;
-            }
-
-            _runtimeOpaqueTextureFeature = ScriptableObject.CreateInstance<OpaqueTextureFeature>();
-            _runtimeOpaqueTextureFeature.hideFlags = HideFlags.HideAndDontSave;
-            _runtimeOpaqueTextureFeature.name = "NWRP Runtime OpaqueTextureFeature";
-            return _runtimeOpaqueTextureFeature;
-        }
-
-        internal DepthTextureFeature GetOrCreateDepthTextureFeature()
-        {
-            if (_runtimeDepthTextureFeature != null)
-            {
-                return _runtimeDepthTextureFeature;
-            }
-
-            _runtimeDepthTextureFeature = ScriptableObject.CreateInstance<DepthTextureFeature>();
-            _runtimeDepthTextureFeature.hideFlags = HideFlags.HideAndDontSave;
-            _runtimeDepthTextureFeature.name = "NWRP Runtime DepthTextureFeature";
-            return _runtimeDepthTextureFeature;
-        }
-
-        internal NWRPFogFeature GetOrCreateFogFeature()
-        {
-            if (_runtimeFogFeature != null)
-            {
-                return _runtimeFogFeature;
-            }
-
-            _runtimeFogFeature = ScriptableObject.CreateInstance<NWRPFogFeature>();
-            _runtimeFogFeature.hideFlags = HideFlags.HideAndDontSave;
-            _runtimeFogFeature.name = "NWRP Runtime FogFeature";
-            return _runtimeFogFeature;
-        }
-
-        internal PostProcessFeature GetOrCreatePostProcessFeature()
-        {
-            if (_runtimePostProcessFeature != null)
-            {
-                return _runtimePostProcessFeature;
-            }
-
-            _runtimePostProcessFeature = ScriptableObject.CreateInstance<PostProcessFeature>();
-            _runtimePostProcessFeature.hideFlags = HideFlags.HideAndDontSave;
-            _runtimePostProcessFeature.name = "NWRP Runtime PostProcessFeature";
-            return _runtimePostProcessFeature;
-        }
-
-        internal VegetationIndirectShadowFeature GetOrCreateVegetationIndirectShadowFeature()
-        {
-            if (_runtimeVegetationIndirectShadowFeature != null)
-            {
-                return _runtimeVegetationIndirectShadowFeature;
-            }
-
-            _runtimeVegetationIndirectShadowFeature =
-                ScriptableObject.CreateInstance<VegetationIndirectShadowFeature>();
-            _runtimeVegetationIndirectShadowFeature.hideFlags = HideFlags.HideAndDontSave;
-            _runtimeVegetationIndirectShadowFeature.name =
-                "NWRP Runtime VegetationIndirectShadowFeature";
-            return _runtimeVegetationIndirectShadowFeature;
+            _runtimeFeatures ??= new NWRPRuntimeFeatureStore("NWRP");
+            return _runtimeFeatures.GetOrCreate<T>();
         }
 
         private NWRPRendererData GetOrCreateLegacyRendererData()
@@ -1023,36 +928,8 @@ namespace NWRP
         {
             DisposeRendererDataRuntimeFeatures();
             DisposeLegacyRendererData();
-
-            if (_runtimeMainLightShadowFeature == null)
-            {
-                DisposeAdditionalRuntimeFeature();
-                DisposeOutlineRuntimeFeature();
-                DisposeOpaqueTextureRuntimeFeature();
-                DisposeDepthTextureRuntimeFeature();
-                DisposeFogRuntimeFeature();
-                DisposePostProcessRuntimeFeature();
-                DisposeVegetationIndirectShadowRuntimeFeature();
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(_runtimeMainLightShadowFeature);
-            }
-            else
-            {
-                DestroyImmediate(_runtimeMainLightShadowFeature);
-            }
-
-            _runtimeMainLightShadowFeature = null;
-            DisposeAdditionalRuntimeFeature();
-            DisposeOutlineRuntimeFeature();
-            DisposeOpaqueTextureRuntimeFeature();
-            DisposeDepthTextureRuntimeFeature();
-            DisposeFogRuntimeFeature();
-            DisposePostProcessRuntimeFeature();
-            DisposeVegetationIndirectShadowRuntimeFeature();
+            _runtimeFeatures?.DisposeAll();
+            _runtimeFeatures = null;
         }
 
         private void DisposeRendererDataRuntimeFeatures()
@@ -1091,139 +968,6 @@ namespace NWRP
             _runtimeLegacyRendererData = null;
         }
 
-        private void DisposeAdditionalRuntimeFeature()
-        {
-            if (_runtimeAdditionalLightShadowFeature == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(_runtimeAdditionalLightShadowFeature);
-            }
-            else
-            {
-                DestroyImmediate(_runtimeAdditionalLightShadowFeature);
-            }
-
-            _runtimeAdditionalLightShadowFeature = null;
-        }
-
-        private void DisposeOutlineRuntimeFeature()
-        {
-            if (_runtimeOutlineFeature == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(_runtimeOutlineFeature);
-            }
-            else
-            {
-                DestroyImmediate(_runtimeOutlineFeature);
-            }
-
-            _runtimeOutlineFeature = null;
-        }
-
-        private void DisposeOpaqueTextureRuntimeFeature()
-        {
-            if (_runtimeOpaqueTextureFeature == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(_runtimeOpaqueTextureFeature);
-            }
-            else
-            {
-                DestroyImmediate(_runtimeOpaqueTextureFeature);
-            }
-
-            _runtimeOpaqueTextureFeature = null;
-        }
-
-        private void DisposeDepthTextureRuntimeFeature()
-        {
-            if (_runtimeDepthTextureFeature == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(_runtimeDepthTextureFeature);
-            }
-            else
-            {
-                DestroyImmediate(_runtimeDepthTextureFeature);
-            }
-
-            _runtimeDepthTextureFeature = null;
-        }
-
-        private void DisposeFogRuntimeFeature()
-        {
-            if (_runtimeFogFeature == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(_runtimeFogFeature);
-            }
-            else
-            {
-                DestroyImmediate(_runtimeFogFeature);
-            }
-
-            _runtimeFogFeature = null;
-        }
-
-        private void DisposePostProcessRuntimeFeature()
-        {
-            if (_runtimePostProcessFeature == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(_runtimePostProcessFeature);
-            }
-            else
-            {
-                DestroyImmediate(_runtimePostProcessFeature);
-            }
-
-            _runtimePostProcessFeature = null;
-        }
-
-        private void DisposeVegetationIndirectShadowRuntimeFeature()
-        {
-            if (_runtimeVegetationIndirectShadowFeature == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                Destroy(_runtimeVegetationIndirectShadowFeature);
-            }
-            else
-            {
-                DestroyImmediate(_runtimeVegetationIndirectShadowFeature);
-            }
-
-            _runtimeVegetationIndirectShadowFeature = null;
-        }
-
         protected override RenderPipeline CreatePipeline()
         {
             return new NewWorldRenderPipeline(this);
@@ -1232,6 +976,7 @@ namespace NWRP
         void ISerializationCallbackReceiver.OnBeforeSerialize()
         {
             EnsureFeatureSettings();
+            FeatureSettingsData.RemoveNullFeatures();
             ResolveDefaultRendererIndex();
 
             if (mainLightShadows == null)
@@ -1253,6 +998,7 @@ namespace NWRP
             EnsureMainLightShadowSettings(allowAssetFileMigration: false);
             EnsureAdditionalLightShadowSettings();
             EnsureFeatureSettings();
+            FeatureSettingsData.RemoveNullFeatures();
             ResolveDefaultRendererIndex();
         }
 
@@ -1262,6 +1008,7 @@ namespace NWRP
             EnsureMainLightShadowSettings(allowAssetFileMigration: true);
             EnsureAdditionalLightShadowSettings();
             EnsureFeatureSettings();
+            FeatureSettingsData.RemoveNullFeatures();
             ResolveDefaultRendererIndex();
 
             renderScale = ValidateRenderScale(renderScale);

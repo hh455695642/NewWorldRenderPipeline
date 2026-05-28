@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cfe43a6138e849308f4849a28bcc54f9, type: 3}
-  m_Name: Screen Blur Feature
+  m_Name: ScreenBlurFeature
   m_EditorClassIdentifier: 
   isEnabled: 1
 --- !u!114 &-2629907331226510980
@@ -57,7 +57,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d5072940859b40e792981e4fa17ffd15, type: 3}
-  m_Name: Cloud Shadow Projector Feature
+  m_Name: CloudShadowProjectorFeature
   m_EditorClassIdentifier: 
   isEnabled: 1
 --- !u!114 &-679942319511359571
@@ -70,7 +70,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dcdb95db6724a274291038fb29c01d9d, type: 3}
-  m_Name: Valley Height Fog Overlay Feature
+  m_Name: ValleyHeightFogOverlayFeature
   m_EditorClassIdentifier: 
   isEnabled: 1
 --- !u!114 &11400000
@@ -178,8 +178,7 @@ MonoBehaviour:
       copyDepthMode: 0
     vegetationIndirectShadows:
       enableVegetationIndirectTreeShadows: 1
-    features:
-    - {fileID: 0}
+    features: []
   rendererDataList:
   - {fileID: -2629907331226510980}
   defaultRendererIndex: 0
@@ -193,6 +192,6 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 72c04c20cb8e8544e83230c14570a96c, type: 3}
-  m_Name: Valley Height Fog Feature
+  m_Name: ValleyHeightFogFeature
   m_EditorClassIdentifier: 
   isEnabled: 1

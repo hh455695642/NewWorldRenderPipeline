@@ -3,10 +3,17 @@ using UnityEngine;
 
 namespace NWRP
 {
-    public sealed class DepthTextureFeature : NWRPFeature
+    [NWRPFeatureMetadata(
+        "Depth Texture",
+        MenuPath = "Camera/Depth Texture",
+        ShowInAddMenu = false,
+        SortOrder = 60)]
+    public sealed class DepthTextureFeature : NWRPFeature, INWRPSerializedFeatureStateProvider
     {
         private CopyDepthPass _copyDepthPass;
         private DepthPrepass _depthPrepass;
+
+        bool INWRPSerializedFeatureStateProvider.DeferSerializedPasses => false;
 
         protected override void Create()
         {
@@ -49,6 +56,12 @@ namespace NWRP
             _copyDepthPass ??= new CopyDepthPass();
             _copyDepthPass.Setup(GetCopyDepthPassEvent(copyMode));
             renderer.EnqueuePass(_copyDepthPass);
+        }
+
+        void INWRPSerializedFeatureStateProvider.RecordSerializedFeatureState(
+            ref NWRPSerializedFeatureState state)
+        {
+            state.hasDepthTexture = true;
         }
 
         internal static NWRPFrameTargetRequirements GetFrameTargetRequirements(

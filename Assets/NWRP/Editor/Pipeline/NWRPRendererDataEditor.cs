@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEditorInternal;
@@ -9,10 +10,6 @@ namespace NWRP.Editor
     public sealed class NWRPRendererDataEditor : UnityEditor.Editor
     {
         private const string kFeatureEnabledPropertyName = "isEnabled";
-        private const string kValleyHeightFogFeatureName = "Valley Height Fog Feature";
-        private const string kValleyHeightFogOverlayFeatureName = "Valley Height Fog Overlay Feature";
-        private const string kCloudShadowProjectorFeatureName = "Cloud Shadow Projector Feature";
-        private const string kScreenBlurFeatureName = "Screen Blur Feature";
         private const float kFeatureRowDragHandleWidth = 18f;
 
         private SerializedProperty _filteringProperty;
@@ -30,7 +27,8 @@ namespace NWRP.Editor
         private SerializedProperty _copyDepthModeProperty;
         private SerializedProperty _enableVegetationIndirectTreeShadowsProperty;
         private ReorderableList _featureReorderableList;
-        private readonly HashSet<Object> _expandedFeatures = new HashSet<Object>();
+        private readonly HashSet<UnityEngine.Object> _expandedFeatures =
+            new HashSet<UnityEngine.Object>();
 
         private void OnEnable()
         {
@@ -221,7 +219,7 @@ namespace NWRP.Editor
                 rect.width - kFeatureRowDragHandleWidth - 136f,
                 EditorGUIUtility.singleLineHeight);
             EditorGUI.BeginChangeCheck();
-            Object assigned = EditorGUI.ObjectField(
+            UnityEngine.Object assigned = EditorGUI.ObjectField(
                 objectRect,
                 element.objectReferenceValue,
                 typeof(NWRPFeature),
@@ -374,12 +372,11 @@ namespace NWRP.Editor
 
             if (propertyCount == 0)
             {
-                string message =
-                    feature is ValleyHeightFogFeature
-                    || feature is CloudShadowProjectorFeature
-                    || feature is NWRPScreenBlurFeature
-                        ? "No renderer-local settings. This feature's parameters are controlled by Volumes."
-                        : "No renderer-local settings.";
+                NWRPFeatureMetadataInfo metadata =
+                    NWRPFeatureMetadataUtility.Get(feature.GetType());
+                string message = metadata.volumeDriven
+                    ? "No renderer-local settings. This feature's parameters are controlled by Volumes."
+                    : "No renderer-local settings.";
                 EditorGUI.HelpBox(rect, message, MessageType.Info);
             }
 
@@ -404,64 +401,27 @@ namespace NWRP.Editor
                 if (GUILayout.Button("Add Feature"))
                 {
                     GenericMenu menu = new GenericMenu();
-                    bool hasValleyHeightFog =
-                        IndexOfFeature<ValleyHeightFogFeature>(rendererData) >= 0;
-                    bool hasValleyHeightFogOverlay =
-                        IndexOfFeature<ValleyHeightFogOverlayFeature>(rendererData) >= 0;
-                    bool hasCloudShadowProjector =
-                        IndexOfFeature<CloudShadowProjectorFeature>(rendererData) >= 0;
-                    bool hasScreenBlur =
-                        IndexOfFeature<NWRPScreenBlurFeature>(rendererData) >= 0;
-                    if (hasValleyHeightFog)
+                    List<Type> featureTypes = GetAddableFeatureTypes();
+                    for (int i = 0; i < featureTypes.Count; i++)
                     {
-                        menu.AddDisabledItem(
-                            new GUIContent("Valley Height Fog"));
-                    }
-                    else
-                    {
-                        menu.AddItem(
-                            new GUIContent("Valley Height Fog"),
-                            false,
-                            AddValleyHeightFogFeatureFromMenu);
-                    }
+                        Type featureType = featureTypes[i];
+                        NWRPFeatureMetadataInfo metadata =
+                            NWRPFeatureMetadataUtility.Get(featureType);
+                        GUIContent content = new GUIContent(metadata.menuPath);
+                        bool alreadyAdded =
+                            !metadata.allowMultiple
+                            && IndexOfFeature(rendererData, featureType) >= 0;
+                        if (alreadyAdded)
+                        {
+                            menu.AddDisabledItem(content);
+                            continue;
+                        }
 
-                    if (hasValleyHeightFogOverlay)
-                    {
-                        menu.AddDisabledItem(
-                            new GUIContent("Valley Height Fog Overlay"));
-                    }
-                    else
-                    {
                         menu.AddItem(
-                            new GUIContent("Valley Height Fog Overlay"),
+                            content,
                             false,
-                            AddValleyHeightFogOverlayFeatureFromMenu);
-                    }
-
-                    if (hasCloudShadowProjector)
-                    {
-                        menu.AddDisabledItem(
-                            new GUIContent("Cloud Shadow Projector"));
-                    }
-                    else
-                    {
-                        menu.AddItem(
-                            new GUIContent("Cloud Shadow Projector"),
-                            false,
-                            AddCloudShadowProjectorFeatureFromMenu);
-                    }
-
-                    if (hasScreenBlur)
-                    {
-                        menu.AddDisabledItem(
-                            new GUIContent("Screen Blur"));
-                    }
-                    else
-                    {
-                        menu.AddItem(
-                            new GUIContent("Screen Blur"),
-                            false,
-                            AddScreenBlurFeatureFromMenu);
+                            AddFeatureFromMenu,
+                            featureType);
                     }
 
                     menu.ShowAsContext();
@@ -476,11 +436,13 @@ namespace NWRP.Editor
             }
         }
 
-        private void AddValleyHeightFogFeatureFromMenu()
+        private void AddFeatureFromMenu(object featureTypeObject)
         {
             serializedObject.ApplyModifiedProperties();
             NWRPRendererData rendererData = target as NWRPRendererData;
-            ValleyHeightFogFeature feature = AddValleyHeightFogFeature(rendererData);
+            NWRPFeature feature = AddFeature(
+                rendererData,
+                featureTypeObject as Type);
             serializedObject.Update();
             if (feature == null)
             {
@@ -495,79 +457,27 @@ namespace NWRP.Editor
             }
         }
 
-        private void AddValleyHeightFogOverlayFeatureFromMenu()
+        internal static NWRPFeature AddFeature(
+            NWRPRendererData rendererData,
+            Type featureType)
         {
-            serializedObject.ApplyModifiedProperties();
-            NWRPRendererData rendererData = target as NWRPRendererData;
-            ValleyHeightFogOverlayFeature feature =
-                AddValleyHeightFogOverlayFeature(rendererData);
-            serializedObject.Update();
-            if (feature == null)
-            {
-                return;
-            }
-
-            int index = IndexOfFeature(rendererData, feature);
-            if (index >= 0)
-            {
-                _featureReorderableList.index = index;
-                SetExpanded(feature, true);
-            }
-        }
-
-        private void AddCloudShadowProjectorFeatureFromMenu()
-        {
-            serializedObject.ApplyModifiedProperties();
-            NWRPRendererData rendererData = target as NWRPRendererData;
-            CloudShadowProjectorFeature feature =
-                AddCloudShadowProjectorFeature(rendererData);
-            serializedObject.Update();
-            if (feature == null)
-            {
-                return;
-            }
-
-            int index = IndexOfFeature(rendererData, feature);
-            if (index >= 0)
-            {
-                _featureReorderableList.index = index;
-                SetExpanded(feature, true);
-            }
-        }
-
-        private void AddScreenBlurFeatureFromMenu()
-        {
-            serializedObject.ApplyModifiedProperties();
-            NWRPRendererData rendererData = target as NWRPRendererData;
-            NWRPScreenBlurFeature feature = AddScreenBlurFeature(rendererData);
-            serializedObject.Update();
-            if (feature == null)
-            {
-                return;
-            }
-
-            int index = IndexOfFeature(rendererData, feature);
-            if (index >= 0)
-            {
-                _featureReorderableList.index = index;
-                SetExpanded(feature, true);
-            }
-        }
-
-        internal static ValleyHeightFogOverlayFeature AddValleyHeightFogOverlayFeature(
-            NWRPRendererData rendererData)
-        {
-            if (rendererData == null)
+            if (rendererData == null
+                || featureType == null
+                || featureType.IsAbstract
+                || !typeof(NWRPFeature).IsAssignableFrom(featureType))
             {
                 return null;
             }
 
-            int existingIndex =
-                IndexOfFeature<ValleyHeightFogOverlayFeature>(rendererData);
-            if (existingIndex >= 0)
+            NWRPFeatureMetadataInfo metadata =
+                NWRPFeatureMetadataUtility.Get(featureType);
+            if (!metadata.allowMultiple)
             {
-                return rendererData.Features[existingIndex]
-                    as ValleyHeightFogOverlayFeature;
+                int existingIndex = IndexOfFeature(rendererData, featureType);
+                if (existingIndex >= 0)
+                {
+                    return rendererData.Features[existingIndex];
+                }
             }
 
             string assetPath = AssetDatabase.GetAssetPath(rendererData);
@@ -576,14 +486,18 @@ namespace NWRP.Editor
                 return null;
             }
 
-            Undo.RecordObject(rendererData, "Add Valley Height Fog Overlay Feature");
-            ValleyHeightFogOverlayFeature feature =
-                ScriptableObject.CreateInstance<ValleyHeightFogOverlayFeature>();
-            feature.name = kValleyHeightFogOverlayFeatureName;
+            string undoName = $"Add {metadata.displayName} Feature";
+            Undo.RecordObject(rendererData, undoName);
+            NWRPFeature feature =
+                ScriptableObject.CreateInstance(featureType) as NWRPFeature;
+            if (feature == null)
+            {
+                return null;
+            }
+
+            feature.name = featureType.Name;
             AssetDatabase.AddObjectToAsset(feature, rendererData);
-            Undo.RegisterCreatedObjectUndo(
-                feature,
-                "Add Valley Height Fog Overlay Feature");
+            Undo.RegisterCreatedObjectUndo(feature, undoName);
 
             rendererData.Features.Add(feature);
             EditorUtility.SetDirty(feature);
@@ -596,118 +510,65 @@ namespace NWRP.Editor
         internal static ValleyHeightFogFeature AddValleyHeightFogFeature(
             NWRPRendererData rendererData)
         {
-            if (rendererData == null)
-            {
-                return null;
-            }
-
-            int existingIndex =
-                IndexOfFeature<ValleyHeightFogFeature>(rendererData);
-            if (existingIndex >= 0)
-            {
-                return rendererData.Features[existingIndex]
-                    as ValleyHeightFogFeature;
-            }
-
-            string assetPath = AssetDatabase.GetAssetPath(rendererData);
-            if (string.IsNullOrEmpty(assetPath))
-            {
-                return null;
-            }
-
-            Undo.RecordObject(rendererData, "Add Valley Height Fog Feature");
-            ValleyHeightFogFeature feature =
-                ScriptableObject.CreateInstance<ValleyHeightFogFeature>();
-            feature.name = kValleyHeightFogFeatureName;
-            AssetDatabase.AddObjectToAsset(feature, rendererData);
-            Undo.RegisterCreatedObjectUndo(
-                feature,
-                "Add Valley Height Fog Feature");
-
-            rendererData.Features.Add(feature);
-            EditorUtility.SetDirty(feature);
-            EditorUtility.SetDirty(rendererData);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-            return feature;
+            return AddFeature(rendererData, typeof(ValleyHeightFogFeature))
+                as ValleyHeightFogFeature;
         }
 
-        internal static NWRPScreenBlurFeature AddScreenBlurFeature(
+        internal static ValleyHeightFogOverlayFeature AddValleyHeightFogOverlayFeature(
             NWRPRendererData rendererData)
         {
-            if (rendererData == null)
-            {
-                return null;
-            }
-
-            int existingIndex =
-                IndexOfFeature<NWRPScreenBlurFeature>(rendererData);
-            if (existingIndex >= 0)
-            {
-                return rendererData.Features[existingIndex]
-                    as NWRPScreenBlurFeature;
-            }
-
-            string assetPath = AssetDatabase.GetAssetPath(rendererData);
-            if (string.IsNullOrEmpty(assetPath))
-            {
-                return null;
-            }
-
-            Undo.RecordObject(rendererData, "Add Screen Blur Feature");
-            NWRPScreenBlurFeature feature =
-                ScriptableObject.CreateInstance<NWRPScreenBlurFeature>();
-            feature.name = kScreenBlurFeatureName;
-            AssetDatabase.AddObjectToAsset(feature, rendererData);
-            Undo.RegisterCreatedObjectUndo(
-                feature,
-                "Add Screen Blur Feature");
-
-            rendererData.Features.Add(feature);
-            EditorUtility.SetDirty(feature);
-            EditorUtility.SetDirty(rendererData);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-            return feature;
+            return AddFeature(rendererData, typeof(ValleyHeightFogOverlayFeature))
+                as ValleyHeightFogOverlayFeature;
         }
 
         internal static CloudShadowProjectorFeature AddCloudShadowProjectorFeature(
             NWRPRendererData rendererData)
         {
-            if (rendererData == null)
+            return AddFeature(rendererData, typeof(CloudShadowProjectorFeature))
+                as CloudShadowProjectorFeature;
+        }
+
+        internal static ScreenBlurFeature AddScreenBlurFeature(
+            NWRPRendererData rendererData)
+        {
+            return AddFeature(rendererData, typeof(ScreenBlurFeature))
+                as ScreenBlurFeature;
+        }
+
+        private static List<Type> GetAddableFeatureTypes()
+        {
+            List<Type> featureTypes = new List<Type>();
+            foreach (Type type in TypeCache.GetTypesDerivedFrom<NWRPFeature>())
             {
-                return null;
+                if (type.IsAbstract || type.IsGenericType)
+                {
+                    continue;
+                }
+
+                if (NWRPFeatureMetadataUtility.Get(type).showInAddMenu)
+                {
+                    featureTypes.Add(type);
+                }
             }
 
-            int existingIndex =
-                IndexOfFeature<CloudShadowProjectorFeature>(rendererData);
-            if (existingIndex >= 0)
+            featureTypes.Sort(CompareFeatureMenuTypes);
+            return featureTypes;
+        }
+
+        private static int CompareFeatureMenuTypes(Type a, Type b)
+        {
+            NWRPFeatureMetadataInfo aMetadata = NWRPFeatureMetadataUtility.Get(a);
+            NWRPFeatureMetadataInfo bMetadata = NWRPFeatureMetadataUtility.Get(b);
+            int sortOrderCompare = aMetadata.sortOrder.CompareTo(bMetadata.sortOrder);
+            if (sortOrderCompare != 0)
             {
-                return rendererData.Features[existingIndex]
-                    as CloudShadowProjectorFeature;
+                return sortOrderCompare;
             }
 
-            string assetPath = AssetDatabase.GetAssetPath(rendererData);
-            if (string.IsNullOrEmpty(assetPath))
-            {
-                return null;
-            }
-
-            Undo.RecordObject(rendererData, "Add Cloud Shadow Projector Feature");
-            CloudShadowProjectorFeature feature =
-                ScriptableObject.CreateInstance<CloudShadowProjectorFeature>();
-            feature.name = kCloudShadowProjectorFeatureName;
-            AssetDatabase.AddObjectToAsset(feature, rendererData);
-            Undo.RegisterCreatedObjectUndo(
-                feature,
-                "Add Cloud Shadow Projector Feature");
-
-            rendererData.Features.Add(feature);
-            EditorUtility.SetDirty(feature);
-            EditorUtility.SetDirty(rendererData);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-            return feature;
+            return string.Compare(
+                aMetadata.menuPath,
+                bMetadata.menuPath,
+                StringComparison.Ordinal);
         }
 
         internal static void RemoveFeatureAt(
@@ -748,55 +609,22 @@ namespace NWRP.Editor
             }
 
             NWRPRendererData rendererData = target as NWRPRendererData;
-            if (feature is ValleyHeightFogFeature)
+            NWRPFeatureMetadataInfo metadata =
+                NWRPFeatureMetadataUtility.Get(feature.GetType());
+            if (metadata.allowMultiple)
             {
-                int existingIndex =
-                    IndexOfFeature<ValleyHeightFogFeature>(rendererData);
-                return existingIndex < 0 || existingIndex == index;
+                return true;
             }
 
-            if (feature is ValleyHeightFogOverlayFeature)
-            {
-                int existingIndex =
-                    IndexOfFeature<ValleyHeightFogOverlayFeature>(rendererData);
-                return existingIndex < 0 || existingIndex == index;
-            }
-
-            if (feature is CloudShadowProjectorFeature)
-            {
-                int existingIndex =
-                    IndexOfFeature<CloudShadowProjectorFeature>(rendererData);
-                return existingIndex < 0 || existingIndex == index;
-            }
-
-            if (feature is NWRPScreenBlurFeature)
-            {
-                int existingIndex =
-                    IndexOfFeature<NWRPScreenBlurFeature>(rendererData);
-                return existingIndex < 0 || existingIndex == index;
-            }
-
-            return true;
+            int existingIndex = IndexOfFeature(rendererData, feature.GetType());
+            return existingIndex < 0 || existingIndex == index;
         }
 
         private static string GetDuplicateFeatureDisplayName(NWRPFeature feature)
         {
-            if (feature is NWRPScreenBlurFeature)
-            {
-                return "Screen Blur";
-            }
-
-            if (feature is ValleyHeightFogOverlayFeature)
-            {
-                return "Valley Height Fog Overlay";
-            }
-
-            if (feature is CloudShadowProjectorFeature)
-            {
-                return "Cloud Shadow Projector";
-            }
-
-            return "Valley Height Fog";
+            return feature == null
+                ? "NWRP"
+                : NWRPFeatureMetadataUtility.Get(feature.GetType()).displayName;
         }
 
         private static bool ShouldDestroyOwnedFeature(
@@ -827,7 +655,7 @@ namespace NWRP.Editor
             NWRPFeature feature,
             string assetPath)
         {
-            Object[] assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            UnityEngine.Object[] assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
             for (int i = 0; i < assets.Length; i++)
             {
                 if (assets[i] is not NWRPRendererData rendererData)
@@ -844,12 +672,12 @@ namespace NWRP.Editor
             return false;
         }
 
-        private bool IsExpanded(Object feature)
+        private bool IsExpanded(UnityEngine.Object feature)
         {
             return feature != null && _expandedFeatures.Contains(feature);
         }
 
-        private void SetExpanded(Object feature, bool expanded)
+        private void SetExpanded(UnityEngine.Object feature, bool expanded)
         {
             if (feature == null)
             {
@@ -873,10 +701,9 @@ namespace NWRP.Editor
                 : "Missing Feature";
         }
 
-        private static int IndexOfFeature<T>(NWRPRendererData rendererData)
-            where T : NWRPFeature
+        private static int IndexOfFeature(NWRPRendererData rendererData, Type featureType)
         {
-            if (rendererData == null)
+            if (rendererData == null || featureType == null)
             {
                 return -1;
             }
@@ -884,13 +711,21 @@ namespace NWRP.Editor
             List<NWRPFeature> features = rendererData.Features;
             for (int i = 0; i < features.Count; i++)
             {
-                if (features[i] is T)
+                if (features[i] != null
+                    && AreEquivalentFeatureTypes(features[i].GetType(), featureType))
                 {
                     return i;
                 }
             }
 
             return -1;
+        }
+
+        private static bool AreEquivalentFeatureTypes(Type existingType, Type requestedType)
+        {
+            return existingType == requestedType
+                || requestedType.IsAssignableFrom(existingType)
+                || existingType.IsAssignableFrom(requestedType);
         }
 
         private static int IndexOfFeature(

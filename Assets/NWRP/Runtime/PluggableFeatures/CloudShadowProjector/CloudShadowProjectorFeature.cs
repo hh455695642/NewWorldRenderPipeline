@@ -3,6 +3,11 @@ using UnityEngine;
 
 namespace NWRP
 {
+    [NWRPFeatureMetadata(
+        "Cloud Shadow Projector",
+        MenuPath = "Environment/Cloud Shadow Projector",
+        VolumeDriven = true,
+        SortOrder = 150)]
     public sealed class CloudShadowProjectorFeature : NWRPFeature
     {
         private CloudShadowProjectorPass _cloudShadowProjectorPass;

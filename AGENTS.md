@@ -40,7 +40,11 @@ The primary audience for this file is coding agents working inside this project.
 ## Directory and Naming Rules
 
 - Keep `Assets/NWRP/Runtime` root for pipeline core types only, such as renderer, frame data, base pass/feature contracts, shader IDs, and the pipeline asset.
-- Runtime feature systems should live under `Assets/NWRP/Runtime/<FeatureArea>` with focused `Passes` subfolders when they own dedicated passes.
+- Built-in runtime feature systems should keep their established domain folders under `Assets/NWRP/Runtime/<FeatureArea>`, for example `CameraTextures`, `Fog`, `Outlines`, `MainLightShadows`, `PostProcessing`, and `VegetationIndirectShadows`.
+- Optional pluggable feature systems currently live under `Assets/NWRP/Runtime/PluggableFeatures/<FeatureName>`.
+- The current pluggable feature set is limited to `CloudShadowProjector`, `ScreenBlur`, `ValleyHeightFog`, and `ValleyHeightFogOverlay`.
+- For pluggable features, the folder name must match the feature class name without the `Feature` suffix. Example: `CloudShadowProjectorFeature` belongs in `PluggableFeatures/CloudShadowProjector/CloudShadowProjectorFeature.cs`.
+- Feature-owned passes, volume components, registries, and helpers should live beside that feature, using focused subfolders such as `Passes` or `Compatibility` when needed.
 - Do not place NWRP-owned runtime systems under `Assets/NWRP/Plugins`; reserve plugin-style folders for third-party or externally sourced packages.
 - Keep compute shaders under `Assets/NWRP/Shaders/Compute/<Domain>` and keep material-facing shaders under their shader family folders.
 - Keep `Assets/NWRP/Editor` grouped by domain (`Pipeline`, `Shaders`, `PostProcessing`, `Lighting`, `Cameras`) while preserving existing namespaces and shader `CustomEditor` strings.
@@ -60,7 +64,10 @@ Respect the pass event sequence defined in [`NWRPPassEvent.cs`](E:/UnityProject/
 - `BeforeTransparent`
 - `Transparent`
 - `AfterTransparent`
+- `AfterValleyHeightFog`
+- `BeforePostProcess`
 - `PostProcess`
+- `AfterPostProcess`
 - `DebugOverlay`
 
 Do not introduce ad hoc pass ordering outside this contract unless there is a hard rendering dependency.

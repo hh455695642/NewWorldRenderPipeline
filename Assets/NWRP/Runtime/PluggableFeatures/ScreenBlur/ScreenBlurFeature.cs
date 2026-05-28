@@ -3,13 +3,18 @@ using UnityEngine;
 
 namespace NWRP
 {
-    public sealed class NWRPScreenBlurFeature : NWRPFeature
+    [NWRPFeatureMetadata(
+        "Screen Blur",
+        MenuPath = "Post Processing/Screen Blur",
+        VolumeDriven = true,
+        SortOrder = 300)]
+    public class ScreenBlurFeature : NWRPFeature
     {
-        private NWRPScreenBlurPass _screenBlurPass;
+        private ScreenBlurPass _screenBlurPass;
 
         protected override void Create()
         {
-            _screenBlurPass = new NWRPScreenBlurPass();
+            _screenBlurPass = new ScreenBlurPass();
         }
 
         public override bool TryGetFrameTargetRequirements(
@@ -36,7 +41,7 @@ namespace NWRP
                 return;
             }
 
-            _screenBlurPass ??= new NWRPScreenBlurPass();
+            _screenBlurPass ??= new ScreenBlurPass();
             _screenBlurPass.Setup(frameData.screenBlur.GetPassEvent());
             renderer.EnqueuePass(_screenBlurPass);
         }

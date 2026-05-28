@@ -6,8 +6,11 @@ Local rules for `Assets/NWRP/Runtime`.
 
 - Runtime orchestration lives here: renderer, feature scheduling, pass lifecycle, shader global uploads.
 - Keep the `Runtime` root for pipeline core contracts and global orchestration types.
-- Put concrete feature implementations in domain folders such as `CameraTextures`, `Fog`, `Outlines`, `MainLightShadows`, `PostProcessing`, and `VegetationIndirectRendering`.
-- Feature-owned passes should live beside their feature in a local `Passes` folder unless they are shared built-in renderer passes.
+- Keep built-in features in their established domain folders, such as `CameraTextures`, `Fog`, `Outlines`, `MainLightShadows`, `PostProcessing`, and `VegetationIndirectShadows`.
+- Put only optional pluggable features under `PluggableFeatures/<FeatureName>`.
+- The current pluggable feature set is `CloudShadowProjector`, `ScreenBlur`, `ValleyHeightFog`, and `ValleyHeightFogOverlay`.
+- For pluggable features, the folder name must match the feature class without the `Feature` suffix. For example, `ScreenBlurFeature` belongs in `PluggableFeatures/ScreenBlur/ScreenBlurFeature.cs`.
+- Feature-owned passes, volume components, registries, and helpers should live beside their feature in local folders such as `Passes` or `Compatibility` unless they are shared built-in renderer passes.
 - Keep custom SRP architecture (`NWRPFeature` + focused `NWRPPass`) and avoid monolithic logic.
 - Do not use `UnityEngine.Rendering.Universal`, `ScriptableRendererFeature`, or `ScriptableRenderPass` in NWRP runtime code.
 - URP-style shader global names are allowed for migration compatibility when their values are uploaded by NWRP-owned runtime code.

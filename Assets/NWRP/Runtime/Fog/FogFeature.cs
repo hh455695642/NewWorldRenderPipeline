@@ -3,9 +3,16 @@ using UnityEngine;
 
 namespace NWRP
 {
-    public sealed class NWRPFogFeature : NWRPFeature
+    [NWRPFeatureMetadata(
+        "Fog",
+        MenuPath = "Environment/Fog",
+        ShowInAddMenu = false,
+        SortOrder = 100)]
+    public sealed class FogFeature : NWRPFeature, INWRPSerializedFeatureStateProvider
     {
         private SetupFogPass _setupFogPass;
+
+        bool INWRPSerializedFeatureStateProvider.DeferSerializedPasses => false;
 
         protected override void Create()
         {
@@ -16,6 +23,12 @@ namespace NWRP
         {
             _setupFogPass ??= new SetupFogPass();
             renderer.EnqueuePass(_setupFogPass);
+        }
+
+        void INWRPSerializedFeatureStateProvider.RecordSerializedFeatureState(
+            ref NWRPSerializedFeatureState state)
+        {
+            state.hasFog = true;
         }
 
         private void OnDisable()
