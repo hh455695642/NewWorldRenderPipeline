@@ -11,6 +11,7 @@ namespace NWRP.Editor
         private const string kFeatureEnabledPropertyName = "isEnabled";
         private const string kValleyHeightFogFeatureName = "Valley Height Fog Feature";
         private const string kValleyHeightFogOverlayFeatureName = "Valley Height Fog Overlay Feature";
+        private const string kCloudShadowProjectorFeatureName = "Cloud Shadow Projector Feature";
         private const float kFeatureRowDragHandleWidth = 18f;
 
         private SerializedProperty _featureSettingsProperty;
@@ -216,14 +217,10 @@ namespace NWRP.Editor
                 }
                 else
                 {
-                    string duplicateFeatureName =
-                        assignedFeature is ValleyHeightFogOverlayFeature
-                            ? "Valley Height Fog Overlay"
-                            : "Valley Height Fog";
                     EditorUtility.DisplayDialog(
                         "Duplicate Feature",
                         "This renderer data already contains a "
-                            + duplicateFeatureName
+                            + GetDuplicateFeatureDisplayName(assignedFeature)
                             + " feature.",
                         "Close");
                 }
@@ -355,9 +352,11 @@ namespace NWRP.Editor
 
             if (propertyCount == 0)
             {
-                string message = feature is ValleyHeightFogFeature
-                    ? "No renderer-local settings. Valley Height Fog parameters are controlled by Volumes."
-                    : "No renderer-local settings.";
+                string message =
+                    feature is ValleyHeightFogFeature
+                    || feature is CloudShadowProjectorFeature
+                        ? "No renderer-local settings. This feature's parameters are controlled by Volumes."
+                        : "No renderer-local settings.";
                 EditorGUI.HelpBox(rect, message, MessageType.Info);
             }
 
@@ -386,6 +385,8 @@ namespace NWRP.Editor
                         IndexOfFeature<ValleyHeightFogFeature>(rendererData) >= 0;
                     bool hasValleyHeightFogOverlay =
                         IndexOfFeature<ValleyHeightFogOverlayFeature>(rendererData) >= 0;
+                    bool hasCloudShadowProjector =
+                        IndexOfFeature<CloudShadowProjectorFeature>(rendererData) >= 0;
                     if (hasValleyHeightFog)
                     {
                         menu.AddDisabledItem(
@@ -410,6 +411,19 @@ namespace NWRP.Editor
                             new GUIContent("Valley Height Fog Overlay"),
                             false,
                             AddValleyHeightFogOverlayFeatureFromMenu);
+                    }
+
+                    if (hasCloudShadowProjector)
+                    {
+                        menu.AddDisabledItem(
+                            new GUIContent("Cloud Shadow Projector"));
+                    }
+                    else
+                    {
+                        menu.AddItem(
+                            new GUIContent("Cloud Shadow Projector"),
+                            false,
+                            AddCloudShadowProjectorFeatureFromMenu);
                     }
 
                     menu.ShowAsContext();
@@ -449,6 +463,26 @@ namespace NWRP.Editor
             NWRPRendererData rendererData = target as NWRPRendererData;
             ValleyHeightFogOverlayFeature feature =
                 AddValleyHeightFogOverlayFeature(rendererData);
+            serializedObject.Update();
+            if (feature == null)
+            {
+                return;
+            }
+
+            int index = IndexOfFeature(rendererData, feature);
+            if (index >= 0)
+            {
+                _featureReorderableList.index = index;
+                SetExpanded(feature, true);
+            }
+        }
+
+        private void AddCloudShadowProjectorFeatureFromMenu()
+        {
+            serializedObject.ApplyModifiedProperties();
+            NWRPRendererData rendererData = target as NWRPRendererData;
+            CloudShadowProjectorFeature feature =
+                AddCloudShadowProjectorFeature(rendererData);
             serializedObject.Update();
             if (feature == null)
             {
@@ -541,6 +575,45 @@ namespace NWRP.Editor
             return feature;
         }
 
+        internal static CloudShadowProjectorFeature AddCloudShadowProjectorFeature(
+            NWRPRendererData rendererData)
+        {
+            if (rendererData == null)
+            {
+                return null;
+            }
+
+            int existingIndex =
+                IndexOfFeature<CloudShadowProjectorFeature>(rendererData);
+            if (existingIndex >= 0)
+            {
+                return rendererData.Features[existingIndex]
+                    as CloudShadowProjectorFeature;
+            }
+
+            string assetPath = AssetDatabase.GetAssetPath(rendererData);
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return null;
+            }
+
+            Undo.RecordObject(rendererData, "Add Cloud Shadow Projector Feature");
+            CloudShadowProjectorFeature feature =
+                ScriptableObject.CreateInstance<CloudShadowProjectorFeature>();
+            feature.name = kCloudShadowProjectorFeatureName;
+            AssetDatabase.AddObjectToAsset(feature, rendererData);
+            Undo.RegisterCreatedObjectUndo(
+                feature,
+                "Add Cloud Shadow Projector Feature");
+
+            rendererData.Features.Add(feature);
+            EditorUtility.SetDirty(feature);
+            EditorUtility.SetDirty(rendererData);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+            return feature;
+        }
+
         internal static void RemoveFeatureAt(
             NWRPRendererData rendererData,
             int index)
@@ -593,7 +666,29 @@ namespace NWRP.Editor
                 return existingIndex < 0 || existingIndex == index;
             }
 
+            if (feature is CloudShadowProjectorFeature)
+            {
+                int existingIndex =
+                    IndexOfFeature<CloudShadowProjectorFeature>(rendererData);
+                return existingIndex < 0 || existingIndex == index;
+            }
+
             return true;
+        }
+
+        private static string GetDuplicateFeatureDisplayName(NWRPFeature feature)
+        {
+            if (feature is ValleyHeightFogOverlayFeature)
+            {
+                return "Valley Height Fog Overlay";
+            }
+
+            if (feature is CloudShadowProjectorFeature)
+            {
+                return "Cloud Shadow Projector";
+            }
+
+            return "Valley Height Fog";
         }
 
         private static bool ShouldDestroyOwnedFeature(

@@ -431,6 +431,7 @@ namespace NWRP
             frameData.vignetteActive = false;
             frameData.antiAliasingActive = false;
             frameData.valleyHeightFogActive = false;
+            frameData.cloudShadowProjectorActive = false;
             frameData.fogActive = false;
             frameData.fogMode = NWRPFogMode.Off;
             frameData.fogColor = Color.clear;
@@ -443,6 +444,7 @@ namespace NWRP
             frameData.vignette = null;
             frameData.antiAliasing = null;
             frameData.valleyHeightFog = null;
+            frameData.cloudShadowProjector = null;
             frameData.fog = null;
 
             Camera camera = frameData.camera;
@@ -597,6 +599,13 @@ namespace NWRP
             frameData.valleyHeightFogActive =
                 valleyHeightFog != null
                 && valleyHeightFog.IsActive();
+
+            NWRPCloudShadowProjector cloudShadowProjector =
+                frameData.volumeStack.GetComponent<NWRPCloudShadowProjector>();
+            frameData.cloudShadowProjector = cloudShadowProjector;
+            frameData.cloudShadowProjectorActive =
+                cloudShadowProjector != null
+                && cloudShadowProjector.IsActive();
         }
 
         private static void ResolveFogSettings(ref NWRPFrameData frameData)
@@ -972,6 +981,7 @@ namespace NWRP
             List<NWRPFeature> features = rendererData.Features;
             bool hasActiveSerializedPostProcessFeature = false;
             bool hasActiveSerializedValleyHeightFogFeature = false;
+            bool hasActiveSerializedCloudShadowProjectorFeature = false;
             for (int i = 0; i < features.Count; i++)
             {
                 NWRPFeature feature = features[i];
@@ -988,6 +998,16 @@ namespace NWRP
                     }
 
                     hasActiveSerializedValleyHeightFogFeature = true;
+                }
+
+                if (feature is CloudShadowProjectorFeature)
+                {
+                    if (hasActiveSerializedCloudShadowProjectorFeature)
+                    {
+                        continue;
+                    }
+
+                    hasActiveSerializedCloudShadowProjectorFeature = true;
                 }
 
                 if (feature is PostProcessFeature)
@@ -1591,6 +1611,7 @@ namespace NWRP
             bool hasActiveSerializedFogFeature = false;
             bool hasActiveSerializedPostProcessFeature = false;
             bool hasActiveSerializedValleyHeightFogFeature = false;
+            bool hasActiveSerializedCloudShadowProjectorFeature = false;
             bool hasActiveSerializedDepthTextureFeature =
                 HasActiveSerializedDepthTextureFeature(features);
 
@@ -1637,6 +1658,16 @@ namespace NWRP
                     }
 
                     hasActiveSerializedValleyHeightFogFeature = true;
+                }
+
+                if (feature is CloudShadowProjectorFeature)
+                {
+                    if (hasActiveSerializedCloudShadowProjectorFeature)
+                    {
+                        continue;
+                    }
+
+                    hasActiveSerializedCloudShadowProjectorFeature = true;
                 }
 
                 if (feature is OutlineFeature)

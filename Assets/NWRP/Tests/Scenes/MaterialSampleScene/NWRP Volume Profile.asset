@@ -209,6 +209,106 @@ MonoBehaviour:
   subpixelBlending:
     m_OverrideState: 0
     m_Value: 0.75
+--- !u!114 &-2163002335924138220
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a14e2fc7b45445d9a7b0a7c9987fc85, type: 3}
+  m_Name: NWRPCloudShadowProjector
+  m_EditorClassIdentifier: 
+  active: 0
+  enable:
+    m_OverrideState: 1
+    m_Value: 1
+  distortionTexture:
+    m_OverrideState: 1
+    m_Value: {fileID: 2800000, guid: 62b3764a93163a4428c49f17f18841d2, type: 3}
+    dimension: 1
+  distortionTiling:
+    m_OverrideState: 0
+    m_Value: {x: 0.01, y: 0.01}
+  distortionOffset:
+    m_OverrideState: 0
+    m_Value: {x: 0, y: 0}
+  distortionScroll:
+    m_OverrideState: 0
+    m_Value: {x: 0, y: 0}
+  distortionStrength:
+    m_OverrideState: 1
+    m_Value: 0
+  primaryEnabled:
+    m_OverrideState: 1
+    m_Value: 1
+  primaryTexture:
+    m_OverrideState: 1
+    m_Value: {fileID: 2800000, guid: 5e52becffb741574786d2ac1c600023a, type: 3}
+    dimension: 1
+  primaryCenter:
+    m_OverrideState: 0
+    m_Value: {x: 0, y: 0, z: 0}
+  primaryRotation:
+    m_OverrideState: 0
+    m_Value: {x: 0, y: 0, z: 0}
+  primarySize:
+    m_OverrideState: 0
+    m_Value: {x: 200, y: 100, z: 200}
+  primaryTiling:
+    m_OverrideState: 1
+    m_Value: {x: 4.73, y: 5.4}
+  primaryOffset:
+    m_OverrideState: 1
+    m_Value: {x: 0.66, y: 4.88}
+  primaryScroll:
+    m_OverrideState: 1
+    m_Value: {x: 0.001, y: 0.022}
+  primaryIntensity:
+    m_OverrideState: 1
+    m_Value: 1.95
+  primaryEdgeSoftness:
+    m_OverrideState: 0
+    m_Value: 0.02
+  primaryShadowColor:
+    m_OverrideState: 0
+    m_Value: {r: 0.55, g: 0.6, b: 0.68, a: 1}
+  secondaryEnabled:
+    m_OverrideState: 1
+    m_Value: 1
+  secondaryTexture:
+    m_OverrideState: 1
+    m_Value: {fileID: 2800000, guid: 5e52becffb741574786d2ac1c600023a, type: 3}
+    dimension: 1
+  secondaryCenter:
+    m_OverrideState: 0
+    m_Value: {x: 0, y: 0, z: 0}
+  secondaryRotation:
+    m_OverrideState: 0
+    m_Value: {x: 0, y: 0, z: 0}
+  secondarySize:
+    m_OverrideState: 0
+    m_Value: {x: 260, y: 120, z: 260}
+  secondaryTiling:
+    m_OverrideState: 1
+    m_Value: {x: 5, y: 4}
+  secondaryOffset:
+    m_OverrideState: 0
+    m_Value: {x: 0, y: 0}
+  secondaryScroll:
+    m_OverrideState: 0
+    m_Value: {x: 0, y: 0}
+  secondaryIntensity:
+    m_OverrideState: 1
+    m_Value: 1.01
+  secondaryEdgeSoftness:
+    m_OverrideState: 1
+    m_Value: 0.345
+  secondaryShadowColor:
+    m_OverrideState: 1
+    m_Value: {r: 0.54901963, g: 0.6, b: 0.6784314, a: 1}
 --- !u!114 &-1015162528043781625
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -221,7 +321,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 28c94c8a1bbf7b84489f2aa8a1577d1b, type: 3}
   m_Name: NWRPValleyHeightFog
   m_EditorClassIdentifier: 
-  active: 1
+  active: 0
   enable:
     m_OverrideState: 1
     m_Value: 1
@@ -335,6 +435,7 @@ MonoBehaviour:
   - {fileID: -4073496346347401567}
   - {fileID: 4873266300171738336}
   - {fileID: -1015162528043781625}
+  - {fileID: -2163002335924138220}
 --- !u!114 &2038543448562684077
 MonoBehaviour:
   m_ObjectHideFlags: 3
