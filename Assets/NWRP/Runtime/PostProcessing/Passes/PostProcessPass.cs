@@ -23,7 +23,9 @@ namespace NWRP.Runtime.Passes
         private readonly BloomMipData[] _bloomMips = new BloomMipData[k_BloomMipCount];
         private readonly int _bloomTempBlurId = Shader.PropertyToID("_NWRPBloomTempBlur");
         private readonly int _bloomComposeId = Shader.PropertyToID("_NWRPBloomCustomCompose");
+        private readonly int _finalCompositeTempId = Shader.PropertyToID("_NWRPPostProcessTempColor");
 
+        private Material _copyMaterial;
         private Material _tonemappingMaterial;
         private Material _bloomMaterial;
         private Texture _defaultLensDirtTexture;
@@ -94,8 +96,10 @@ namespace NWRP.Runtime.Passes
 
         public void Dispose()
         {
+            CoreUtils.Destroy(_copyMaterial);
             CoreUtils.Destroy(_tonemappingMaterial);
             CoreUtils.Destroy(_bloomMaterial);
+            _copyMaterial = null;
             _tonemappingMaterial = null;
             _bloomMaterial = null;
             _defaultLensDirtTexture = null;
@@ -283,6 +287,12 @@ namespace NWRP.Runtime.Passes
                 PostProcessFeature.IsVignetteActive(ref frameData));
             UploadFxaaConstants(ref frameData, source, fxaaActive);
 
+            if (NWRPScreenBlurFeature.IsAfterPostProcessActive(ref frameData))
+            {
+                ExecuteFinalCompositeToCameraColor(ref frameData, source, passIndex);
+                return;
+            }
+
             CoreUtils.SetRenderTarget(
                 cmd,
                 frameData.targets.backBufferColor,
@@ -300,6 +310,49 @@ namespace NWRP.Runtime.Passes
                 passIndex);
 
             frameData.targets.cameraColorPresented = true;
+        }
+
+        private void ExecuteFinalCompositeToCameraColor(
+            ref NWRPFrameData frameData,
+            RTHandle source,
+            int passIndex)
+        {
+            if (source == null || source.rt == null || !EnsureCopyMaterial())
+            {
+                return;
+            }
+
+            RenderTextureDescriptor descriptor = CreateTempDescriptor(source.rt);
+            int width = Mathf.Max(descriptor.width, 1);
+            int height = Mathf.Max(descriptor.height, 1);
+            CommandBuffer cmd = frameData.cmd;
+
+            cmd.GetTemporaryRT(_finalCompositeTempId, descriptor, FilterMode.Bilinear);
+            try
+            {
+                BlitToTarget(
+                    cmd,
+                    source,
+                    _finalCompositeTempId,
+                    width,
+                    height,
+                    _tonemappingMaterial,
+                    passIndex);
+                BlitToTarget(
+                    cmd,
+                    _finalCompositeTempId,
+                    frameData.targets.cameraColor,
+                    width,
+                    height,
+                    _copyMaterial,
+                    0);
+            }
+            finally
+            {
+                cmd.ReleaseTemporaryRT(_finalCompositeTempId);
+                cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
+                cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
+            }
         }
 
         private void BlurInPlace(
@@ -784,6 +837,19 @@ namespace NWRP.Runtime.Passes
             return descriptor;
         }
 
+        private static RenderTextureDescriptor CreateTempDescriptor(RenderTexture sourceTexture)
+        {
+            RenderTextureDescriptor descriptor = sourceTexture.descriptor;
+            descriptor.depthBufferBits = 0;
+            descriptor.depthStencilFormat = GraphicsFormat.None;
+            descriptor.msaaSamples = 1;
+            descriptor.bindMS = false;
+            descriptor.useMipMap = false;
+            descriptor.autoGenerateMips = false;
+            descriptor.enableRandomWrite = false;
+            return descriptor;
+        }
+
         private static void SetBloomTexelSize(CommandBuffer cmd, int width, int height)
         {
             float safeWidth = Mathf.Max(width, 1);
@@ -828,6 +894,17 @@ namespace NWRP.Runtime.Passes
 
             _tonemappingMaterial = CoreUtils.CreateEngineMaterial(shader);
             return _tonemappingMaterial != null;
+        }
+
+        private bool EnsureCopyMaterial()
+        {
+            if (_copyMaterial != null)
+            {
+                return true;
+            }
+
+            _copyMaterial = NWRPBlitterResources.CreateCoreBlitMaterial();
+            return _copyMaterial != null;
         }
 
         private bool EnsureBloomMaterial()

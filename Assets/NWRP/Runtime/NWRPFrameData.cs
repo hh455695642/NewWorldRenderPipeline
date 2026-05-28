@@ -23,6 +23,7 @@ namespace NWRP
         public bool colorAdjustmentsActive;
         public bool vignetteActive;
         public bool antiAliasingActive;
+        public bool screenBlurActive;
         public bool valleyHeightFogActive;
         public bool cloudShadowProjectorActive;
         public bool fogActive;
@@ -36,6 +37,7 @@ namespace NWRP
         public NWRPColorAdjustments colorAdjustments;
         public NWRPVignette vignette;
         public NWRPAntiAliasing antiAliasing;
+        public NWRPScreenBlur screenBlur;
         public NWRPValleyHeightFog valleyHeightFog;
         public NWRPCloudShadowProjector cloudShadowProjector;
         public NWRPFog fog;

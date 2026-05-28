@@ -430,6 +430,7 @@ namespace NWRP
             frameData.colorAdjustmentsActive = false;
             frameData.vignetteActive = false;
             frameData.antiAliasingActive = false;
+            frameData.screenBlurActive = false;
             frameData.valleyHeightFogActive = false;
             frameData.cloudShadowProjectorActive = false;
             frameData.fogActive = false;
@@ -443,6 +444,7 @@ namespace NWRP
             frameData.colorAdjustments = null;
             frameData.vignette = null;
             frameData.antiAliasing = null;
+            frameData.screenBlur = null;
             frameData.valleyHeightFog = null;
             frameData.cloudShadowProjector = null;
             frameData.fog = null;
@@ -592,6 +594,13 @@ namespace NWRP
             frameData.antiAliasingActive =
                 antiAliasing != null
                 && antiAliasing.IsActive();
+
+            NWRPScreenBlur screenBlur =
+                frameData.volumeStack.GetComponent<NWRPScreenBlur>();
+            frameData.screenBlur = screenBlur;
+            frameData.screenBlurActive =
+                screenBlur != null
+                && screenBlur.IsActive();
 
             NWRPValleyHeightFog valleyHeightFog =
                 frameData.volumeStack.GetComponent<NWRPValleyHeightFog>();

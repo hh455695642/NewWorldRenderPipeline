@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f83b2046e2b940c0bef391724ffa0cc7, type: 3}
   m_Name: NWRPVignette
-  m_EditorClassIdentifier: 
+  m_EditorClassIdentifier:
   active: 1
   outerRing:
     m_OverrideState: 1
@@ -321,7 +321,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 28c94c8a1bbf7b84489f2aa8a1577d1b, type: 3}
   m_Name: NWRPValleyHeightFog
   m_EditorClassIdentifier: 
-  active: 0
+  active: 1
   enable:
     m_OverrideState: 1
     m_Value: 1
@@ -436,6 +436,7 @@ MonoBehaviour:
   - {fileID: 4873266300171738336}
   - {fileID: -1015162528043781625}
   - {fileID: -2163002335924138220}
+  - {fileID: 9061593179813871563}
 --- !u!114 &2038543448562684077
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -495,3 +496,25 @@ MonoBehaviour:
   density:
     m_OverrideState: 0
     m_Value: 0.01
+--- !u!114 &9061593179813871563
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 82cd28df88494fecbfb3f334f24f5b9d, type: 3}
+  m_Name: NWRPScreenBlur
+  m_EditorClassIdentifier:
+  active: 1
+  radius:
+    m_OverrideState: 1
+    m_Value: 2.41
+  iterations:
+    m_OverrideState: 1
+    m_Value: 1
+  injectionPoint:
+    m_OverrideState: 1
+    m_Value: 0

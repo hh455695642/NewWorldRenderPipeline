@@ -12,6 +12,7 @@ namespace NWRP.Editor
         private const string kValleyHeightFogFeatureName = "Valley Height Fog Feature";
         private const string kValleyHeightFogOverlayFeatureName = "Valley Height Fog Overlay Feature";
         private const string kCloudShadowProjectorFeatureName = "Cloud Shadow Projector Feature";
+        private const string kScreenBlurFeatureName = "Screen Blur Feature";
         private const float kFeatureRowDragHandleWidth = 18f;
 
         private SerializedProperty _featureSettingsProperty;
@@ -355,6 +356,7 @@ namespace NWRP.Editor
                 string message =
                     feature is ValleyHeightFogFeature
                     || feature is CloudShadowProjectorFeature
+                    || feature is NWRPScreenBlurFeature
                         ? "No renderer-local settings. This feature's parameters are controlled by Volumes."
                         : "No renderer-local settings.";
                 EditorGUI.HelpBox(rect, message, MessageType.Info);
@@ -387,6 +389,8 @@ namespace NWRP.Editor
                         IndexOfFeature<ValleyHeightFogOverlayFeature>(rendererData) >= 0;
                     bool hasCloudShadowProjector =
                         IndexOfFeature<CloudShadowProjectorFeature>(rendererData) >= 0;
+                    bool hasScreenBlur =
+                        IndexOfFeature<NWRPScreenBlurFeature>(rendererData) >= 0;
                     if (hasValleyHeightFog)
                     {
                         menu.AddDisabledItem(
@@ -424,6 +428,19 @@ namespace NWRP.Editor
                             new GUIContent("Cloud Shadow Projector"),
                             false,
                             AddCloudShadowProjectorFeatureFromMenu);
+                    }
+
+                    if (hasScreenBlur)
+                    {
+                        menu.AddDisabledItem(
+                            new GUIContent("Screen Blur"));
+                    }
+                    else
+                    {
+                        menu.AddItem(
+                            new GUIContent("Screen Blur"),
+                            false,
+                            AddScreenBlurFeatureFromMenu);
                     }
 
                     menu.ShowAsContext();
@@ -483,6 +500,25 @@ namespace NWRP.Editor
             NWRPRendererData rendererData = target as NWRPRendererData;
             CloudShadowProjectorFeature feature =
                 AddCloudShadowProjectorFeature(rendererData);
+            serializedObject.Update();
+            if (feature == null)
+            {
+                return;
+            }
+
+            int index = IndexOfFeature(rendererData, feature);
+            if (index >= 0)
+            {
+                _featureReorderableList.index = index;
+                SetExpanded(feature, true);
+            }
+        }
+
+        private void AddScreenBlurFeatureFromMenu()
+        {
+            serializedObject.ApplyModifiedProperties();
+            NWRPRendererData rendererData = target as NWRPRendererData;
+            NWRPScreenBlurFeature feature = AddScreenBlurFeature(rendererData);
             serializedObject.Update();
             if (feature == null)
             {
@@ -566,6 +602,45 @@ namespace NWRP.Editor
             Undo.RegisterCreatedObjectUndo(
                 feature,
                 "Add Valley Height Fog Feature");
+
+            rendererData.Features.Add(feature);
+            EditorUtility.SetDirty(feature);
+            EditorUtility.SetDirty(rendererData);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+            return feature;
+        }
+
+        internal static NWRPScreenBlurFeature AddScreenBlurFeature(
+            NWRPRendererData rendererData)
+        {
+            if (rendererData == null)
+            {
+                return null;
+            }
+
+            int existingIndex =
+                IndexOfFeature<NWRPScreenBlurFeature>(rendererData);
+            if (existingIndex >= 0)
+            {
+                return rendererData.Features[existingIndex]
+                    as NWRPScreenBlurFeature;
+            }
+
+            string assetPath = AssetDatabase.GetAssetPath(rendererData);
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return null;
+            }
+
+            Undo.RecordObject(rendererData, "Add Screen Blur Feature");
+            NWRPScreenBlurFeature feature =
+                ScriptableObject.CreateInstance<NWRPScreenBlurFeature>();
+            feature.name = kScreenBlurFeatureName;
+            AssetDatabase.AddObjectToAsset(feature, rendererData);
+            Undo.RegisterCreatedObjectUndo(
+                feature,
+                "Add Screen Blur Feature");
 
             rendererData.Features.Add(feature);
             EditorUtility.SetDirty(feature);
@@ -673,11 +748,23 @@ namespace NWRP.Editor
                 return existingIndex < 0 || existingIndex == index;
             }
 
+            if (feature is NWRPScreenBlurFeature)
+            {
+                int existingIndex =
+                    IndexOfFeature<NWRPScreenBlurFeature>(rendererData);
+                return existingIndex < 0 || existingIndex == index;
+            }
+
             return true;
         }
 
         private static string GetDuplicateFeatureDisplayName(NWRPFeature feature)
         {
+            if (feature is NWRPScreenBlurFeature)
+            {
+                return "Screen Blur";
+            }
+
             if (feature is ValleyHeightFogOverlayFeature)
             {
                 return "Valley Height Fog Overlay";

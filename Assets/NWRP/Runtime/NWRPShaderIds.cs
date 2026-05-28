@@ -28,6 +28,8 @@ namespace NWRP
         public static readonly int VignetteParams2 = Shader.PropertyToID("_NWRPVignetteParams2");
         public static readonly int FxaaParams = Shader.PropertyToID("_NWRPFxaaParams");
         public static readonly int FxaaTexelSize = Shader.PropertyToID("_NWRPFxaaTexelSize");
+        public static readonly int ScreenBlurRadius = Shader.PropertyToID("_NWRPScreenBlurRadius");
+        public static readonly int ScreenBlurTexelSize = Shader.PropertyToID("_NWRPScreenBlurTexelSize");
         public static readonly int ValleyHeightFogColor = Shader.PropertyToID("_NWRPValleyHeightFogColor");
         public static readonly int ValleyHeightFogHeightParams = Shader.PropertyToID("_NWRPValleyHeightFogHeightParams");
         public static readonly int ValleyHeightFogDistanceParams = Shader.PropertyToID("_NWRPValleyHeightFogDistanceParams");

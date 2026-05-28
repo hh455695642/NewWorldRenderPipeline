@@ -17,7 +17,9 @@ namespace NWRP
         Transparent = 500,
         AfterTransparent = 550,
         AfterValleyHeightFog = 575,
+        BeforePostProcess = 590,
         PostProcess = 600,
+        AfterPostProcess = 650,
         DebugOverlay = 700
     }
 }
