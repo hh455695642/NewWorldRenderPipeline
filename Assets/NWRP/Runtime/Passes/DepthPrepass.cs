@@ -40,7 +40,9 @@ namespace NWRP.Runtime.Passes
                 enableInstancing = frameData.asset.useGPUInstancing
             };
 
-            FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
+            FilteringSettings filteringSettings = new FilteringSettings(
+                RenderQueueRange.opaque,
+                NWRPRenderer.GetOpaqueLayerMaskValue(ref frameData));
             frameData.context.DrawRenderers(
                 frameData.cullingResults,
                 ref drawingSettings,

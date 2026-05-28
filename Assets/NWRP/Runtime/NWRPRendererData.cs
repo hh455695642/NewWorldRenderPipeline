@@ -6,6 +6,21 @@ namespace NWRP
     [CreateAssetMenu(menuName = "Rendering/NWRP Renderer Data")]
     public sealed class NWRPRendererData : ScriptableObject
     {
+        [System.Serializable]
+        public sealed class RendererFilteringSettings
+        {
+            [InspectorName("Opaque Layer Mask")]
+            [Tooltip("Controls which opaque layers this renderer draws.")]
+            public LayerMask opaqueLayerMask = ~0;
+
+            [InspectorName("Transparent Layer Mask")]
+            [Tooltip("Controls which transparent layers this renderer draws.")]
+            public LayerMask transparentLayerMask = ~0;
+        }
+
+        public RendererFilteringSettings filtering =
+            new RendererFilteringSettings();
+
         public NewWorldRenderPipelineAsset.FeatureSettings featureSettings =
             new NewWorldRenderPipelineAsset.FeatureSettings();
 
@@ -36,7 +51,20 @@ namespace NWRP
             }
         }
 
+        private RendererFilteringSettings FilteringData
+        {
+            get
+            {
+                EnsureFilteringSettings();
+                return filtering;
+            }
+        }
+
         public List<NWRPFeature> Features => FeatureSettingsData.features;
+
+        public LayerMask OpaqueLayerMask => FilteringData.opaqueLayerMask;
+
+        public LayerMask TransparentLayerMask => FilteringData.transparentLayerMask;
 
         public bool EnableOutline => FeatureSettingsData.outline.enableOutline;
 
@@ -182,6 +210,14 @@ namespace NWRP
             featureSettings.EnsureInitialized();
         }
 
+        private void EnsureFilteringSettings()
+        {
+            if (filtering == null)
+            {
+                filtering = new RendererFilteringSettings();
+            }
+        }
+
         private static void DisposeRuntimeFeature<T>(ref T feature)
             where T : ScriptableObject
         {
@@ -205,6 +241,7 @@ namespace NWRP
 #if UNITY_EDITOR
         private void OnValidate()
         {
+            EnsureFilteringSettings();
             EnsureFeatureSettings();
         }
 #endif

@@ -15,6 +15,9 @@ namespace NWRP.Editor
         private const string kScreenBlurFeatureName = "Screen Blur Feature";
         private const float kFeatureRowDragHandleWidth = 18f;
 
+        private SerializedProperty _filteringProperty;
+        private SerializedProperty _opaqueLayerMaskProperty;
+        private SerializedProperty _transparentLayerMaskProperty;
         private SerializedProperty _featureSettingsProperty;
         private SerializedProperty _featureListProperty;
         private SerializedProperty _featureOutlineProperty;
@@ -31,6 +34,11 @@ namespace NWRP.Editor
 
         private void OnEnable()
         {
+            _filteringProperty = serializedObject.FindProperty("filtering");
+            _opaqueLayerMaskProperty =
+                _filteringProperty.FindPropertyRelative("opaqueLayerMask");
+            _transparentLayerMaskProperty =
+                _filteringProperty.FindPropertyRelative("transparentLayerMask");
             _featureSettingsProperty = serializedObject.FindProperty("featureSettings");
             _featureOutlineProperty =
                 _featureSettingsProperty.FindPropertyRelative("outline");
@@ -62,6 +70,19 @@ namespace NWRP.Editor
         {
             serializedObject.Update();
 
+            EditorGUILayout.LabelField("Filtering", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(
+                _opaqueLayerMaskProperty,
+                new GUIContent(
+                    "Opaque Layer Mask",
+                    "Controls which opaque layers this renderer draws."));
+            EditorGUILayout.PropertyField(
+                _transparentLayerMaskProperty,
+                new GUIContent(
+                    "Transparent Layer Mask",
+                    "Controls which transparent layers this renderer draws."));
+
+            EditorGUILayout.Space(4f);
             EditorGUILayout.LabelField("Feature Settings", EditorStyles.boldLabel);
             DrawSubsectionLabel("Outline");
             EditorGUILayout.PropertyField(

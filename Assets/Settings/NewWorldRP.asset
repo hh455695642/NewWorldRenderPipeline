@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cfe43a6138e849308f4849a28bcc54f9, type: 3}
   m_Name: Screen Blur Feature
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   isEnabled: 1
 --- !u!114 &-2629907331226510980
 MonoBehaviour:
@@ -25,6 +25,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ec819d38f994ecebe9ff96c617d20e8, type: 3}
   m_Name: NWRP Default Renderer
   m_EditorClassIdentifier: 
+  filtering:
+    opaqueLayerMask:
+      serializedVersion: 2
+      m_Bits: 4294967295
+    transparentLayerMask:
+      serializedVersion: 2
+      m_Bits: 4294967295
   featureSettings:
     outline:
       enableOutline: 0

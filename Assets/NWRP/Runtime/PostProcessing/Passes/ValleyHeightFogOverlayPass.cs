@@ -8,13 +8,11 @@ namespace NWRP.Runtime.Passes
         private static readonly ShaderTagId s_AfterFogTagId = new ShaderTagId("AfterFog");
         private static readonly ShaderTagId s_NwrpAfterFogTagId = new ShaderTagId("NWRPAfterFog");
 
-        private FilteringSettings _filteringSettings;
         private RenderStateBlock _stateBlock;
 
         public ValleyHeightFogOverlayPass()
             : base(NWRPPassEvent.AfterValleyHeightFog, "Valley Height Fog Overlay")
         {
-            _filteringSettings = new FilteringSettings(RenderQueueRange.transparent);
             _stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
         }
 
@@ -49,10 +47,13 @@ namespace NWRP.Runtime.Passes
             // depending on the legacy AfterFog tag name.
             drawingSettings.SetShaderPassName(1, s_NwrpAfterFogTagId);
 
+            FilteringSettings filteringSettings = new FilteringSettings(
+                RenderQueueRange.transparent,
+                NWRPRenderer.GetTransparentLayerMaskValue(ref frameData));
             frameData.context.DrawRenderers(
                 frameData.cullingResults,
                 ref drawingSettings,
-                ref _filteringSettings,
+                ref filteringSettings,
                 ref _stateBlock);
         }
 

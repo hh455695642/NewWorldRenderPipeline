@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f83b2046e2b940c0bef391724ffa0cc7, type: 3}
   m_Name: NWRPVignette
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   active: 1
   outerRing:
     m_OverrideState: 1
@@ -507,8 +507,8 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 82cd28df88494fecbfb3f334f24f5b9d, type: 3}
   m_Name: NWRPScreenBlur
-  m_EditorClassIdentifier:
-  active: 1
+  m_EditorClassIdentifier: 
+  active: 0
   radius:
     m_OverrideState: 1
     m_Value: 2.41

@@ -9987,7 +9987,7 @@ GameObject:
   - component: {fileID: 1831743025989393830}
   - component: {fileID: 1831743025989393829}
   - component: {fileID: 1831743025989393828}
-  m_Layer: 12
+  m_Layer: 0
   m_Name: Terrain_LoopForest_Block_A_01
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -170520,6 +170520,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Terrain_LoopForest_Block_A_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 6936020333658327013, guid: fd68f1fd3daae5243a7ccf42d39c4c78,
+        type: 3}
+      propertyPath: m_Layer
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7713084042637679967, guid: fd68f1fd3daae5243a7ccf42d39c4c78,
         type: 3}

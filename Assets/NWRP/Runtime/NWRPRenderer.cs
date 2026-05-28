@@ -338,7 +338,9 @@ namespace NWRP
             drawingSettings.SetShaderPassName(1, s_SrpDefaultUnlitTagId);
             drawingSettings.SetShaderPassName(2, s_NewWorldForwardTagId);
 
-            FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
+            FilteringSettings filteringSettings = new FilteringSettings(
+                RenderQueueRange.opaque,
+                GetOpaqueLayerMaskValue(ref frameData));
             frameData.context.DrawRenderers(
                 frameData.cullingResults,
                 ref drawingSettings,
@@ -373,7 +375,9 @@ namespace NWRP
             drawingSettings.SetShaderPassName(1, s_SrpDefaultUnlitTagId);
             drawingSettings.SetShaderPassName(2, s_NewWorldForwardTagId);
 
-            FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.transparent);
+            FilteringSettings filteringSettings = new FilteringSettings(
+                RenderQueueRange.transparent,
+                GetTransparentLayerMaskValue(ref frameData));
             frameData.context.DrawRenderers(
                 frameData.cullingResults,
                 ref drawingSettings,
@@ -1862,6 +1866,20 @@ namespace NWRP
 
             cullingResults = default;
             return false;
+        }
+
+        internal static int GetOpaqueLayerMaskValue(ref NWRPFrameData frameData)
+        {
+            return frameData.rendererData != null
+                ? frameData.rendererData.OpaqueLayerMask.value
+                : ~0;
+        }
+
+        internal static int GetTransparentLayerMaskValue(ref NWRPFrameData frameData)
+        {
+            return frameData.rendererData != null
+                ? frameData.rendererData.TransparentLayerMask.value
+                : ~0;
         }
 
 #if UNITY_EDITOR
