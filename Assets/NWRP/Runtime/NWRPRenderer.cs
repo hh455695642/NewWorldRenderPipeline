@@ -223,15 +223,31 @@ namespace NWRP
             frameData.cmd.SetGlobalVector(NWRPShaderIds.ScaleBiasRt, scaleBiasRt);
             frameData.cmd.SetGlobalVector(
                 NWRPShaderIds.CameraDepthTextureScaleBias,
-                GetCameraDepthTextureScaleBias(camera));
+                GetCameraDepthTextureScaleBias(
+                    camera,
+                    frameData.targets.cameraDepthTextureWrittenByPrepass));
         }
 
-        private static Vector4 GetCameraDepthTextureScaleBias(Camera camera)
+        private static Vector4 GetCameraDepthTextureScaleBias(
+            Camera camera,
+            bool depthTextureWrittenByPrepass)
         {
-            if (SystemInfo.graphicsUVStartsAtTop
-                && camera != null
-                && (camera.cameraType == CameraType.SceneView
-                    || camera.cameraType == CameraType.Preview))
+            if (!SystemInfo.graphicsUVStartsAtTop || camera == null)
+            {
+                return new Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+            }
+
+            // CopyDepthPass bakes this flip into the destination texture.
+            // ForcePrepass writes the texture directly, so sampling applies it.
+            bool forcePrepassGameCameraNeedsFlip =
+                depthTextureWrittenByPrepass
+                && camera.cameraType == CameraType.Game
+                && camera.targetTexture == null;
+            bool editorCameraNeedsFlip =
+                camera.cameraType == CameraType.SceneView
+                || camera.cameraType == CameraType.Preview;
+
+            if (forcePrepassGameCameraNeedsFlip || editorCameraNeedsFlip)
             {
                 return new Vector4(1.0f, -1.0f, 0.0f, 1.0f);
             }
@@ -840,6 +856,8 @@ namespace NWRP
                 frameData.targets.ownsCameraDepthTexture = true;
                 frameData.targets.hasCameraDepthTexture = true;
                 frameData.targets.cameraDepthTextureIsDepthTarget = depthTextureIsDepthTarget;
+                frameData.targets.cameraDepthTextureWrittenByPrepass =
+                    requirements.requiresDepthTexturePrepass;
             }
             else
             {

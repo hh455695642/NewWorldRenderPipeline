@@ -74,6 +74,7 @@ namespace NWRP
         public bool usesIntermediateDepth;
         public bool hasCameraDepthTexture;
         public bool cameraDepthTextureIsDepthTarget;
+        public bool cameraDepthTextureWrittenByPrepass;
         public bool hasOpaqueTexture;
         public bool cameraColorPresented;
     }
