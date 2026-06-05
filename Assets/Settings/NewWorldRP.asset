@@ -36,10 +36,12 @@ MonoBehaviour:
     outline:
       enableOutline: 0
     opaqueTexture:
-      enableOpaqueTexture: 1
+      enableOpaqueTexture: 0
     depthTexture:
-      enableDepthTexture: 1
+      enableDepthTexture: 0
       copyDepthMode: 0
+    vegetationIndirectRendering:
+      enableVegetationIndirectRendering: 1
     vegetationIndirectShadows:
       enableVegetationIndirectTreeShadows: 1
     features:
@@ -97,13 +99,13 @@ MonoBehaviour:
     toggles:
       enableMainLightShadows: 1
     distance:
-      mainLightShadowDistance: 80
+      mainLightShadowDistance: 240
       mainLightShadowCascadeCount: 2
       mainLightShadowCascadeSplit: 0.35
     atlas:
-      mainLightShadowResolution: 1024
+      mainLightShadowResolution: 2048
       mainLightShadowFilterMode: 1
-      mainLightShadowFilterRadius: 1
+      mainLightShadowFilterRadius: 0.89
     bias:
       mainLightShadowBias: 0.7
       mainLightShadowNormalBias: 0.1
@@ -130,14 +132,14 @@ MonoBehaviour:
     enableCachedMainLightShadows: 1
     shadowMode: 1
     cachedShadowSettingsMigrated: 1
-    mainLightShadowResolution: 1024
-    mainLightShadowDistance: 80
+    mainLightShadowResolution: 2048
+    mainLightShadowDistance: 240
     mainLightShadowCascadeCount: 2
     mainLightShadowCascadeSplit: 0.35
     mainLightShadowBias: 0.7
     mainLightShadowNormalBias: 0.1
     mainLightShadowFilterMode: 1
-    mainLightShadowFilterRadius: 1
+    mainLightShadowFilterRadius: 0.89
     mainLightShadowReceiverDepthBias: 0
     mainLightShadowReceiverNormalBias: 0
     mainLightShadowCasterCullMode: 2
@@ -176,6 +178,8 @@ MonoBehaviour:
     depthTexture:
       enableDepthTexture: 1
       copyDepthMode: 0
+    vegetationIndirectRendering:
+      enableVegetationIndirectRendering: 1
     vegetationIndirectShadows:
       enableVegetationIndirectTreeShadows: 1
     features: []

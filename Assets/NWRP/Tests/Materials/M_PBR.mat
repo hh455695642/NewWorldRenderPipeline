@@ -91,6 +91,7 @@ Material:
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
+    - _CastShadows: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
     - _Cull: 2
@@ -107,14 +108,14 @@ Material:
     - _InitY: 0.186
     - _MaxHeight: 1
     - _MaxIterations: 256
-    - _Metallic: 0
+    - _Metallic: 0.92
     - _OcclusionStrength: 1
     - _Parallax: 0.005
     - _Power: 5
     - _QueueOffset: 0
     - _ReceiveShadows: 1
     - _Reflection: 1
-    - _Roughness: 0.5
+    - _Roughness: 0
     - _ScrollXSpeed: 1
     - _ScrollYSpeed: 1
     - _Smoothness: 0.5
@@ -128,7 +129,7 @@ Material:
     - _ZWrite: 1
     - _Zoom: 1.2
     m_Colors:
-    - _Albedo: {r: 1, g: 1, b: 1, a: 1}
+    - _Albedo: {r: 0.87135816, g: 0.8742138, b: 0.6900241, a: 1}
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}

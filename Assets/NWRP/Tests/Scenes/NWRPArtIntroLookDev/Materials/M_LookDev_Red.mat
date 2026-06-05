@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: M_Lit
+  m_Name: M_LookDev_Red
   m_Shader: {fileID: 4800000, guid: 68e1d45992599ec41bd7af446fc6b653, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -43,11 +43,11 @@ Material:
     m_Floats:
     - _CastShadows: 1
     - _Metallic: 0
-    - _NormalStrength: 0
+    - _NormalStrength: 1
     - _OcclusionStrength: 1
-    - _ReceiveShadows: 0
-    - _Smoothness: 0.6
+    - _ReceiveShadows: 1
+    - _Smoothness: 0.5
     m_Colors:
-    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _BaseColor: {r: 0.93, g: 0.22, b: 0.19, a: 1}
     - _EmissiveColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []
