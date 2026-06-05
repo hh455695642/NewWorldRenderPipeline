@@ -176,6 +176,9 @@ namespace NWRP
             public OutlineSettings outline = new OutlineSettings();
             public OpaqueTextureSettings opaqueTexture = new OpaqueTextureSettings();
             public DepthTextureSettings depthTexture = new DepthTextureSettings();
+            [InspectorName("Vegetation Indirect Rendering")]
+            public VegetationIndirectRenderingSettings vegetationIndirectRendering =
+                new VegetationIndirectRenderingSettings();
             [InspectorName("Vegetation Indirect Shadows")]
             public VegetationIndirectShadowSettings vegetationIndirectShadows =
                 new VegetationIndirectShadowSettings();
@@ -196,6 +199,12 @@ namespace NWRP
                 if (depthTexture == null)
                 {
                     depthTexture = new DepthTextureSettings();
+                }
+
+                if (vegetationIndirectRendering == null)
+                {
+                    vegetationIndirectRendering =
+                        new VegetationIndirectRenderingSettings();
                 }
 
                 if (vegetationIndirectShadows == null)
@@ -258,6 +267,14 @@ namespace NWRP
             [InspectorName("Camera Depth Texture Mode")]
             [Tooltip("Controls when NWRP makes _CameraDepthTexture available.")]
             public DepthTextureCopyMode copyDepthMode = DepthTextureCopyMode.AfterOpaques;
+        }
+
+        [System.Serializable]
+        public sealed class VegetationIndirectRenderingSettings
+        {
+            [InspectorName("Enable Vegetation Indirect Rendering")]
+            [Tooltip("Use the scene VegetationIndirectRenderer GPU culling and indirect draw path. Disable to keep source MeshRenderers as the rendering fallback.")]
+            public bool enableVegetationIndirectRendering = true;
         }
 
         [System.Serializable]
@@ -707,6 +724,8 @@ namespace NWRP
         public bool EnableOpaqueTexture => GetRendererData(-1).EnableOpaqueTexture;
         public bool EnableDepthTexture => GetRendererData(-1).EnableDepthTexture;
         public DepthTextureCopyMode DepthTextureCopyModeSetting => GetRendererData(-1).DepthTextureCopyModeSetting;
+        public bool EnableVegetationIndirectRendering =>
+            GetRendererData(-1).EnableVegetationIndirectRendering;
         public bool EnableVegetationIndirectTreeShadows =>
             GetRendererData(-1).EnableVegetationIndirectTreeShadows;
         public bool SupportsHDR => supportsHDR;

@@ -60,8 +60,12 @@ namespace NWRP
         public NewWorldRenderPipelineAsset.DepthTextureCopyMode DepthTextureCopyModeSetting =>
             FeatureSettingsData.depthTexture.copyDepthMode;
 
+        public bool EnableVegetationIndirectRendering =>
+            FeatureSettingsData.vegetationIndirectRendering.enableVegetationIndirectRendering;
+
         public bool EnableVegetationIndirectTreeShadows =>
-            FeatureSettingsData.vegetationIndirectShadows.enableVegetationIndirectTreeShadows;
+            EnableVegetationIndirectRendering
+            && FeatureSettingsData.vegetationIndirectShadows.enableVegetationIndirectTreeShadows;
 
         public void CopyFeatureSettingsFrom(
             NewWorldRenderPipelineAsset.FeatureSettings source)
@@ -81,6 +85,9 @@ namespace NWRP
                 source.depthTexture.enableDepthTexture;
             featureSettings.depthTexture.copyDepthMode =
                 source.depthTexture.copyDepthMode;
+            featureSettings.vegetationIndirectRendering
+                .enableVegetationIndirectRendering =
+                source.vegetationIndirectRendering.enableVegetationIndirectRendering;
             featureSettings.vegetationIndirectShadows
                 .enableVegetationIndirectTreeShadows =
                 source.vegetationIndirectShadows.enableVegetationIndirectTreeShadows;

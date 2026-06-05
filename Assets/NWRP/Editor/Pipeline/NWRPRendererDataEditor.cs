@@ -20,11 +20,13 @@ namespace NWRP.Editor
         private SerializedProperty _featureOutlineProperty;
         private SerializedProperty _featureOpaqueTextureProperty;
         private SerializedProperty _featureDepthTextureProperty;
+        private SerializedProperty _featureVegetationIndirectRenderingProperty;
         private SerializedProperty _featureVegetationIndirectShadowProperty;
         private SerializedProperty _enableOutlineProperty;
         private SerializedProperty _enableOpaqueTextureProperty;
         private SerializedProperty _enableDepthTextureProperty;
         private SerializedProperty _copyDepthModeProperty;
+        private SerializedProperty _enableVegetationIndirectRenderingProperty;
         private SerializedProperty _enableVegetationIndirectTreeShadowsProperty;
         private ReorderableList _featureReorderableList;
         private readonly HashSet<UnityEngine.Object> _expandedFeatures =
@@ -44,6 +46,8 @@ namespace NWRP.Editor
                 _featureSettingsProperty.FindPropertyRelative("opaqueTexture");
             _featureDepthTextureProperty =
                 _featureSettingsProperty.FindPropertyRelative("depthTexture");
+            _featureVegetationIndirectRenderingProperty =
+                _featureSettingsProperty.FindPropertyRelative("vegetationIndirectRendering");
             _featureVegetationIndirectShadowProperty =
                 _featureSettingsProperty.FindPropertyRelative("vegetationIndirectShadows");
             _featureListProperty =
@@ -57,9 +61,19 @@ namespace NWRP.Editor
                 _featureDepthTextureProperty.FindPropertyRelative("enableDepthTexture");
             _copyDepthModeProperty =
                 _featureDepthTextureProperty.FindPropertyRelative("copyDepthMode");
-            _enableVegetationIndirectTreeShadowsProperty =
-                _featureVegetationIndirectShadowProperty.FindPropertyRelative(
-                    "enableVegetationIndirectTreeShadows");
+            if (_featureVegetationIndirectRenderingProperty != null)
+            {
+                _enableVegetationIndirectRenderingProperty =
+                    _featureVegetationIndirectRenderingProperty.FindPropertyRelative(
+                        "enableVegetationIndirectRendering");
+            }
+
+            if (_featureVegetationIndirectShadowProperty != null)
+            {
+                _enableVegetationIndirectTreeShadowsProperty =
+                    _featureVegetationIndirectShadowProperty.FindPropertyRelative(
+                        "enableVegetationIndirectTreeShadows");
+            }
 
             CreateFeatureList();
         }
@@ -115,15 +129,43 @@ namespace NWRP.Editor
             }
 
             EditorGUILayout.Space(2f);
-            DrawSubsectionLabel("Vegetation Indirect Shadows");
-            EditorGUILayout.PropertyField(
-                _enableVegetationIndirectTreeShadowsProperty,
-                new GUIContent("Enable Vegetation Indirect Tree Shadows"));
-            if (_enableVegetationIndirectTreeShadowsProperty.boolValue)
+            DrawSubsectionLabel("Vegetation Indirect Rendering");
+            if (_enableVegetationIndirectRenderingProperty == null)
             {
                 EditorGUILayout.HelpBox(
-                    "Adds GPU indirect Tree/TreeLeaf ShadowCaster draws to the main-light shadow atlas. Additional light shadows stay on the regular renderer path.",
-                    MessageType.Info);
+                    "The renderer data has not serialized the Vegetation Indirect Rendering block yet. Reimport or resave the asset after script compilation.",
+                    MessageType.Warning);
+            }
+            else
+            {
+                EditorGUILayout.PropertyField(
+                    _enableVegetationIndirectRenderingProperty,
+                    new GUIContent("Enable Vegetation Indirect Rendering"));
+                if (_enableVegetationIndirectRenderingProperty.boolValue)
+                {
+                    if (_enableVegetationIndirectTreeShadowsProperty == null)
+                    {
+                        EditorGUILayout.HelpBox(
+                            "The renderer data has not serialized the Vegetation Indirect Shadows block yet. Reimport or resave the asset after script compilation.",
+                            MessageType.Warning);
+                    }
+                    else
+                    {
+                        EditorGUILayout.PropertyField(
+                            _enableVegetationIndirectTreeShadowsProperty,
+                            new GUIContent("Enable Vegetation Indirect Tree Shadows"));
+                        if (_enableVegetationIndirectTreeShadowsProperty.boolValue)
+                        {
+                            EditorGUILayout.HelpBox(
+                                "Adds GPU indirect Tree/TreeLeaf ShadowCaster draws to the main-light shadow atlas. Additional light shadows stay on the regular renderer path.",
+                                MessageType.Info);
+                        }
+                    }
+
+                    EditorGUILayout.HelpBox(
+                        "Scene VegetationIndirectRenderer components use GPU culling and Graphics.RenderMeshIndirect for visible vegetation. Disable this to keep source MeshRenderers as the fallback path.",
+                        MessageType.Info);
+                }
             }
 
             EditorGUILayout.Space(2f);

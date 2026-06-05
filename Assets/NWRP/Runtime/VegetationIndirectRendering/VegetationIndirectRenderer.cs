@@ -115,6 +115,8 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
     }
 
     const int kInstanceStride = 80;
+    const string kIndirectRenderingDisabledReason =
+        "Vegetation indirect rendering is disabled by NWRP Renderer Data.";
 
     struct CameraCullingContext
     {
@@ -286,6 +288,15 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
             return;
         }
 
+        Camera renderCamera = targetCamera != null
+            ? targetCamera
+            : (_cam != null ? _cam : Camera.main);
+        if (!IsNWRPIndirectRenderingEnabled(renderCamera))
+        {
+            ActivateOriginalRendererFallback(kIndirectRenderingDisabledReason);
+            return;
+        }
+
         if (!TryPrepareIndirectPath(out string fallbackReason))
         {
             ActivateOriginalRendererFallback(fallbackReason);
@@ -373,8 +384,14 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
 
     void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
     {
-        if (!Application.isPlaying || debugUseOriginalRenderer || _usingOriginalRendererFallback || !castShadows)
+        if (!Application.isPlaying
+            || debugUseOriginalRenderer
+            || _usingOriginalRendererFallback
+            || !castShadows
+            || !IsNWRPIndirectRenderingEnabled(camera))
+        {
             return;
+        }
 
         if (!ShouldPrepareShadowCastersForCamera(camera))
             return;
@@ -649,6 +666,24 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
 
         if (Application.isPlaying && debugUseOriginalRenderer)
             return;
+
+        bool indirectRenderingEnabled = IsNWRPIndirectRenderingEnabled(_cam);
+        if (!indirectRenderingEnabled)
+        {
+            if (!_usingOriginalRendererFallback
+                || _fallbackReason != kIndirectRenderingDisabledReason)
+            {
+                ActivateOriginalRendererFallback(kIndirectRenderingDisabledReason);
+            }
+
+            return;
+        }
+
+        if (_usingOriginalRendererFallback
+            && _fallbackReason == kIndirectRenderingDisabledReason)
+        {
+            Initialize();
+        }
 
         if (_usingOriginalRendererFallback)
             return;
@@ -925,6 +960,7 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
             || _usingOriginalRendererFallback
             || !_csReady
             || !castShadows
+            || !IsNWRPIndirectRenderingEnabled(_cam)
             || CullingComputeShader == null
             || _kernelIndex < 0)
         {
@@ -989,13 +1025,35 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
 
     bool ShouldUseShadowOnlyRendererFallback()
     {
-        return castShadows && !IsNWRPIndirectShadowFeatureActive();
+        return castShadows
+            && IsNWRPIndirectRenderingEnabled(_cam)
+            && !IsNWRPIndirectShadowFeatureActive(_cam);
     }
 
-    static bool IsNWRPIndirectShadowFeatureActive()
+    static bool IsNWRPIndirectRenderingEnabled(Camera camera)
     {
-        return GraphicsSettings.currentRenderPipeline is NewWorldRenderPipelineAsset asset
-            && asset.EnableVegetationIndirectTreeShadows;
+        return TryGetActiveRendererData(camera, out NWRPRendererData rendererData)
+            && rendererData.EnableVegetationIndirectRendering;
+    }
+
+    static bool IsNWRPIndirectShadowFeatureActive(Camera camera)
+    {
+        return TryGetActiveRendererData(camera, out NWRPRendererData rendererData)
+            && rendererData.EnableVegetationIndirectTreeShadows;
+    }
+
+    static bool TryGetActiveRendererData(
+        Camera camera,
+        out NWRPRendererData rendererData)
+    {
+        rendererData = null;
+        if (GraphicsSettings.currentRenderPipeline is not NewWorldRenderPipelineAsset asset)
+            return false;
+
+        rendererData = camera != null
+            ? asset.GetRendererDataForCamera(camera, out _)
+            : asset.GetRendererData(-1);
+        return rendererData != null;
     }
 
     static bool IsTreeIndirectShadowMaterial(Material material)
