@@ -5,9 +5,6 @@ namespace NWRP.Runtime.Passes
 {
     public sealed class CopyDepthPass : NWRPPass
     {
-        private const string kDepthMsaa2Keyword = "_DEPTH_MSAA_2";
-        private const string kDepthMsaa4Keyword = "_DEPTH_MSAA_4";
-        private const string kDepthMsaa8Keyword = "_DEPTH_MSAA_8";
         private const string kOutputDepthKeyword = "_OUTPUT_DEPTH";
 
         private Material _copyDepthMaterial;
@@ -46,10 +43,7 @@ namespace NWRP.Runtime.Passes
                 destination);
 
             cmd.SetGlobalTexture(NWRPShaderIds.CameraDepthAttachment, source.nameID);
-            cmd.SetGlobalVector(
-                NWRPShaderIds.CameraDepthAttachmentTexelSize,
-                GetDepthAttachmentTexelSize(source));
-            ConfigureKeywords(source, copyToDepth);
+            ConfigureKeywords(copyToDepth);
             if (copyToDepth)
             {
                 SetDepthCopyTarget(cmd, frameData.targets.cameraDepthTexture);
@@ -90,18 +84,6 @@ namespace NWRP.Runtime.Passes
 
         public static bool CanCopyDepth(Camera camera)
         {
-            int msaaSamples = 1;
-            if (camera != null && camera.targetTexture != null)
-            {
-                msaaSamples = Mathf.Max(1, camera.targetTexture.antiAliasing);
-            }
-
-            bool msaaDepth = msaaSamples > 1 && SystemInfo.supportsMultisampledTextures != 0;
-            if (msaaDepth && IsGlesDevice())
-            {
-                return false;
-            }
-
             return SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.Depth);
         }
 
@@ -116,29 +98,8 @@ namespace NWRP.Runtime.Passes
             return _copyDepthMaterial != null;
         }
 
-        private void ConfigureKeywords(RTHandle source, bool copyToDepth)
+        private void ConfigureKeywords(bool copyToDepth)
         {
-            int msaaSamples = source != null && source.rt != null
-                ? source.rt.descriptor.msaaSamples
-                : 1;
-
-            _copyDepthMaterial.DisableKeyword(kDepthMsaa2Keyword);
-            _copyDepthMaterial.DisableKeyword(kDepthMsaa4Keyword);
-            _copyDepthMaterial.DisableKeyword(kDepthMsaa8Keyword);
-
-            if (msaaSamples == 2)
-            {
-                _copyDepthMaterial.EnableKeyword(kDepthMsaa2Keyword);
-            }
-            else if (msaaSamples == 4)
-            {
-                _copyDepthMaterial.EnableKeyword(kDepthMsaa4Keyword);
-            }
-            else if (msaaSamples == 8)
-            {
-                _copyDepthMaterial.EnableKeyword(kDepthMsaa8Keyword);
-            }
-
             if (copyToDepth)
             {
                 _copyDepthMaterial.EnableKeyword(kOutputDepthKeyword);
@@ -227,23 +188,5 @@ namespace NWRP.Runtime.Passes
                     || camera.cameraType == CameraType.Preview);
         }
 
-        private static Vector4 GetDepthAttachmentTexelSize(RTHandle source)
-        {
-            RenderTexture renderTexture = source != null ? source.rt : null;
-            if (renderTexture == null)
-            {
-                return Vector4.zero;
-            }
-
-            float width = Mathf.Max(renderTexture.width, 1);
-            float height = Mathf.Max(renderTexture.height, 1);
-            return new Vector4(1f / width, 1f / height, width, height);
-        }
-
-        private static bool IsGlesDevice()
-        {
-            return SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES2
-                || SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES3;
-        }
     }
 }

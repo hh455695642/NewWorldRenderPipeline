@@ -57,49 +57,11 @@ Varyings Vert(Attributes input)
     return output;
 }
 
-#if defined(_DEPTH_MSAA_2)
-    #define NWRP_DEPTH_MSAA_SAMPLES 2
-#elif defined(_DEPTH_MSAA_4)
-    #define NWRP_DEPTH_MSAA_SAMPLES 4
-#elif defined(_DEPTH_MSAA_8)
-    #define NWRP_DEPTH_MSAA_SAMPLES 8
-#else
-    #define NWRP_DEPTH_MSAA_SAMPLES 1
-#endif
-
-#if NWRP_DEPTH_MSAA_SAMPLES == 1
-    TEXTURE2D(_CameraDepthAttachment);
-#else
-    Texture2DMS<float, NWRP_DEPTH_MSAA_SAMPLES> _CameraDepthAttachment;
-    float4 _CameraDepthAttachment_TexelSize;
-#endif
-
-#if UNITY_REVERSED_Z
-    #define NWRP_DEPTH_DEFAULT_VALUE 1.0
-    #define NWRP_DEPTH_RESOLVE_OP min
-#else
-    #define NWRP_DEPTH_DEFAULT_VALUE 0.0
-    #define NWRP_DEPTH_RESOLVE_OP max
-#endif
+TEXTURE2D(_CameraDepthAttachment);
 
 float SampleCopyDepth(float2 uv)
 {
-#if NWRP_DEPTH_MSAA_SAMPLES == 1
     return SAMPLE_TEXTURE2D(_CameraDepthAttachment, sampler_PointClamp, uv).r;
-#else
-    int2 coord = int2(uv * _CameraDepthAttachment_TexelSize.zw);
-    float outDepth = NWRP_DEPTH_DEFAULT_VALUE;
-
-    UNITY_UNROLL
-    for (int sampleIndex = 0; sampleIndex < NWRP_DEPTH_MSAA_SAMPLES; ++sampleIndex)
-    {
-        outDepth = NWRP_DEPTH_RESOLVE_OP(
-            _CameraDepthAttachment.Load(coord, sampleIndex),
-            outDepth);
-    }
-
-    return outDepth;
-#endif
 }
 
 #if defined(_OUTPUT_DEPTH)
