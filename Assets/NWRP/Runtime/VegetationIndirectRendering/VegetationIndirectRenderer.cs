@@ -16,8 +16,8 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
     // Notes:
     // - GPU instancing path is used at runtime; editor non-play mode keeps original MeshRenderer rendering.
     // - Runtime tree shadows use NWRP's dedicated indirect shadow pass when the pipeline asset toggle
-    //   is enabled. Source MeshRenderers stay as ShadowsOnly fallback when the feature is disabled or
-    //   indirect rendering is unavailable.
+    //   is enabled. Source MeshRenderer ShadowsOnly fallback is intentionally commented out; when
+    //   indirect shadows are disabled, source renderers stay disabled on the indirect path.
     // - Scene view camera is separate from game camera; optional dual rendering keeps Scene preview consistent.
     //
     // IMPORTANT RUNTIME SETUP:
@@ -393,37 +393,39 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
             return;
         }
 
-        if (!ShouldPrepareShadowCastersForCamera(camera))
-            return;
-
-        UpdateShadowOnlyRenderersForCamera(camera);
+        // Shadow-only MeshRenderer fallback disabled. Keep source renderers off on the indirect path.
+        // if (!ShouldPrepareShadowCastersForCamera(camera))
+        //     return;
+        //
+        // UpdateShadowOnlyRenderersForCamera(camera);
     }
 
-    bool ShouldPrepareShadowCastersForCamera(Camera camera)
-    {
-        if (camera == null)
-            return false;
-
-        if (targetCamera != null)
-            return camera == targetCamera || IsSupportedEditorSceneCamera(camera);
-
-        if (_cam == null)
-            _cam = Camera.main;
-
-        return camera == _cam || IsSupportedEditorSceneCamera(camera);
-    }
-
-    bool IsSupportedEditorSceneCamera(Camera camera)
-    {
-#if UNITY_EDITOR
-        return editorRenderInSceneView
-            && editorPreviewCullingInSceneView
-            && camera != null
-            && camera.cameraType == CameraType.SceneView;
-#else
-        return false;
-#endif
-    }
+    // Shadow-only MeshRenderer fallback disabled.
+    // bool ShouldPrepareShadowCastersForCamera(Camera camera)
+    // {
+    //     if (camera == null)
+    //         return false;
+    //
+    //     if (targetCamera != null)
+    //         return camera == targetCamera || IsSupportedEditorSceneCamera(camera);
+    //
+    //     if (_cam == null)
+    //         _cam = Camera.main;
+    //
+    //     return camera == _cam || IsSupportedEditorSceneCamera(camera);
+    // }
+    //
+    // bool IsSupportedEditorSceneCamera(Camera camera)
+    // {
+    // #if UNITY_EDITOR
+    //     return editorRenderInSceneView
+    //         && editorPreviewCullingInSceneView
+    //         && camera != null
+    //         && camera.cameraType == CameraType.SceneView;
+    // #else
+    //     return false;
+    // #endif
+    // }
 
     int GetTotalInstanceCount()
     {
@@ -903,49 +905,52 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
             return;
         }
 
-        if (ShouldUseShadowOnlyRendererFallback() && _cam != null && _cam.enabled)
-        {
-            UpdateShadowOnlyRenderersForCamera(_cam);
-            return;
-        }
+        // Shadow-only MeshRenderer fallback disabled. If indirect shadow pass is off, do not re-enable
+        // source renderers as ShadowsOnly; visible rendering remains GPU indirect.
+        // if (ShouldUseShadowOnlyRendererFallback() && _cam != null && _cam.enabled)
+        // {
+        //     UpdateShadowOnlyRenderersForCamera(_cam);
+        //     return;
+        // }
 
         DisableOriginalRenderers();
     }
 
-    void UpdateShadowOnlyRenderersForCamera(Camera cullCamera)
-    {
-        if (!Application.isPlaying || debugUseOriginalRenderer)
-            return;
-
-        if (!ShouldUseShadowOnlyRendererFallback() || cullCamera == null || !cullCamera.enabled)
-        {
-            DisableOriginalRenderers();
-            return;
-        }
-
-        CameraCullingContext cullingContext = BuildCameraCullingContext(cullCamera);
-        int renderLayerMask = 1 << Mathf.Clamp(renderLayer, 0, 31);
-        bool shadowLayerVisibleToCamera = (cullCamera.cullingMask & renderLayerMask) != 0;
-
-        DisableOriginalRenderers();
-        if (!shadowLayerVisibleToCamera)
-            return;
-
-        foreach (var entry in _shadowCasterEntries)
-        {
-            MeshRenderer renderer = entry.renderer;
-            if (renderer == null)
-                continue;
-
-            if (!PassBoundsCulling(entry.bounds, entry.bounds.center, cullingContext))
-                continue;
-
-            renderer.gameObject.layer = renderLayer;
-            renderer.enabled = true;
-            renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
-            renderer.receiveShadows = false;
-        }
-    }
+    // Shadow-only MeshRenderer fallback disabled.
+    // void UpdateShadowOnlyRenderersForCamera(Camera cullCamera)
+    // {
+    //     if (!Application.isPlaying || debugUseOriginalRenderer)
+    //         return;
+    //
+    //     if (!ShouldUseShadowOnlyRendererFallback() || cullCamera == null || !cullCamera.enabled)
+    //     {
+    //         DisableOriginalRenderers();
+    //         return;
+    //     }
+    //
+    //     CameraCullingContext cullingContext = BuildCameraCullingContext(cullCamera);
+    //     int renderLayerMask = 1 << Mathf.Clamp(renderLayer, 0, 31);
+    //     bool shadowLayerVisibleToCamera = (cullCamera.cullingMask & renderLayerMask) != 0;
+    //
+    //     DisableOriginalRenderers();
+    //     if (!shadowLayerVisibleToCamera)
+    //         return;
+    //
+    //     foreach (var entry in _shadowCasterEntries)
+    //     {
+    //         MeshRenderer renderer = entry.renderer;
+    //         if (renderer == null)
+    //             continue;
+    //
+    //         if (!PassBoundsCulling(entry.bounds, entry.bounds.center, cullingContext))
+    //             continue;
+    //
+    //         renderer.gameObject.layer = renderLayer;
+    //         renderer.enabled = true;
+    //         renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+    //         renderer.receiveShadows = false;
+    //     }
+    // }
 
     public bool TryCollectIndirectShadowDraws(
         bool includeStaticCasters,
@@ -1023,12 +1028,13 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
             && (!group.material.HasProperty("_CastShadows") || group.material.GetFloat("_CastShadows") > 0.5f);
     }
 
-    bool ShouldUseShadowOnlyRendererFallback()
-    {
-        return castShadows
-            && IsNWRPIndirectRenderingEnabled(_cam)
-            && !IsNWRPIndirectShadowFeatureActive(_cam);
-    }
+    // Shadow-only MeshRenderer fallback disabled.
+    // bool ShouldUseShadowOnlyRendererFallback()
+    // {
+    //     return castShadows
+    //         && IsNWRPIndirectRenderingEnabled(_cam)
+    //         && !IsNWRPIndirectShadowFeatureActive(_cam);
+    // }
 
     static bool IsNWRPIndirectRenderingEnabled(Camera camera)
     {
