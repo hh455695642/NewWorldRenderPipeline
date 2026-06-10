@@ -8,17 +8,38 @@ namespace NWRP.Editor
     internal static class NWRPMaterialConverter
     {
         internal const string UrpLitShaderName = "Universal Render Pipeline/Lit";
+        internal const string UrpSimpleLitShaderName = "Universal Render Pipeline/Simple Lit";
 
         private const string ConvertAllMenuPath = "NWRP/Tools/Materials/Convert All URP Lit Materials To NWRP StandardLit";
         private const string ConvertSelectedMenuPath = "NWRP/Tools/Materials/Convert Selected URP Lit Materials To NWRP StandardLit";
+        private const string ConvertAllSimpleLitMenuPath = "NWRP/Tools/Materials/Convert All URP Simple Lit Materials To NWRP StandardLit";
+        private const string ConvertSelectedSimpleLitMenuPath = "NWRP/Tools/Materials/Convert Selected URP Simple Lit Materials To NWRP StandardLit";
         private const string TargetShaderName = NWRPMaterialDefaults.StandardLitShaderName;
-        private const string UndoName = "Convert URP Lit Materials To NWRP StandardLit";
+        private const string UndoName = "Convert URP Materials To NWRP StandardLit";
+
+        private static readonly SourceShaderProfile s_UrpLitProfile = new SourceShaderProfile(
+            UrpLitShaderName,
+            "URP Lit",
+            "_MetallicGlossMap",
+            forceDielectricMetallic: false);
+
+        private static readonly SourceShaderProfile s_UrpSimpleLitProfile = new SourceShaderProfile(
+            UrpSimpleLitShaderName,
+            "URP Simple Lit",
+            null,
+            forceDielectricMetallic: true);
+
+        private static readonly SourceShaderProfile[] s_AllSourceProfiles =
+        {
+            s_UrpLitProfile,
+            s_UrpSimpleLitProfile
+        };
 
         [MenuItem(ConvertSelectedMenuPath, false, 920)]
         private static void ConvertSelectedUrpLitMaterials()
         {
             Material[] selectedMaterials = Selection.GetFiltered<Material>(SelectionMode.Assets | SelectionMode.DeepAssets);
-            ConvertMaterialsWithDialog(selectedMaterials, "Convert selected opaque URP Lit material assets?");
+            ConvertMaterialsWithDialog(selectedMaterials, s_UrpLitProfile, "Convert selected opaque URP Lit material assets?");
         }
 
         [MenuItem(ConvertSelectedMenuPath, true)]
@@ -31,7 +52,27 @@ namespace NWRP.Editor
         internal static void ConvertAllProjectMaterialsWithDialog()
         {
             Material[] materials = FindAllProjectMaterials();
-            ConvertMaterialsWithDialog(materials, "Convert all opaque URP Lit material assets under Assets/?");
+            ConvertMaterialsWithDialog(materials, s_UrpLitProfile, "Convert all opaque URP Lit material assets under Assets/?");
+        }
+
+        [MenuItem(ConvertSelectedSimpleLitMenuPath, false, 922)]
+        private static void ConvertSelectedUrpSimpleLitMaterials()
+        {
+            Material[] selectedMaterials = Selection.GetFiltered<Material>(SelectionMode.Assets | SelectionMode.DeepAssets);
+            ConvertMaterialsWithDialog(selectedMaterials, s_UrpSimpleLitProfile, "Convert selected opaque URP Simple Lit material assets?");
+        }
+
+        [MenuItem(ConvertSelectedSimpleLitMenuPath, true)]
+        private static bool ValidateConvertSelectedUrpSimpleLitMaterials()
+        {
+            return Selection.GetFiltered<Material>(SelectionMode.Assets | SelectionMode.DeepAssets).Length > 0;
+        }
+
+        [MenuItem(ConvertAllSimpleLitMenuPath, false, 923)]
+        internal static void ConvertAllProjectSimpleLitMaterialsWithDialog()
+        {
+            Material[] materials = FindAllProjectMaterials();
+            ConvertMaterialsWithDialog(materials, s_UrpSimpleLitProfile, "Convert all opaque URP Simple Lit material assets under Assets/?");
         }
 
         internal static ConversionSummary ConvertAllProjectMaterials(bool recordUndo)
@@ -39,14 +80,19 @@ namespace NWRP.Editor
             Shader targetShader = Shader.Find(TargetShaderName);
             if (targetShader == null)
             {
-                Debug.LogError($"Cannot convert URP Lit materials because shader '{TargetShaderName}' was not found.");
+                Debug.LogError($"Cannot convert URP materials because shader '{TargetShaderName}' was not found.");
                 return default;
             }
 
-            return ConvertMaterials(FindAllProjectMaterials(), targetShader, recordUndo);
+            return ConvertMaterials(FindAllProjectMaterials(), targetShader, recordUndo, s_UrpLitProfile);
         }
 
         internal static ConversionSummary ConvertMaterials(Material[] materials, Shader targetShader, bool recordUndo)
+        {
+            return ConvertMaterials(materials, targetShader, recordUndo, null);
+        }
+
+        private static ConversionSummary ConvertMaterials(Material[] materials, Shader targetShader, bool recordUndo, SourceShaderProfile? sourceFilter)
         {
             if (materials == null || materials.Length == 0)
             {
@@ -55,7 +101,7 @@ namespace NWRP.Editor
 
             if (targetShader == null)
             {
-                Debug.LogError($"Cannot convert URP Lit materials because shader '{TargetShaderName}' was not found.");
+                Debug.LogError($"Cannot convert URP materials because shader '{TargetShaderName}' was not found.");
                 return new ConversionSummary(materials.Length, 0, materials.Length, 0);
             }
 
@@ -74,7 +120,7 @@ namespace NWRP.Editor
                 }
 
                 totalCount++;
-                if (!IsUrpLit(material))
+                if (!TryGetSourceProfile(material, sourceFilter, out SourceShaderProfile sourceProfile))
                 {
                     skippedCount++;
                     continue;
@@ -87,7 +133,7 @@ namespace NWRP.Editor
                     continue;
                 }
 
-                UrpLitSnapshot snapshot = UrpLitSnapshot.Capture(material);
+                UrpLitSnapshot snapshot = UrpLitSnapshot.Capture(material, sourceProfile);
                 if (recordUndo)
                 {
                     Undo.RecordObject(material, UndoName);
@@ -103,7 +149,7 @@ namespace NWRP.Editor
             return new ConversionSummary(totalCount, convertedCount, skippedCount, unsupportedCount);
         }
 
-        private static void ConvertMaterialsWithDialog(Material[] materials, string prompt)
+        private static void ConvertMaterialsWithDialog(Material[] materials, SourceShaderProfile sourceProfile, string prompt)
         {
             Shader targetShader = Shader.Find(TargetShaderName);
             if (targetShader == null)
@@ -114,20 +160,20 @@ namespace NWRP.Editor
 
             if (!EditorUtility.DisplayDialog(
                     "NWRP Material Convert",
-                    prompt + "\n\nTransparent and alpha-clipped URP Lit materials are skipped because the target StandardLit shader is opaque-only.",
+                    prompt + $"\n\nTransparent and alpha-clipped {sourceProfile.DisplayName} materials are skipped because the target StandardLit shader is opaque-only.",
                     "Convert",
                     "Cancel"))
             {
                 return;
             }
 
-            ConversionSummary summary = ConvertMaterials(materials, targetShader, recordUndo: true);
+            ConversionSummary summary = ConvertMaterials(materials, targetShader, recordUndo: true, sourceProfile);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
             EditorUtility.DisplayDialog(
                 "NWRP Material Convert",
-                $"Converted: {summary.ConvertedCount}\nSkipped non-URP-Lit: {summary.SkippedCount}\nSkipped unsupported: {summary.UnsupportedCount}",
+                $"Converted: {summary.ConvertedCount}\nSkipped non-matching: {summary.SkippedCount}\nSkipped unsupported: {summary.UnsupportedCount}",
                 "OK");
         }
 
@@ -149,11 +195,31 @@ namespace NWRP.Editor
             return materials.ToArray();
         }
 
-        private static bool IsUrpLit(Material material)
+        private static bool TryGetSourceProfile(Material material, SourceShaderProfile? sourceFilter, out SourceShaderProfile sourceProfile)
         {
-            return material != null
-                && material.shader != null
-                && material.shader.name == UrpLitShaderName;
+            sourceProfile = default;
+            if (material == null || material.shader == null)
+            {
+                return false;
+            }
+
+            if (sourceFilter.HasValue)
+            {
+                sourceProfile = sourceFilter.Value;
+                return material.shader.name == sourceProfile.ShaderName;
+            }
+
+            for (int i = 0; i < s_AllSourceProfiles.Length; i++)
+            {
+                SourceShaderProfile profile = s_AllSourceProfiles[i];
+                if (material.shader.name == profile.ShaderName)
+                {
+                    sourceProfile = profile;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool HasUnsupportedSurfaceMode(Material material, out string reason)
@@ -188,6 +254,22 @@ namespace NWRP.Editor
             public int ConvertedCount { get; }
             public int SkippedCount { get; }
             public int UnsupportedCount { get; }
+        }
+
+        private readonly struct SourceShaderProfile
+        {
+            public SourceShaderProfile(string shaderName, string displayName, string maskMapPropertyName, bool forceDielectricMetallic)
+            {
+                ShaderName = shaderName;
+                DisplayName = displayName;
+                MaskMapPropertyName = maskMapPropertyName;
+                ForceDielectricMetallic = forceDielectricMetallic;
+            }
+
+            public string ShaderName { get; }
+            public string DisplayName { get; }
+            public string MaskMapPropertyName { get; }
+            public bool ForceDielectricMetallic { get; }
         }
 
         private readonly struct UrpLitSnapshot
@@ -248,12 +330,13 @@ namespace NWRP.Editor
                 m_EmissiveMap = emissiveMap;
             }
 
-            public static UrpLitSnapshot Capture(Material material)
+            public static UrpLitSnapshot Capture(Material material, SourceShaderProfile sourceProfile)
             {
+                bool hasMetallic = material.HasProperty("_Metallic") || sourceProfile.ForceDielectricMetallic;
                 return new UrpLitSnapshot(
                     material.HasProperty("_BaseColor"),
                     material.HasProperty("_BaseColor") ? material.GetColor("_BaseColor") : Color.white,
-                    material.HasProperty("_Metallic"),
+                    hasMetallic,
                     material.HasProperty("_Metallic") ? material.GetFloat("_Metallic") : 0.0f,
                     material.HasProperty("_Smoothness"),
                     material.HasProperty("_Smoothness") ? material.GetFloat("_Smoothness") : 0.5f,
@@ -265,7 +348,7 @@ namespace NWRP.Editor
                     material.HasProperty("_EmissionColor") ? material.GetColor("_EmissionColor") : Color.black,
                     material.enableInstancing,
                     TextureSlot.Capture(material, "_BaseMap"),
-                    TextureSlot.Capture(material, "_MetallicGlossMap"),
+                    TextureSlot.Capture(material, sourceProfile.MaskMapPropertyName),
                     TextureSlot.Capture(material, "_BumpMap"),
                     TextureSlot.Capture(material, "_EmissionMap"));
             }
@@ -327,7 +410,7 @@ namespace NWRP.Editor
 
             public static TextureSlot Capture(Material material, string propertyName)
             {
-                if (!material.HasProperty(propertyName))
+                if (string.IsNullOrEmpty(propertyName) || !material.HasProperty(propertyName))
                 {
                     return default;
                 }

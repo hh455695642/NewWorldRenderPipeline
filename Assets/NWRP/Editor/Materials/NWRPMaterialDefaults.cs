@@ -332,6 +332,7 @@ namespace NWRP.Editor
             return shaderName == BuiltInStandardShaderName
                 || shaderName == InternalErrorShaderName
                 || shaderName == NWRPMaterialConverter.UrpLitShaderName
+                || shaderName == NWRPMaterialConverter.UrpSimpleLitShaderName
                 || material.name == DefaultMaterialName
                 || material.name == DefaultDiffuseMaterialName;
         }
