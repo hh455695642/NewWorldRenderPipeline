@@ -115,7 +115,9 @@ namespace NWRP
                     features,
                     includeDeferredFeatures: true);
             }
-            else if (rendererData.EnableVegetationIndirectTreeShadows)
+            else if (ShouldEnqueueVegetationIndirectShadowFeature(
+                         ref frameData,
+                         rendererData))
             {
                 EnqueueRuntimeFeature<VegetationIndirectShadowFeature>(
                     renderer,
@@ -224,6 +226,24 @@ namespace NWRP
 
             feature.EnsureCreated();
             feature.AddPasses(renderer, ref frameData);
+        }
+
+        private static bool ShouldEnqueueVegetationIndirectShadowFeature(
+            ref NWRPFrameData frameData,
+            NWRPRendererData rendererData)
+        {
+            if (rendererData != null
+                && rendererData.EnableVegetationIndirectTreeShadows)
+            {
+                return true;
+            }
+
+#if UNITY_EDITOR
+            return frameData.camera != null
+                && frameData.camera.cameraType == UnityEngine.CameraType.SceneView;
+#else
+            return false;
+#endif
         }
     }
 }

@@ -24,9 +24,8 @@ namespace NWRP
             if (renderer == null
                 || _shadowPass == null
                 || frameData.asset == null
-                || frameData.rendererData == null
                 || !frameData.asset.EnableMainLightShadows
-                || !frameData.rendererData.EnableVegetationIndirectTreeShadows)
+                || !AllowsIndirectTreeShadows(ref frameData))
             {
                 return;
             }
@@ -38,6 +37,22 @@ namespace NWRP
             ref NWRPSerializedFeatureState state)
         {
             state.hasVegetationIndirectShadow = true;
+        }
+
+        private static bool AllowsIndirectTreeShadows(ref NWRPFrameData frameData)
+        {
+            if (frameData.rendererData != null
+                && frameData.rendererData.EnableVegetationIndirectTreeShadows)
+            {
+                return true;
+            }
+
+#if UNITY_EDITOR
+            return frameData.camera != null
+                && frameData.camera.cameraType == CameraType.SceneView;
+#else
+            return false;
+#endif
         }
     }
 }

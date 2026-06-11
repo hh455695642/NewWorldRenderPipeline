@@ -316,14 +316,22 @@ namespace NWRP.Runtime.Passes
             int shadowLightIndex,
             VisibleLight shadowVisibleLight,
             int cascadeCount,
-            MainLightShadowCacheState cacheState
+            MainLightShadowCacheState cacheState,
+            bool allowEmptyAtlas = false
         )
         {
             CommandBuffer cmd = frameData.cmd;
+            bool hasRegularShadowCasters =
+                cullResults.GetShadowCasterBounds(shadowLightIndex, out Bounds _);
 
-            if (!cullResults.GetShadowCasterBounds(shadowLightIndex, out Bounds _))
+            if (!hasRegularShadowCasters && !allowEmptyAtlas)
             {
                 return false;
+            }
+
+            if (!hasRegularShadowCasters)
+            {
+                return HasValidCascadeData(cacheState, cascadeCount);
             }
 
             ShadowDrawingSettings shadowDrawingSettings = new ShadowDrawingSettings(
@@ -377,6 +385,23 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
             ExecuteBuffer(ref frameData);
             return anyCascadeRendered;
+        }
+
+        private static bool HasValidCascadeData(
+            MainLightShadowCacheState cacheState,
+            int cascadeCount)
+        {
+            if (cacheState == null || cascadeCount <= 0)
+                return false;
+
+            for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
+            {
+                MainLightShadowCascadeData cascadeData = cacheState.CascadeData[cascadeIndex];
+                if (cascadeData.resolution > 0)
+                    return true;
+            }
+
+            return false;
         }
 
         public static void UploadDisabledGlobals(

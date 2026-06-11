@@ -5,7 +5,10 @@ using UnityEngine.Rendering;
 using UnityEngine.Serialization;
 
 [ExecuteAlways]
-public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShadowProvider
+public class VegetationIndirectRenderer :
+    MonoBehaviour,
+    IVegetationIndirectShadowProvider,
+    IVegetationIndirectShadowCasterQuery
 {
     // Rendering flow:
     // 1) Collect MeshRenderers from VegetationRoots and group by Chunk, then by (mesh+material).
@@ -960,17 +963,8 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
         if (draws == null)
             return false;
 
-        if (!Application.isPlaying
-            || debugUseOriginalRenderer
-            || _usingOriginalRendererFallback
-            || !_csReady
-            || !castShadows
-            || !IsNWRPIndirectRenderingEnabled(_cam)
-            || CullingComputeShader == null
-            || _kernelIndex < 0)
-        {
+        if (!CanProvideIndirectShadowCasters())
             return false;
-        }
 
         bool hasDraws = false;
         foreach (var chunk in _chunks.Values)
@@ -1011,6 +1005,50 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
         }
 
         return hasDraws;
+    }
+
+    public bool HasIndirectShadowCasters(
+        bool includeStaticCasters,
+        bool includeDynamicCasters)
+    {
+        if (!includeStaticCasters && !includeDynamicCasters)
+            return false;
+
+        if (!CanProvideIndirectShadowCasters())
+            return false;
+
+        foreach (var chunk in _chunks.Values)
+        {
+            foreach (var group in chunk.groups)
+            {
+                if (!CanSubmitIndirectShadowGroup(group))
+                    continue;
+
+                if (group.isDynamicShadowCaster)
+                {
+                    if (includeDynamicCasters)
+                        return true;
+                }
+                else if (includeStaticCasters)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool CanProvideIndirectShadowCasters()
+    {
+        return Application.isPlaying
+            && !debugUseOriginalRenderer
+            && !_usingOriginalRendererFallback
+            && _csReady
+            && castShadows
+            && IsNWRPIndirectRenderingEnabled(_cam)
+            && CullingComputeShader != null
+            && _kernelIndex >= 0;
     }
 
     bool CanSubmitIndirectShadowGroup(RenderGroup group)

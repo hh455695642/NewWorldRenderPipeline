@@ -35,6 +35,15 @@ namespace NWRP.Runtime.Passes
             }
 
             bool dynamicOverlayEnabled = MainLightShadowPassUtils.ShouldRenderDynamicOverlay(asset);
+            bool hasIndirectStaticCasters = HasIndirectShadowCasters(
+                ref frameData,
+                includeStaticCasters: true,
+                includeDynamicCasters: false);
+            bool hasIndirectDynamicCasters = dynamicOverlayEnabled
+                && HasIndirectShadowCasters(
+                    ref frameData,
+                    includeStaticCasters: false,
+                    includeDynamicCasters: true);
 
             if (!MainLightShadowPassUtils.TryGetMainLight(ref frameData, out int mainLightIndex, out _, out Light mainLight))
             {
@@ -147,7 +156,8 @@ namespace NWRP.Runtime.Passes
                     staticLightIndex,
                     staticVisibleLight,
                     cascadeCount,
-                    _cacheState
+                    _cacheState,
+                    allowEmptyAtlas: hasIndirectStaticCasters || hasIndirectDynamicCasters
                 );
             }
 
@@ -159,13 +169,16 @@ namespace NWRP.Runtime.Passes
                 return;
             }
 
-            MainLightShadowIndirectCasterContext.AddTarget(
-                _cacheState.StaticShadowmapTexture,
-                _cacheState.CascadeData,
-                cascadeCount,
-                MainLightShadowPassUtils.GetShadowLightDirection(staticVisibleLight),
-                includeStaticCasters: true,
-                includeDynamicCasters: false);
+            if (hasIndirectStaticCasters)
+            {
+                MainLightShadowIndirectCasterContext.AddTarget(
+                    _cacheState.StaticShadowmapTexture,
+                    _cacheState.CascadeData,
+                    cascadeCount,
+                    MainLightShadowPassUtils.GetShadowLightDirection(staticVisibleLight),
+                    includeStaticCasters: true,
+                    includeDynamicCasters: false);
+            }
 
             _cacheState.CommitStaticCache(
                 asset,
@@ -213,6 +226,18 @@ namespace NWRP.Runtime.Passes
                 ref frameData,
                 _cacheState.EmptyShadowmapTexture
             );
+        }
+
+        private static bool HasIndirectShadowCasters(
+            ref NWRPFrameData frameData,
+            bool includeStaticCasters,
+            bool includeDynamicCasters)
+        {
+            return frameData.rendererData != null
+                && frameData.rendererData.EnableVegetationIndirectTreeShadows
+                && VegetationIndirectShadowRegistry.HasIndirectShadowCasters(
+                    includeStaticCasters,
+                    includeDynamicCasters);
         }
     }
 }
