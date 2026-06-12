@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+<<<<<<<< HEAD:Client/Assets/NewWorld/ArtResources/Environment/ScenePrefabs/Common/P_Common_Grass.prefab.meta
+guid: 06deb72db77f8cb409b056ea01db5578
+========
+guid: 2f6c7a3b97411458b8ac37d35c549126
+>>>>>>>> origin/develop_MVP:Client/Assets/NewWorld/ArtResources/UI/Prefabs/Role/CurrenciesWidget.prefab.meta
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -36,9 +36,9 @@ MonoBehaviour:
     outline:
       enableOutline: 0
     opaqueTexture:
-      enableOpaqueTexture: 0
+      enableOpaqueTexture: 1
     depthTexture:
-      enableDepthTexture: 0
+      enableDepthTexture: 1
       copyDepthMode: 0
     vegetationIndirectRendering:
       enableVegetationIndirectRendering: 1
@@ -99,7 +99,7 @@ MonoBehaviour:
     toggles:
       enableMainLightShadows: 1
     distance:
-      mainLightShadowDistance: 240
+      mainLightShadowDistance: 300
       mainLightShadowCascadeCount: 2
       mainLightShadowCascadeSplit: 0.35
     atlas:
@@ -117,11 +117,11 @@ MonoBehaviour:
       enableDynamicShadowOverlay: 1
       staticCasterLayerMask:
         serializedVersion: 2
-        m_Bits: 55
+        m_Bits: 268435511
       dynamicCasterLayerMask:
         serializedVersion: 2
         m_Bits: 262144
-      enableCameraMotionInvalidation: 0
+      enableCameraMotionInvalidation: 1
       cameraPositionInvalidationThreshold: 0.25
       cameraRotationInvalidationThreshold: 0.5
       lightDirectionInvalidationThreshold: 0.5
@@ -133,7 +133,7 @@ MonoBehaviour:
     shadowMode: 1
     cachedShadowSettingsMigrated: 1
     mainLightShadowResolution: 2048
-    mainLightShadowDistance: 240
+    mainLightShadowDistance: 300
     mainLightShadowCascadeCount: 2
     mainLightShadowCascadeSplit: 0.35
     mainLightShadowBias: 0.7
@@ -146,11 +146,11 @@ MonoBehaviour:
     enableDynamicShadowOverlay: 1
     staticCasterLayerMask:
       serializedVersion: 2
-      m_Bits: 55
+      m_Bits: 268435511
     dynamicCasterLayerMask:
       serializedVersion: 2
       m_Bits: 262144
-    enableCameraMotionInvalidation: 0
+    enableCameraMotionInvalidation: 1
     cameraPositionInvalidationThreshold: 0.25
     cameraRotationInvalidationThreshold: 0.5
     lightDirectionInvalidationThreshold: 0.5

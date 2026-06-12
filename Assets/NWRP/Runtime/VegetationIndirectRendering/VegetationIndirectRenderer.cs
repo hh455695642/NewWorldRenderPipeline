@@ -5,7 +5,10 @@ using UnityEngine.Rendering;
 using UnityEngine.Serialization;
 
 [ExecuteAlways]
-public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShadowProvider
+public class VegetationIndirectRenderer :
+    MonoBehaviour,
+    IVegetationIndirectShadowProvider,
+    IVegetationIndirectShadowCasterQuery
 {
     // Rendering flow:
     // 1) Collect MeshRenderers from VegetationRoots and group by Chunk, then by (mesh+material).
@@ -875,19 +878,43 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
         Bounds drawBounds = worldBounds;
         drawBounds.Expand(2f);
 
-        // RenderParams is a struct; reuse the cached template per group to avoid churn.
-        var rp = group.rpTemplate;
-        rp.camera = cam;
-        rp.layer = renderLayer;
-        rp.worldBounds = drawBounds;
-        // Visible indirect draws never cast. Shadows come from the NWRP indirect shadow pass,
-        // or from the source renderers only when the fallback path is active.
-        rp.shadowCastingMode = ShadowCastingMode.Off;
-        rp.receiveShadows = receiveShadows;
-        rp.matProps = group.mpb;
+        var rp = ConfigureIndirectDrawRenderParams(
+            group.rpTemplate,
+            cam,
+            renderLayer,
+            drawBounds,
+            receiveShadows,
+            group.mpb);
         Graphics.RenderMeshIndirect(rp, group.mesh, group.indirectCommandBuffer, 1, 0);
 
         return submittedInstanceCount;
+    }
+
+    static RenderParams ConfigureIndirectDrawRenderParams(
+        RenderParams renderParams,
+        Camera camera,
+        int layer,
+        Bounds worldBounds,
+        bool receiveShadows,
+        MaterialPropertyBlock materialProperties)
+    {
+        // RenderParams is a struct; configure per draw while reusing the cached template.
+        renderParams.camera = camera;
+        renderParams.layer = layer;
+        renderParams.worldBounds = worldBounds;
+
+        // Visible indirect draws never cast. Shadows come from the NWRP indirect shadow pass,
+        // or from the source renderers only when the fallback path is active.
+        renderParams.shadowCastingMode = ShadowCastingMode.Off;
+        renderParams.receiveShadows = receiveShadows;
+
+        // Indirect draws do not inherit MeshRenderer probe state. Blend one chunk/group SH sample
+        // so shadowed tree pixels still receive environment ambient without extra variants.
+        renderParams.lightProbeUsage = LightProbeUsage.BlendProbes;
+        renderParams.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        renderParams.matProps = materialProperties;
+
+        return renderParams;
     }
 
     void ApplyOriginalRendererRuntimeState()
@@ -960,17 +987,8 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
         if (draws == null)
             return false;
 
-        if (!Application.isPlaying
-            || debugUseOriginalRenderer
-            || _usingOriginalRendererFallback
-            || !_csReady
-            || !castShadows
-            || !IsNWRPIndirectRenderingEnabled(_cam)
-            || CullingComputeShader == null
-            || _kernelIndex < 0)
-        {
+        if (!CanProvideIndirectShadowCasters())
             return false;
-        }
 
         bool hasDraws = false;
         foreach (var chunk in _chunks.Values)
@@ -1011,6 +1029,50 @@ public class VegetationIndirectRenderer : MonoBehaviour, IVegetationIndirectShad
         }
 
         return hasDraws;
+    }
+
+    public bool HasIndirectShadowCasters(
+        bool includeStaticCasters,
+        bool includeDynamicCasters)
+    {
+        if (!includeStaticCasters && !includeDynamicCasters)
+            return false;
+
+        if (!CanProvideIndirectShadowCasters())
+            return false;
+
+        foreach (var chunk in _chunks.Values)
+        {
+            foreach (var group in chunk.groups)
+            {
+                if (!CanSubmitIndirectShadowGroup(group))
+                    continue;
+
+                if (group.isDynamicShadowCaster)
+                {
+                    if (includeDynamicCasters)
+                        return true;
+                }
+                else if (includeStaticCasters)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool CanProvideIndirectShadowCasters()
+    {
+        return Application.isPlaying
+            && !debugUseOriginalRenderer
+            && !_usingOriginalRendererFallback
+            && _csReady
+            && castShadows
+            && IsNWRPIndirectRenderingEnabled(_cam)
+            && CullingComputeShader != null
+            && _kernelIndex >= 0;
     }
 
     bool CanSubmitIndirectShadowGroup(RenderGroup group)

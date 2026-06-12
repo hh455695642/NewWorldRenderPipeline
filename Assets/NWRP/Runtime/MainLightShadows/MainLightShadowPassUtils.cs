@@ -14,6 +14,9 @@ namespace NWRP.Runtime.Passes
             Matrix4x4.identity,
             Matrix4x4.identity
         };
+        private static readonly Vector3[] s_CascadeNearCorners = new Vector3[4];
+        private static readonly Vector3[] s_CascadeFarCorners = new Vector3[4];
+        private static readonly Vector3[] s_CascadeWorldCorners = new Vector3[8];
 
         internal static readonly ProfilingSampler RenderRealtimeShadowAtlasSampler =
             new ProfilingSampler("Render Main Light Realtime Cascades");
@@ -214,7 +217,8 @@ namespace NWRP.Runtime.Passes
             int atlasWidth,
             int atlasHeight,
             int tileResolution,
-            MainLightShadowCacheState cacheState
+            MainLightShadowCacheState cacheState,
+            bool allowCameraFrustumFallback = false
         )
         {
             Vector3 cascadeRatios = cascadeCount == 2
@@ -223,13 +227,16 @@ namespace NWRP.Runtime.Passes
 
             for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
             {
-                if (!frameData.cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
+                if (!TryComputeDirectionalShadowCascade(
+                        ref frameData,
                         mainLightIndex,
                         cascadeIndex,
                         cascadeCount,
                         cascadeRatios,
                         tileResolution,
                         mainLight.shadowNearPlane,
+                        mainLight,
+                        allowCameraFrustumFallback,
                         out Matrix4x4 viewMatrix,
                         out Matrix4x4 projectionMatrix,
                         out ShadowSplitData splitData))
@@ -275,6 +282,172 @@ namespace NWRP.Runtime.Passes
             return true;
         }
 
+        public static bool TryComputeDirectionalShadowCascade(
+            ref NWRPFrameData frameData,
+            int mainLightIndex,
+            int cascadeIndex,
+            int cascadeCount,
+            Vector3 cascadeRatios,
+            int tileResolution,
+            float shadowNearPlane,
+            Light mainLight,
+            bool allowCameraFrustumFallback,
+            out Matrix4x4 viewMatrix,
+            out Matrix4x4 projectionMatrix,
+            out ShadowSplitData splitData
+        )
+        {
+            if (frameData.cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
+                    mainLightIndex,
+                    cascadeIndex,
+                    cascadeCount,
+                    cascadeRatios,
+                    tileResolution,
+                    shadowNearPlane,
+                    out viewMatrix,
+                    out projectionMatrix,
+                    out splitData))
+            {
+                return true;
+            }
+
+            if (!allowCameraFrustumFallback)
+            {
+                return false;
+            }
+
+            return TryComputeCameraFrustumDirectionalShadowCascade(
+                ref frameData,
+                mainLight,
+                cascadeIndex,
+                cascadeCount,
+                tileResolution,
+                out viewMatrix,
+                out projectionMatrix,
+                out splitData);
+        }
+
+        private static bool TryComputeCameraFrustumDirectionalShadowCascade(
+            ref NWRPFrameData frameData,
+            Light mainLight,
+            int cascadeIndex,
+            int cascadeCount,
+            int tileResolution,
+            out Matrix4x4 viewMatrix,
+            out Matrix4x4 projectionMatrix,
+            out ShadowSplitData splitData
+        )
+        {
+            viewMatrix = Matrix4x4.identity;
+            projectionMatrix = Matrix4x4.identity;
+            splitData = default;
+
+            Camera camera = frameData.camera;
+            NewWorldRenderPipelineAsset asset = frameData.asset;
+            if (camera == null || asset == null || mainLight == null)
+            {
+                return false;
+            }
+
+            float nearClip = Mathf.Max(camera.nearClipPlane, 0.001f);
+            float shadowDistance = Mathf.Max(
+                GetEffectiveShadowDistance(asset, camera),
+                nearClip + 0.001f);
+            float cascadeSplit = Mathf.Clamp01(asset.MainLightShadowCascadeSplit);
+            float splitNear = nearClip;
+            float splitFar = shadowDistance;
+
+            if (cascadeCount > 1)
+            {
+                float firstCascadeFar = Mathf.Lerp(nearClip, shadowDistance, cascadeSplit);
+                if (cascadeIndex == 0)
+                {
+                    splitFar = firstCascadeFar;
+                }
+                else
+                {
+                    splitNear = firstCascadeFar;
+                }
+            }
+
+            if (splitFar <= splitNear + 0.001f)
+            {
+                return false;
+            }
+
+            Rect fullViewport = new Rect(0f, 0f, 1f, 1f);
+            camera.CalculateFrustumCorners(
+                fullViewport,
+                splitNear,
+                Camera.MonoOrStereoscopicEye.Mono,
+                s_CascadeNearCorners);
+            camera.CalculateFrustumCorners(
+                fullViewport,
+                splitFar,
+                Camera.MonoOrStereoscopicEye.Mono,
+                s_CascadeFarCorners);
+
+            Vector3 center = Vector3.zero;
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 nearCorner = camera.transform.TransformPoint(s_CascadeNearCorners[i]);
+                Vector3 farCorner = camera.transform.TransformPoint(s_CascadeFarCorners[i]);
+                s_CascadeWorldCorners[i] = nearCorner;
+                s_CascadeWorldCorners[i + 4] = farCorner;
+                center += nearCorner + farCorner;
+            }
+
+            center *= 0.125f;
+
+            float radius = 0f;
+            for (int i = 0; i < s_CascadeWorldCorners.Length; i++)
+            {
+                radius = Mathf.Max(radius, Vector3.Distance(center, s_CascadeWorldCorners[i]));
+            }
+
+            radius = Mathf.Max(radius, 0.001f);
+            Vector3 lightDirection = -mainLight.transform.forward;
+            if (lightDirection.sqrMagnitude < 0.0001f)
+            {
+                lightDirection = Vector3.forward;
+            }
+
+            lightDirection.Normalize();
+            Vector3 shadowViewDirection = -lightDirection;
+            Vector3 lightUp = Mathf.Abs(Vector3.Dot(shadowViewDirection, Vector3.up)) > 0.95f
+                ? Vector3.right
+                : Vector3.up;
+            Quaternion lightRotation = Quaternion.LookRotation(shadowViewDirection, lightUp);
+            Vector3 lightPosition = center - shadowViewDirection * radius;
+            viewMatrix = Matrix4x4.Scale(new Vector3(1f, 1f, -1f))
+                * Matrix4x4.TRS(lightPosition, lightRotation, Vector3.one).inverse;
+
+            Vector3 lightMin = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
+            Vector3 lightMax = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
+            for (int i = 0; i < s_CascadeWorldCorners.Length; i++)
+            {
+                Vector3 lightSpaceCorner = viewMatrix.MultiplyPoint3x4(s_CascadeWorldCorners[i]);
+                lightMin = Vector3.Min(lightMin, lightSpaceCorner);
+                lightMax = Vector3.Max(lightMax, lightSpaceCorner);
+            }
+
+            float width = Mathf.Max(lightMax.x - lightMin.x, 0.001f);
+            float height = Mathf.Max(lightMax.y - lightMin.y, 0.001f);
+            float texelPadding = Mathf.Max(width, height) / Mathf.Max(tileResolution, 1);
+            texelPadding *= 2f;
+
+            float left = lightMin.x - texelPadding;
+            float right = lightMax.x + texelPadding;
+            float bottom = lightMin.y - texelPadding;
+            float top = lightMax.y + texelPadding;
+            float farPlane = Mathf.Max(-lightMin.z + texelPadding, radius * 2f + texelPadding);
+            projectionMatrix = Matrix4x4.Ortho(left, right, bottom, top, 0.001f, farPlane);
+
+            splitData.cullingSphere = new Vector4(center.x, center.y, center.z, radius);
+            splitData.shadowCascadeBlendCullingFactor = 1.0f;
+            return true;
+        }
+
         public static void ClearShadowAtlas(ref NWRPFrameData frameData, RenderTexture shadowmapTexture)
         {
             frameData.cmd.SetRenderTarget(shadowmapTexture);
@@ -316,14 +489,22 @@ namespace NWRP.Runtime.Passes
             int shadowLightIndex,
             VisibleLight shadowVisibleLight,
             int cascadeCount,
-            MainLightShadowCacheState cacheState
+            MainLightShadowCacheState cacheState,
+            bool allowEmptyAtlas = false
         )
         {
             CommandBuffer cmd = frameData.cmd;
+            bool hasRegularShadowCasters =
+                cullResults.GetShadowCasterBounds(shadowLightIndex, out Bounds _);
 
-            if (!cullResults.GetShadowCasterBounds(shadowLightIndex, out Bounds _))
+            if (!hasRegularShadowCasters && !allowEmptyAtlas)
             {
                 return false;
+            }
+
+            if (!hasRegularShadowCasters)
+            {
+                return HasValidCascadeData(cacheState, cascadeCount);
             }
 
             ShadowDrawingSettings shadowDrawingSettings = new ShadowDrawingSettings(
@@ -377,6 +558,23 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalFloat(NWRPShaderIds.MainLightShadowCasterCull, (float)CullMode.Back);
             ExecuteBuffer(ref frameData);
             return anyCascadeRendered;
+        }
+
+        private static bool HasValidCascadeData(
+            MainLightShadowCacheState cacheState,
+            int cascadeCount)
+        {
+            if (cacheState == null || cascadeCount <= 0)
+                return false;
+
+            for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
+            {
+                MainLightShadowCascadeData cascadeData = cacheState.CascadeData[cascadeIndex];
+                if (cascadeData.resolution > 0)
+                    return true;
+            }
+
+            return false;
         }
 
         public static void UploadDisabledGlobals(

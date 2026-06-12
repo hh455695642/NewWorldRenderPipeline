@@ -65,11 +65,26 @@ namespace NWRP.Runtime.Passes
         private static bool CanRender(ref NWRPFrameData frameData)
         {
             return frameData.asset != null
-                && frameData.rendererData != null
                 && frameData.asset.EnableMainLightShadows
-                && frameData.rendererData.EnableVegetationIndirectTreeShadows
+                && AllowsIndirectTreeShadows(ref frameData)
                 && MainLightShadowIndirectCasterContext.IsValid
                 && MainLightShadowIndirectCasterContext.TargetCount > 0;
+        }
+
+        private static bool AllowsIndirectTreeShadows(ref NWRPFrameData frameData)
+        {
+            if (frameData.rendererData != null
+                && frameData.rendererData.EnableVegetationIndirectTreeShadows)
+            {
+                return true;
+            }
+
+#if UNITY_EDITOR
+            return frameData.camera != null
+                && frameData.camera.cameraType == CameraType.SceneView;
+#else
+            return false;
+#endif
         }
 
         private void CollectDraws(MainLightShadowIndirectCasterContext.Target target)

@@ -5,22 +5,24 @@ Shader "NewWorld/Env/ParabolaLine"
         [NoScaleOffset]_MainTex ("Unfinished Texture", 2D) = "white" {}
         [NoScaleOffset]_MainTex1 ("Finished Texture", 2D) = "white" {}
 
-        [HDR]_Color("Finished Color", Color) = (0, 0, 0, 0)
-        [HDR]_Color2("Unfinished Color", Color) = (0, 0, 0, 0)
+        [HDR]_Color("Finished Color", Color) = (0,0,0,0)
+        [HDR]_Color2("Unfinished Color", Color) = (0,0,0,0)
 
-        _Tiling_Offset("Tiling & Offset", Vector) = (1, 1, 0, 0)
+        _Tiling_Offset("Tiling & Offset", Vector) = (1,1,0,0)
 
         _LineIntensity("Line Intensity", Float) = 4
-        _LineMiddleWidth("Middle Width", Range(0, 0.2)) = 0.03
-        _LineEndWidth("End Width", Range(0, 0.4)) = 0.2
+        _LineMiddleWidth("Middle Width", Range(0,0.2)) = 0.03
+        _LineEndWidth("End Width", Range(0,0.4)) = 0.2
 
-        _Progress("Progress", Range(0, 1)) = 0
+        _Progress("Progress", Range(0,1)) = 0
     }
 
     SubShader
     {
         Tags
         {
+            "RenderPipeline"="UniversalPipeline"
+            "UniversalMaterialType"="Unlit"
             "RenderType"="Transparent"
             "Queue"="Transparent"
         }
@@ -28,44 +30,40 @@ Shader "NewWorld/Env/ParabolaLine"
         Pass
         {
             Name "AfterFogParabolaLine"
-            Tags { "LightMode"="AfterFog" }
 
+            Tags
+            {
+                "LightMode"="AfterFog"
+            }
+
+            // Render State
             Cull Off
             Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
             ZTest LEqual
             ZWrite Off
 
             HLSLPROGRAM
-            #pragma vertex Vert
-            #pragma fragment Frag
-            #pragma multi_compile_instancing
 
-            #include "../../../../NWRP/ShaderLibrary/Core.hlsl"
+            #pragma vertex vert
+            #pragma fragment frag
 
-            struct Attributes
-            {
-                float4 positionOS : POSITION;
-                float2 uv : TEXCOORD0;
-                half4 color : COLOR;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
-            };
-
-            struct Varyings
-            {
-                float4 positionHCS : SV_POSITION;
-                float2 uv : TEXCOORD0;
-                half4 color : COLOR;
-            };
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
-                half4 _Color;
-                half4 _Color2;
+
+                float4 _Color;
+                float4 _Color2;
+
                 float4 _Tiling_Offset;
+
                 half _LineIntensity;
                 half _LineMiddleWidth;
                 half _LineEndWidth;
+
                 half _Progress;
+
             CBUFFER_END
+
 
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
@@ -73,54 +71,126 @@ Shader "NewWorld/Env/ParabolaLine"
             TEXTURE2D(_MainTex1);
             SAMPLER(sampler_MainTex1);
 
-            Varyings Vert(Attributes input)
-            {
-                UNITY_SETUP_INSTANCE_ID(input);
 
-                Varyings output;
-                output.positionHCS = TransformObjectToHClip(input.positionOS.xyz);
-                output.uv = input.uv;
-                output.color = input.color;
-                return output;
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float2 uv : TEXCOORD0;
+                float4 color : COLOR;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+                float4 color : COLOR;
+            };
+
+
+            Varyings vert (Attributes v)
+            {
+                Varyings o;
+
+                o.positionCS = TransformObjectToHClip(v.positionOS.xyz);
+                o.uv = v.uv;
+                o.color = v.color;
+
+                return o;
             }
 
-            half4 Frag(Varyings input) : SV_Target
-            {
-                float2 uv = input.uv;
 
-                half dist = (half)abs(uv.y - 0.5);
-                half width = lerp(
+            half4 frag (Varyings i) : SV_Target
+            {
+                float2 uv = i.uv;
+
+                //----------------------------------
+                // 1. 线条形状 (两端粗 中间细)
+                //----------------------------------
+
+                float dist = abs(uv.y - 0.5);
+
+                float width = lerp(
                     _LineMiddleWidth,
                     _LineEndWidth,
-                    (half)abs(uv.x * 2.0 - 1.0));
-                half lineMask = smoothstep(width, width - 0.01h, dist);
+                    abs(uv.x * 2 - 1)
+                );
 
-                half4 lineColor;
-                lineColor.rgb = lineMask * input.color.rgb * _LineIntensity;
-                lineColor.a = lineMask * input.color.a;
+                float lineMask = smoothstep(width, width - 0.01, dist);
+
+                float4 lineColor;
+                lineColor.rgb = lineMask * i.color.rgb * _LineIntensity;
+                lineColor.a   = lineMask * i.color.a;
+
+
+                //----------------------------------
+                // 2. 箭头扫描动画
+                //----------------------------------
 
                 float scan = frac(_Time.y * _Tiling_Offset.z);
-                float arrowU = uv.x - scan;
-                float2 arrowUV = float2(arrowU * _Tiling_Offset.x, uv.y);
 
-                float2 finishedUV = uv * _Tiling_Offset.xy;
+                float arrowU = uv.x - scan;
+
+                //float arrowMask = step(0, arrowU) * step(arrowU, 1);
+
+                float2 arrowUV = float2(
+                    arrowU * _Tiling_Offset.x,
+                    uv.y
+                );
+
+
+                //----------------------------------
+                // 3. 贴图采样
+                //----------------------------------
+
+                float2 finishedUV = uv * float2(_Tiling_Offset.x, _Tiling_Offset.y);
                 finishedUV += _Tiling_Offset.zw * -_Time.y;
 
-                half4 unfinishedTex =
-                    SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, arrowUV)
-                    * input.color;
-                half4 finishedTex =
-                    SAMPLE_TEXTURE2D(_MainTex1, sampler_MainTex1, finishedUV)
-                    * input.color;
+                float4 unfinishedTex = SAMPLE_TEXTURE2D(
+                    _MainTex,
+                    sampler_MainTex,
+                    arrowUV
+                ) * i.color;
 
-                half4 colorDefault =
-                    lerp(lineColor, unfinishedTex * _Color2, unfinishedTex.a);
+                float4 finishedTex = SAMPLE_TEXTURE2D(
+                    _MainTex1,
+                    sampler_MainTex1,
+                    finishedUV
+                ) * i.color;
 
-                half progressMask = step(1.0h - _Progress, 1.0h - (half)uv.x);
-                half4 colorProgress = finishedTex * _Color;
 
-                return lerp(colorDefault, colorProgress, progressMask);
+                //----------------------------------
+                // 4. 未完成区域颜色
+                //----------------------------------
+
+                float4 colorDefault =
+                    lerp(lineColor,
+                         unfinishedTex * _Color2,
+                         unfinishedTex.a);
+
+
+                //----------------------------------
+                // 5. 完成进度
+                //----------------------------------
+
+                float progressMask =
+                    step(1 - _Progress, 1 - uv.x);
+
+                float4 colorProgress =
+                    finishedTex * _Color;
+
+
+                //----------------------------------
+                // 6. 最终混合
+                //----------------------------------
+
+                float4 col =
+                    lerp(colorDefault,
+                         colorProgress,
+                         progressMask);
+
+                return col;
             }
+
             ENDHLSL
         }
     }

@@ -55,7 +55,14 @@ namespace NWRP.Runtime.Passes
                 return;
             }
 
-            if (!frameData.cullingResults.GetShadowCasterBounds(mainLightIndex, out Bounds _))
+            bool hasRegularShadowCasters =
+                frameData.cullingResults.GetShadowCasterBounds(mainLightIndex, out Bounds _);
+            bool hasIndirectShadowCasters = HasIndirectShadowCasters(
+                ref frameData,
+                includeStaticCasters: true,
+                includeDynamicCasters: true);
+
+            if (!hasRegularShadowCasters && !hasIndirectShadowCasters)
             {
                 UploadDisabledGlobals(ref frameData);
                 return;
@@ -82,11 +89,15 @@ namespace NWRP.Runtime.Passes
 
                 MainLightShadowPassUtils.ClearShadowAtlas(ref frameData, _shadowmapTexture);
                 CommandBuffer cmd = frameData.cmd;
-                ShadowDrawingSettings shadowDrawingSettings =
-                    new ShadowDrawingSettings(
+                ShadowDrawingSettings shadowDrawingSettings = default;
+                if (hasRegularShadowCasters)
+                {
+                    shadowDrawingSettings = new ShadowDrawingSettings(
                         frameData.cullingResults,
                         mainLightIndex,
                         BatchCullingProjectionType.Orthographic);
+                }
+
                 Vector4 shadowLightDirection = GetShadowLightDirection(ref frameData, mainLightIndex);
                 cmd.SetGlobalFloat(
                     NWRPShaderIds.MainLightShadowCasterCull,
@@ -103,13 +114,16 @@ namespace NWRP.Runtime.Passes
                 anyCascadeRendered = false;
                 for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
                 {
-                    if (!frameData.cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
+                    if (!MainLightShadowPassUtils.TryComputeDirectionalShadowCascade(
+                            ref frameData,
                             mainLightIndex,
                             cascadeIndex,
                             cascadeCount,
                             cascadeRatios,
                             tileResolution,
                             mainLight.shadowNearPlane,
+                            mainLight,
+                            allowCameraFrustumFallback: !hasRegularShadowCasters && hasIndirectShadowCasters,
                             out Matrix4x4 viewMatrix,
                             out Matrix4x4 projMatrix,
                             out ShadowSplitData splitData))
@@ -120,8 +134,12 @@ namespace NWRP.Runtime.Passes
                         continue;
                     }
 
-                    splitData.shadowCascadeBlendCullingFactor = 1.0f;
-                    shadowDrawingSettings.splitData = splitData;
+                    if (hasRegularShadowCasters)
+                    {
+                        splitData.shadowCascadeBlendCullingFactor = 1.0f;
+                        shadowDrawingSettings.splitData = splitData;
+                    }
+
                     _cascadeSplitSpheres[cascadeIndex] = splitData.cullingSphere;
 
                     GetTileOffset(cascadeIndex, tileResolution, out int offsetX, out int offsetY);
@@ -133,7 +151,11 @@ namespace NWRP.Runtime.Passes
                     );
                     ExecuteBuffer(ref frameData);
 
-                    frameData.context.DrawShadows(ref shadowDrawingSettings);
+                    if (hasRegularShadowCasters)
+                    {
+                        frameData.context.DrawShadows(ref shadowDrawingSettings);
+                    }
+
                     anyCascadeRendered = true;
 
                     _cascadeData[cascadeIndex] = new MainLightShadowCascadeData
@@ -175,13 +197,16 @@ namespace NWRP.Runtime.Passes
 
             frameData.context.SetupCameraProperties(frameData.camera);
 
-            MainLightShadowIndirectCasterContext.AddTarget(
-                _shadowmapTexture,
-                _cascadeData,
-                cascadeCount,
-                GetShadowLightDirection(ref frameData, mainLightIndex),
-                includeStaticCasters: true,
-                includeDynamicCasters: true);
+            if (hasIndirectShadowCasters)
+            {
+                MainLightShadowIndirectCasterContext.AddTarget(
+                    _shadowmapTexture,
+                    _cascadeData,
+                    cascadeCount,
+                    GetShadowLightDirection(ref frameData, mainLightIndex),
+                    includeStaticCasters: true,
+                    includeDynamicCasters: true);
+            }
 
             MainLightShadowPassUtils.UploadRealtimeReceiverGlobals(
                 ref frameData,
@@ -194,6 +219,25 @@ namespace NWRP.Runtime.Passes
                 atlasHeight,
                 tileResolution
             );
+        }
+
+        private static bool HasIndirectShadowCasters(
+            ref NWRPFrameData frameData,
+            bool includeStaticCasters,
+            bool includeDynamicCasters)
+        {
+            bool allowIndirectTreeShadows = frameData.rendererData != null
+                && frameData.rendererData.EnableVegetationIndirectTreeShadows;
+
+#if UNITY_EDITOR
+            allowIndirectTreeShadows |= frameData.camera != null
+                && frameData.camera.cameraType == CameraType.SceneView;
+#endif
+
+            return allowIndirectTreeShadows
+                && VegetationIndirectShadowRegistry.HasIndirectShadowCasters(
+                    includeStaticCasters,
+                    includeDynamicCasters);
         }
 
         private void UploadDisabledGlobals(ref NWRPFrameData frameData)

@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+<<<<<<<< HEAD:Client/Assets/NewWorld/ArtResources/Environment/ScenePrefabs/Common/P_Common_Grass_02.prefab.meta
+guid: 6ae675363ec2c24419935d60604e320d
+========
+guid: 6d6c19a86f8e61e4d879bdd86b82ef65
+>>>>>>>> origin/develop_MVP:Client/Assets/NewWorld/ArtResources/UI/Prefabs/MainGameUI/Collect/CollectPower.prefab.meta
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

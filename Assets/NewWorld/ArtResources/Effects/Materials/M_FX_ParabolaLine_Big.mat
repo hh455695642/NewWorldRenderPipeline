@@ -21,7 +21,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: M_FX_ParabolaLine_Big
-  m_Shader: {fileID: 4800000, guid: ee64296d3b052874cae2ad3e5d3de079, type: 3}
+  m_Shader: {fileID: 4800000, guid: 57b874f2bc9876d48bb7bc7fceb9e910, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []

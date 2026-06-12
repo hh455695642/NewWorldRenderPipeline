@@ -1,0 +1,12 @@
+fileFormatVersion: 2
+<<<<<<<< HEAD:Client/Assets/NewWorld/ArtResources/Environment/SceneModels/Common/Grass/Materical/M_Common_Grass_01.mat.meta
+guid: 0da8335737298e94b8ebc32101782486
+========
+guid: 788551a97c5087c48ab3264fa759d4a7
+>>>>>>>> origin/develop_MVP:Client/Assets/Res/Scenes/Scene_New/AnimalsPacks/Sheep/Ram_and_Sheep/Materials/M_LowPoly_Sheeps_color.mat.meta
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

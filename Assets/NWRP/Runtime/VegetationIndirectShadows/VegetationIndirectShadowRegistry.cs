@@ -29,10 +29,19 @@ namespace NWRP
             List<VegetationIndirectShadowDraw> draws);
     }
 
+    public interface IVegetationIndirectShadowCasterQuery
+    {
+        bool HasIndirectShadowCasters(
+            bool includeStaticCasters,
+            bool includeDynamicCasters);
+    }
+
     public static class VegetationIndirectShadowRegistry
     {
         private static readonly List<IVegetationIndirectShadowProvider> s_Providers =
             new List<IVegetationIndirectShadowProvider>(16);
+        private static readonly List<VegetationIndirectShadowDraw> s_QueryScratchDraws =
+            new List<VegetationIndirectShadowDraw>(8);
 
         public static int ProviderCount => s_Providers.Count;
 
@@ -55,6 +64,49 @@ namespace NWRP
         public static IVegetationIndirectShadowProvider GetProvider(int index)
         {
             return index >= 0 && index < s_Providers.Count ? s_Providers[index] : null;
+        }
+
+        public static bool HasIndirectShadowCasters(
+            bool includeStaticCasters,
+            bool includeDynamicCasters)
+        {
+            if (!includeStaticCasters && !includeDynamicCasters)
+                return false;
+
+            Compact();
+
+            for (int i = 0; i < s_Providers.Count; i++)
+            {
+                IVegetationIndirectShadowProvider provider = s_Providers[i];
+                if (provider == null)
+                    continue;
+
+                if (provider is IVegetationIndirectShadowCasterQuery query)
+                {
+                    if (query.HasIndirectShadowCasters(
+                            includeStaticCasters,
+                            includeDynamicCasters))
+                    {
+                        return true;
+                    }
+
+                    continue;
+                }
+
+                s_QueryScratchDraws.Clear();
+                if (provider.TryCollectIndirectShadowDraws(
+                        includeStaticCasters,
+                        includeDynamicCasters,
+                        s_QueryScratchDraws)
+                    && s_QueryScratchDraws.Count > 0)
+                {
+                    s_QueryScratchDraws.Clear();
+                    return true;
+                }
+            }
+
+            s_QueryScratchDraws.Clear();
+            return false;
         }
 
         public static void Compact()
