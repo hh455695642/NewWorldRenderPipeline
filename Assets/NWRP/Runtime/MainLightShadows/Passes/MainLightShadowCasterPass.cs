@@ -114,13 +114,16 @@ namespace NWRP.Runtime.Passes
                 anyCascadeRendered = false;
                 for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
                 {
-                    if (!frameData.cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
+                    if (!MainLightShadowPassUtils.TryComputeDirectionalShadowCascade(
+                            ref frameData,
                             mainLightIndex,
                             cascadeIndex,
                             cascadeCount,
                             cascadeRatios,
                             tileResolution,
                             mainLight.shadowNearPlane,
+                            mainLight,
+                            allowCameraFrustumFallback: !hasRegularShadowCasters && hasIndirectShadowCasters,
                             out Matrix4x4 viewMatrix,
                             out Matrix4x4 projMatrix,
                             out ShadowSplitData splitData))
