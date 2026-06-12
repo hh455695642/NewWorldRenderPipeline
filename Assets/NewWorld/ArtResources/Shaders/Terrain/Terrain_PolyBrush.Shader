@@ -1,33 +1,33 @@
-Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
+Shader "NewWorld/Terrain/Terrain_PolyBrush_Code"
 {
     Properties
     {
-        [Header(Masks)]
-        [NoScaleOffset]_MaskDetailMap_01("MaskDetailMap_01", 2D) = "linearGrey" {}
-        [NoScaleOffset]_MaskDetailMap_02("MaskDetailMap_02", 2D) = "linearGrey" {}
-        [NoScaleOffset]_MAHSMap("MAHSMap", 2D) = "linearGrey" {}
-        _MaskMapTile_01("MaskMapTile_01", Range(0.001, 0.1)) = 0.005
-        _MaskMapTile_02("MaskMapTile_02", Range(0.001, 0.1)) = 0.005
-
-        [Header(Base Colors)]
-        _MainColor("MainColor", Color) = (0.8, 0.8, 0.8, 0)
-        _Color_01("Color_01", Color) = (0.8, 0.8, 0.8, 0)
-        _Color_02("Color_02", Color) = (0.8, 0.8, 0.8, 0)
-        _Color_03("Color_03", Color) = (0.8, 0.8, 0.8, 0)
-        _Color_04("Color_04", Color) = (0.8, 0.8, 0.8, 0)
-        _Color_05("Color_05", Color) = (0.8, 0.8, 0.8, 0)
-        _Color_AO("Color_AO", Color) = (0.8, 0.8, 0.8, 0)
-        _Color_Height("Color_Height", Color) = (0.8, 0.8, 0.8, 0)
-
-        [Header(Cover)]
-        [NoScaleOffset]_CoverMap("CoverMap", 2D) = "white" {}
-        _CoverMapTile("CoverMapTile", Range(0.001, 0.5)) = 0.005
-        _CoverAmount("CoverAmount", Range(-1, 1)) = 0
-        _CoverBlendIntensity("CoverBlendIntensity", Range(-10, 10)) = 0
-        _CoverHeightStart("CoverHeightStart", Range(1, 50)) = 3
+        [Header(Albedo)]
+        [NoScaleOffset]_AlbedoTexture1("AlbedoMap1", 2D) = "white" {}
+        [NoScaleOffset]_AlbedoTexture2("AlbedoMap2", 2D) = "white" {}
+        [NoScaleOffset]_AlbedoTexture3("AlbedoMap3", 2D) = "white" {}
+        [NoScaleOffset]_AlbedoTexture4("AlbedoMap4", 2D) = "white" {}
 
         [Header(Normal)]
-        [Normal][NoScaleOffset]_NormalMap("NormalMap", 2D) = "bump" {}
+        [Normal][NoScaleOffset]_NormalMap1("NormalMap1", 2D) = "bump" {}
+        [Normal][NoScaleOffset]_NormalMap2("NormalMap2", 2D) = "bump" {}
+        [Normal][NoScaleOffset]_NormalMap3("NormalMap3", 2D) = "bump" {}
+        [Normal][NoScaleOffset]_NormalMap4("NormalMap4", 2D) = "bump" {}
+
+        [Header(Tiling)]
+        _Tilling1("Tilling1", Range(0, 1)) = 0.05
+        _Tilling2("Tilling2", Range(0, 1)) = 0.05
+        _Tilling3("Tilling3", Range(0, 1)) = 0.05
+        _Tilling4("Tilling4", Range(0, 1)) = 0.05
+        [ToggleUI]_Use_UV("Use UV", Float) = 0.0
+
+        [Header(Height Blend)]
+        _HeightIntensity2("HeightIntensity2", Range(0, 10)) = 1
+        _HeightIntensity3("HeightIntensity3", Range(0, 10)) = 1
+        _HeightIntensity4("HeightIntensity4", Range(0, 10)) = 1
+
+        [Header(Surface)]
+        _Smoothness("Smoothness", Range(0, 1)) = 0.1
 
         [Header(NWRP)]
         [ToggleUI]_ReceiveShadows("Receive Realtime Shadows", Float) = 1.0
@@ -38,6 +38,7 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
     {
         Tags
         {
+            "RenderPipeline" = "NewWorldRenderPipeline"
             "RenderType" = "Opaque"
             "Queue" = "Geometry"
         }
@@ -48,20 +49,15 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
         #include "../../../../NWRP/ShaderLibrary/Core.hlsl"
 
         CBUFFER_START(UnityPerMaterial)
-            half4 _MainColor;
-            half4 _Color_01;
-            half4 _Color_02;
-            half4 _Color_03;
-            half4 _Color_04;
-            half4 _Color_05;
-            half4 _Color_AO;
-            half4 _Color_Height;
-            float _MaskMapTile_01;
-            float _MaskMapTile_02;
-            float _CoverMapTile;
-            half _CoverAmount;
-            half _CoverBlendIntensity;
-            float _CoverHeightStart;
+            float _Tilling1;
+            float _Tilling2;
+            float _Tilling3;
+            float _Tilling4;
+            half _Use_UV;
+            half _HeightIntensity2;
+            half _HeightIntensity3;
+            half _HeightIntensity4;
+            half _Smoothness;
             half _ReceiveShadows;
             half _CastShadows;
         CBUFFER_END
@@ -72,22 +68,27 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
         #include "../../../../NWRP/ShaderLibrary/BRDF.hlsl"
         #include "../../../../NWRP/ShaderLibrary/GlobalIllumination.hlsl"
 
-        TEXTURE2D(_MaskDetailMap_01); SAMPLER(sampler_MaskDetailMap_01);
-        TEXTURE2D(_MaskDetailMap_02); SAMPLER(sampler_MaskDetailMap_02);
-        TEXTURE2D(_MAHSMap);          SAMPLER(sampler_MAHSMap);
-        TEXTURE2D(_CoverMap);         SAMPLER(sampler_CoverMap);
-        TEXTURE2D(_NormalMap);        SAMPLER(sampler_NormalMap);
+        TEXTURE2D(_AlbedoTexture1);
+        TEXTURE2D(_AlbedoTexture2);
+        TEXTURE2D(_AlbedoTexture3);
+        TEXTURE2D(_AlbedoTexture4);
+        TEXTURE2D(_NormalMap1);
+        TEXTURE2D(_NormalMap2);
+        TEXTURE2D(_NormalMap3);
+        TEXTURE2D(_NormalMap4);
+        SAMPLER(sampler_LinearRepeat);
 
-        struct RockAttributes
+        struct PolyBrushAttributes
         {
             float4 positionOS : POSITION;
             float3 normalOS : NORMAL;
             float4 tangentOS : TANGENT;
             float2 uv : TEXCOORD0;
+            float4 color : COLOR;
             UNITY_VERTEX_INPUT_INSTANCE_ID
         };
 
-        struct RockVaryings
+        struct PolyBrushVaryings
         {
             float4 positionCS : SV_POSITION;
             float2 uv : TEXCOORD0;
@@ -95,37 +96,24 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
             float3 normalWS : TEXCOORD2;
             float3 tangentWS : TEXCOORD3;
             float3 bitangentWS : TEXCOORD4;
-            float3 viewWS : TEXCOORD5;
+            half4 color : TEXCOORD5;
             half fogFactor : TEXCOORD6;
+            float3 viewWS : TEXCOORD7;
             UNITY_VERTEX_INPUT_INSTANCE_ID
             UNITY_VERTEX_OUTPUT_STEREO
         };
 
-        half SmoothMask(half value)
+        struct TerrainLayerData
         {
-            return smoothstep(0.5h, 0.6h, value);
-        }
-
-        half3 TriplanarWeights(half3 normalWS)
-        {
-            half3 weights = abs(normalWS);
-            weights = max(weights, 0.0001h.xxx);
-            return weights / dot(weights, 1.0h.xxx);
-        }
-
-        half4 SampleTriplanar(
-            TEXTURE2D_PARAM(sourceTexture, sourceSampler),
-            float3 positionWS,
-            half3 normalWS,
-            float tile)
-        {
-            float3 uvw = positionWS * tile;
-            half3 weights = TriplanarWeights(normalWS);
-            half4 sampleX = (half4)SAMPLE_TEXTURE2D(sourceTexture, sourceSampler, uvw.zy);
-            half4 sampleY = (half4)SAMPLE_TEXTURE2D(sourceTexture, sourceSampler, uvw.xz);
-            half4 sampleZ = (half4)SAMPLE_TEXTURE2D(sourceTexture, sourceSampler, uvw.xy);
-            return sampleX * weights.x + sampleY * weights.y + sampleZ * weights.z;
-        }
+            half4 albedo1;
+            half4 albedo2;
+            half4 albedo3;
+            half4 albedo4;
+            half3 normalTS1;
+            half3 normalTS2;
+            half3 normalTS3;
+            half3 normalTS4;
+        };
 
         half3 UnpackNormalScale(half4 packedNormal, half scale)
         {
@@ -135,44 +123,28 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
             return normal;
         }
 
-        half3 ComputeRockBaseColor(float3 positionWS, half3 normalWS, half4 mahs)
+        float2 GetLayerBaseUV(float3 positionWS, float2 uv)
         {
-            half4 mask01 = SampleTriplanar(
-                TEXTURE2D_ARGS(_MaskDetailMap_01, sampler_MaskDetailMap_01),
-                positionWS,
-                normalWS,
-                _MaskMapTile_01);
-            half4 mask02 = SampleTriplanar(
-                TEXTURE2D_ARGS(_MaskDetailMap_02, sampler_MaskDetailMap_02),
-                positionWS,
-                normalWS,
-                _MaskMapTile_02);
-
-            half3 color = _MainColor.rgb;
-            color = lerp(color, _Color_01.rgb, SmoothMask(mask01.r));
-            color = lerp(color, _Color_02.rgb, SmoothMask(mask01.g));
-            color = lerp(color, _Color_02.rgb, SmoothMask(mask01.b) * 0.7h);
-            color = lerp(color, _Color_03.rgb, saturate(SmoothMask(mask02.g) * 0.5h));
-            color = lerp(color, _Color_Height.rgb, mahs.b);
-            color = lerp(color, _Color_04.rgb, saturate(SmoothMask(mask01.b) - SmoothMask(mask02.r)) * 0.25h);
-            color = lerp(color, _Color_05.rgb, SmoothMask(mask02.b) * 0.25h);
-            color = lerp(color, _Color_AO.rgb, saturate((1.0h - mahs.g) * 0.65h));
-
-            half3 cover = SampleTriplanar(
-                TEXTURE2D_ARGS(_CoverMap, sampler_CoverMap),
-                positionWS,
-                normalWS,
-                _CoverMapTile).rgb;
-
-            half slopeMask = saturate(smoothstep(
-                0.0h,
-                0.2h,
-                saturate(dot(normalWS, half3(0.0h, 1.0h, 0.0h)) + _CoverAmount + mahs.b * _CoverBlendIntensity)));
-            half heightMask = saturate(1.0h - (positionWS.y - _CoverHeightStart) * 0.2h);
-            return lerp(color, cover, slopeMask * heightMask);
+            half useUv = step(0.5h, _Use_UV);
+            return lerp(positionWS.xz, uv, useUv);
         }
 
-        half3 EvaluateDirectRockPBR(
+        TerrainLayerData SampleTerrainLayers(float2 baseUV)
+        {
+            TerrainLayerData data;
+            data.albedo1 = (half4)SAMPLE_TEXTURE2D(_AlbedoTexture1, sampler_LinearRepeat, baseUV * _Tilling1);
+            data.albedo2 = (half4)SAMPLE_TEXTURE2D(_AlbedoTexture2, sampler_LinearRepeat, baseUV * _Tilling2);
+            data.albedo3 = (half4)SAMPLE_TEXTURE2D(_AlbedoTexture3, sampler_LinearRepeat, baseUV * _Tilling3);
+            data.albedo4 = (half4)SAMPLE_TEXTURE2D(_AlbedoTexture4, sampler_LinearRepeat, baseUV * _Tilling4);
+
+            data.normalTS1 = UnpackNormalScale((half4)SAMPLE_TEXTURE2D(_NormalMap1, sampler_LinearRepeat, baseUV * _Tilling1), 1.0h);
+            data.normalTS2 = UnpackNormalScale((half4)SAMPLE_TEXTURE2D(_NormalMap2, sampler_LinearRepeat, baseUV * _Tilling2), 1.0h);
+            data.normalTS3 = UnpackNormalScale((half4)SAMPLE_TEXTURE2D(_NormalMap3, sampler_LinearRepeat, baseUV * _Tilling3), 1.0h);
+            data.normalTS4 = UnpackNormalScale((half4)SAMPLE_TEXTURE2D(_NormalMap4, sampler_LinearRepeat, baseUV * _Tilling4), 1.0h);
+            return data;
+        }
+
+        half3 EvaluateDirectTerrainPBR(
             Light light,
             half3 normalWS,
             half3 viewWS,
@@ -193,10 +165,9 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
             half nDotV = saturate(dot(normalWS, viewWS));
             half lDotH = saturate(dot(light.direction, halfVector));
 
-            half3 f0 = kDielectricF0;
             half d = D_GGX(nDotH, roughness);
             half v = V_SmithJointApprox(nDotL, nDotV, roughness);
-            half3 f = F_Schlick(f0, lDotH);
+            half3 f = F_Schlick(kDielectricF0, lDotH);
             half3 brdf = albedo * INV_PI + d * v * f;
 
             half3 radiance = light.color
@@ -206,13 +177,12 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
             return brdf * radiance;
         }
 
-        half3 EvaluateRockPBR(
+        half3 EvaluateTerrainPBR(
             half3 normalWS,
             half3 viewWS,
             float3 positionWS,
             half3 albedo,
-            half smoothness,
-            half occlusion)
+            half smoothness)
         {
             half perceptualRoughness = SmoothnessToPerceptualRoughness(saturate(smoothness));
             half3 color = 0.0h.xxx;
@@ -224,37 +194,36 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
                 return debugColor;
             }
 
-            color += EvaluateDirectRockPBR(mainLight, normalWS, viewWS, albedo, perceptualRoughness);
+            color += EvaluateDirectTerrainPBR(mainLight, normalWS, viewWS, albedo, perceptualRoughness);
 
             int additionalLightCount = GetAdditionalLightsCount();
             for (int lightIndex = 0; lightIndex < additionalLightCount; ++lightIndex)
             {
                 Light light = GetAdditionalLight(lightIndex, positionWS, normalWS);
-                color += EvaluateDirectRockPBR(light, normalWS, viewWS, albedo, perceptualRoughness);
+                color += EvaluateDirectTerrainPBR(light, normalWS, viewWS, albedo, perceptualRoughness);
             }
 
-            half3 indirectDiffuse = SampleSH(normalWS) * albedo * occlusion;
-            half3 f0 = kDielectricF0;
             half nDotV = saturate(dot(normalWS, viewWS));
-            half3 envBRDF = F_SchlickRoughness(f0, nDotV, perceptualRoughness);
+            half3 indirectDiffuse = SampleSH(normalWS) * albedo;
+            half3 envBRDF = F_SchlickRoughness(kDielectricF0, nDotV, perceptualRoughness);
             half3 indirectSpecular = SampleEnvironmentReflection(normalWS, viewWS, perceptualRoughness)
-                * envBRDF
-                * occlusion;
+                * envBRDF;
 
             return color + indirectDiffuse + indirectSpecular;
         }
 
-        RockVaryings RockVert(RockAttributes input)
+        PolyBrushVaryings PolyBrushVert(PolyBrushAttributes input)
         {
             UNITY_SETUP_INSTANCE_ID(input);
 
-            RockVaryings output = (RockVaryings)0;
+            PolyBrushVaryings output = (PolyBrushVaryings)0;
             UNITY_TRANSFER_INSTANCE_ID(input, output);
             UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
             output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
             output.positionCS = TransformWorldToHClip(output.positionWS);
             output.uv = input.uv;
+            output.color = (half4)input.color;
 
             VertexNormalInputs normalInputs = GetVertexNormalInputs(input.normalOS, input.tangentOS);
             output.normalWS = normalInputs.normalWS;
@@ -272,27 +241,36 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
             Tags { "LightMode" = "NewWorldForward" }
 
             Cull Back
-            ZWrite On
-            ZTest LEqual
             Blend Off
+            ZTest LEqual
+            ZWrite On
 
             HLSLPROGRAM
-            #pragma vertex RockVert
-            #pragma fragment RockFrag
+            #pragma vertex PolyBrushVert
+            #pragma fragment PolyBrushFrag
             #pragma multi_compile_instancing
 
-            half4 RockFrag(RockVaryings input) : SV_Target
+            half4 PolyBrushFrag(PolyBrushVaryings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-                half3 baseNormalWS = normalize(input.normalWS);
-                half4 mahs = (half4)SAMPLE_TEXTURE2D(_MAHSMap, sampler_MAHSMap, input.uv);
-                half3 albedo = ComputeRockBaseColor(input.positionWS, baseNormalWS, mahs);
+                float2 baseUV = GetLayerBaseUV(input.positionWS, input.uv);
+                TerrainLayerData layers = SampleTerrainLayers(baseUV);
 
-                half3 normalTS = UnpackNormalScale(
-                    (half4)SAMPLE_TEXTURE2D(_NormalMap, sampler_NormalMap, input.uv),
-                    1.0h);
+                // Graph-compatible PolyBrush order: layer1 -> G/layer2 -> B/layer3 -> A/layer4.
+                half t2 = saturate(layers.albedo2.a * input.color.g * _HeightIntensity2);
+                half t3 = saturate(layers.albedo3.a * input.color.b * _HeightIntensity3);
+                half t4 = saturate(layers.albedo4.a * input.color.a * _HeightIntensity4);
+
+                half3 albedo = lerp(layers.albedo1.rgb, layers.albedo2.rgb, t2);
+                albedo = lerp(albedo, layers.albedo3.rgb, t3);
+                albedo = lerp(albedo, layers.albedo4.rgb, t4);
+
+                half3 normalTS = normalize(lerp(layers.normalTS1, layers.normalTS2, t2));
+                normalTS = normalize(lerp(normalTS, layers.normalTS3, t3));
+                normalTS = normalize(lerp(normalTS, layers.normalTS4, t4));
+
                 float3x3 tbn = float3x3(
                     normalize(input.tangentWS),
                     normalize(input.bitangentWS),
@@ -300,13 +278,13 @@ Shader "NewWorld/Env/Env_Rocks_TopDownSlope"
                 half3 normalWS = normalize(TransformTangentToWorldDir(normalTS, tbn));
                 half3 viewWS = SafeNormalize(input.viewWS);
 
-                half3 color = EvaluateRockPBR(
+                half3 color = EvaluateTerrainPBR(
                     normalWS,
                     viewWS,
                     input.positionWS,
                     albedo,
-                    mahs.a,
-                    mahs.g);
+                    _Smoothness);
+
                 color = MixNWRPFog(color, input.fogFactor);
                 return half4(color, 1.0h);
             }
