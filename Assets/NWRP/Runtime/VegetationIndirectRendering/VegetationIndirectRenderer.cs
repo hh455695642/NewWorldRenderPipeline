@@ -113,11 +113,13 @@ public class VegetationIndirectRenderer :
     struct GrassInstance
     {
         public Matrix4x4 localToWorld;
+        public Matrix4x4 worldToObject;
         public Vector3 boundCenter;
         public float boundRadius;
     }
 
-    const int kInstanceStride = 80;
+    const int kInstanceStride = 144;
+    const int kVisibleInstanceStride = 128;
     const string kIndirectRenderingDisabledReason =
         "Vegetation indirect rendering is disabled by NWRP Renderer Data.";
 
@@ -145,6 +147,8 @@ public class VegetationIndirectRenderer :
         public MaterialPropertyBlock mpb;
         public MaterialPropertyBlock shadowMpb;
         public RenderParams rpTemplate;
+        public SHCoefficients indirectLightingSH;
+        public int indirectLightingSHFrame = -1;
         public int shadowCasterPassIndex = -1;
         public bool supportsIndirectShadows;
         public bool isDynamicShadowCaster;
@@ -207,6 +211,14 @@ public class VegetationIndirectRenderer :
 
     static readonly int _idVisibleBuffer = Shader.PropertyToID("_VisibleVegetationBuffer");
     static readonly int _idReceiveShadows = Shader.PropertyToID("_ReceiveShadows");
+    static readonly int _idVegetationUseCustomSH = Shader.PropertyToID("_NWRPVegetationUseCustomSH");
+    static readonly int _idVegetationSHAr = Shader.PropertyToID("_NWRPVegetationSHAr");
+    static readonly int _idVegetationSHAg = Shader.PropertyToID("_NWRPVegetationSHAg");
+    static readonly int _idVegetationSHAb = Shader.PropertyToID("_NWRPVegetationSHAb");
+    static readonly int _idVegetationSHBr = Shader.PropertyToID("_NWRPVegetationSHBr");
+    static readonly int _idVegetationSHBg = Shader.PropertyToID("_NWRPVegetationSHBg");
+    static readonly int _idVegetationSHBb = Shader.PropertyToID("_NWRPVegetationSHBb");
+    static readonly int _idVegetationSHC = Shader.PropertyToID("_NWRPVegetationSHC");
     static readonly int _idAllGrass = Shader.PropertyToID("_AllGrass");
     static readonly int _idVisibleGrass = Shader.PropertyToID("_VisibleGrass");
     static readonly int _idGrassCount = Shader.PropertyToID("_GrassCount");
@@ -562,6 +574,7 @@ public class VegetationIndirectRenderer :
                 group.instances.Add(new GrassInstance
                 {
                     localToWorld = mr.transform.localToWorldMatrix,
+                    worldToObject = mr.transform.worldToLocalMatrix,
                     boundCenter = mr.bounds.center,
                     boundRadius = mr.bounds.extents.magnitude
                 });
@@ -595,7 +608,10 @@ public class VegetationIndirectRenderer :
         group.allGrassBuffer = new ComputeBuffer(count, kInstanceStride);
         group.allGrassBuffer.SetData(group.instances);
 
-        group.visibleGrassBuffer = new ComputeBuffer(count, 64, ComputeBufferType.Append);
+        group.visibleGrassBuffer = new ComputeBuffer(
+            count,
+            kVisibleInstanceStride,
+            ComputeBufferType.Append);
 
         group.indirectCommandBuffer = new GraphicsBuffer(
             GraphicsBuffer.Target.IndirectArguments,
@@ -616,7 +632,10 @@ public class VegetationIndirectRenderer :
 
         if (group.supportsIndirectShadows)
         {
-            group.shadowVisibleGrassBuffer = new ComputeBuffer(count, 64, ComputeBufferType.Append);
+            group.shadowVisibleGrassBuffer = new ComputeBuffer(
+                count,
+                kVisibleInstanceStride,
+                ComputeBufferType.Append);
             group.shadowIndirectArgsBuffer = new ComputeBuffer(
                 1,
                 sizeof(uint) * 5,
@@ -874,23 +893,91 @@ public class VegetationIndirectRenderer :
         GraphicsBuffer.CopyCount(group.visibleGrassBuffer, group.indirectCommandBuffer, sizeof(uint));
         group.mpb.SetBuffer(_idVisibleBuffer, group.visibleGrassBuffer);
         group.mpb.SetFloat(_idReceiveShadows, receiveShadows ? 1f : 0f);
+        UpdateGroupIndirectLighting(group, worldBounds);
+        SetVegetationSHProperties(group.mpb, group.indirectLightingSH);
 
         Bounds drawBounds = worldBounds;
         drawBounds.Expand(2f);
 
-        // RenderParams is a struct; reuse the cached template per group to avoid churn.
-        var rp = group.rpTemplate;
-        rp.camera = cam;
-        rp.layer = renderLayer;
-        rp.worldBounds = drawBounds;
-        // Visible indirect draws never cast. Shadows come from the NWRP indirect shadow pass,
-        // or from the source renderers only when the fallback path is active.
-        rp.shadowCastingMode = ShadowCastingMode.Off;
-        rp.receiveShadows = receiveShadows;
-        rp.matProps = group.mpb;
+        var rp = ConfigureIndirectDrawRenderParams(
+            group.rpTemplate,
+            cam,
+            renderLayer,
+            drawBounds,
+            receiveShadows,
+            group.mpb);
         Graphics.RenderMeshIndirect(rp, group.mesh, group.indirectCommandBuffer, 1, 0);
 
         return submittedInstanceCount;
+    }
+
+    static void UpdateGroupIndirectLighting(RenderGroup group, Bounds worldBounds)
+    {
+        int frame = Time.frameCount;
+        if (group.indirectLightingSHFrame == frame)
+            return;
+
+        SphericalHarmonicsL2 sh = SampleIndirectLightingSH(worldBounds.center);
+        group.indirectLightingSH = new SHCoefficients(sh);
+        group.indirectLightingSHFrame = frame;
+    }
+
+    static SphericalHarmonicsL2 SampleIndirectLightingSH(Vector3 positionWS)
+    {
+        LightProbes probes = LightmapSettings.lightProbes;
+        if (probes == null || probes.count == 0)
+            return RenderSettings.ambientProbe;
+
+        try
+        {
+            LightProbes.GetInterpolatedProbe(positionWS, null, out SphericalHarmonicsL2 sh);
+            return sh;
+        }
+        catch (System.Exception)
+        {
+            return RenderSettings.ambientProbe;
+        }
+    }
+
+    static void SetVegetationSHProperties(
+        MaterialPropertyBlock materialProperties,
+        SHCoefficients sh)
+    {
+        materialProperties.SetFloat(_idVegetationUseCustomSH, 1f);
+        materialProperties.SetVector(_idVegetationSHAr, sh.SHAr);
+        materialProperties.SetVector(_idVegetationSHAg, sh.SHAg);
+        materialProperties.SetVector(_idVegetationSHAb, sh.SHAb);
+        materialProperties.SetVector(_idVegetationSHBr, sh.SHBr);
+        materialProperties.SetVector(_idVegetationSHBg, sh.SHBg);
+        materialProperties.SetVector(_idVegetationSHBb, sh.SHBb);
+        materialProperties.SetVector(_idVegetationSHC, sh.SHC);
+    }
+
+    static RenderParams ConfigureIndirectDrawRenderParams(
+        RenderParams renderParams,
+        Camera camera,
+        int layer,
+        Bounds worldBounds,
+        bool receiveShadows,
+        MaterialPropertyBlock materialProperties)
+    {
+        // RenderParams is a struct; configure per draw while reusing the cached template.
+        renderParams.camera = camera;
+        renderParams.layer = layer;
+        renderParams.worldBounds = worldBounds;
+
+        // Visible indirect draws never cast. Shadows come from the NWRP indirect shadow pass,
+        // or from the source renderers only when the fallback path is active.
+        renderParams.shadowCastingMode = ShadowCastingMode.Off;
+        renderParams.receiveShadows = receiveShadows;
+
+        // Keep Unity's probe path enabled for legacy indirect materials. NWRP vegetation shaders
+        // use explicit _NWRPVegetationSH* vectors from the material property block above.
+        renderParams.lightProbeUsage = LightProbeUsage.BlendProbes;
+        renderParams.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        renderParams.matProps = materialProperties;
+
+        return renderParams;
     }
 
     void ApplyOriginalRendererRuntimeState()

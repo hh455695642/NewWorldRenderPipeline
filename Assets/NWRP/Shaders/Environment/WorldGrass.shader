@@ -245,7 +245,7 @@ Shader "NewWorld/Env/WorldGrass"
             half3 shadowedColor = lerp(albedo, albedo * _ShadowColor.rgb, _ShadowStrength);
             half3 litColor = albedo * mainLight.color;
             half3 finalColor = lerp(shadowedColor, litColor, shadowTerm);
-            finalColor += SampleSH(upNormal) * albedo * 0.3h;
+            finalColor += SampleVegetationIndirectSH(upNormal) * albedo * 0.3h;
             return finalColor;
         }
 

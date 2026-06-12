@@ -218,7 +218,7 @@ Shader "NewWorld/Env/TreeLeaf"
                 half shadowAtten = mainLight.distanceAttenuation * mainLight.shadowAttenuation;
                 half3 finalColor = baseColor * mainLight.color * halfLambert * shadowAtten;
                 finalColor += CalculateTranslucency(viewDirWS, mainLight.direction, shadowAtten, mainLight.color) * baseColor;
-                finalColor += SampleSH(normalWS) * baseColor;
+                finalColor += SampleVegetationIndirectSH(normalWS) * baseColor;
 
                 int additionalLightCount = GetAdditionalLightsCount();
                 for (int lightIndex = 0; lightIndex < additionalLightCount; ++lightIndex)

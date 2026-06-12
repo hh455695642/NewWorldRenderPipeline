@@ -197,7 +197,7 @@ Shader "NewWorld/Env/Shrub"
             half shadowTerm = smoothstep(0.0h, 0.5h, halfLambert) * mainLight.shadowAttenuation;
             half3 shadowedColor = lerp(albedo, albedo * _ShadowColor.rgb, _ShadowStrength);
             half3 litColor = albedo * mainLight.color;
-            return lerp(shadowedColor, litColor, shadowTerm) + SampleSH(normalWS) * albedo * 0.3h;
+            return lerp(shadowedColor, litColor, shadowTerm) + SampleVegetationIndirectSH(normalWS) * albedo * 0.3h;
         }
 
         Varyings ShrubVert(Attributes input)

@@ -101,7 +101,7 @@ Shader "NewWorld/Env/Tree"
                 Light mainLight = GetMainLight(input.positionWS, normalWS);
                 half nDotL = saturate(dot(normalWS, mainLight.direction));
                 half3 finalColor = albedo * mainLight.color * nDotL * mainLight.shadowAttenuation;
-                finalColor += SampleSH(normalWS) * albedo;
+                finalColor += SampleVegetationIndirectSH(normalWS) * albedo;
 
                 int additionalLightCount = GetAdditionalLightsCount();
                 for (int lightIndex = 0; lightIndex < additionalLightCount; ++lightIndex)

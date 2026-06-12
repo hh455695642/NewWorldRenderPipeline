@@ -3,12 +3,19 @@
 struct GrassInstance
 {
     float4x4 localToWorld;
+    float4x4 worldToObject;
     float3 boundCenter;
     float boundRadius;
 };
 
+struct VisibleGrassInstance
+{
+    float4x4 localToWorld;
+    float4x4 worldToObject;
+};
+
 StructuredBuffer<GrassInstance> _AllGrass;
-AppendStructuredBuffer<float4x4> _VisibleGrass;
+AppendStructuredBuffer<VisibleGrassInstance> _VisibleGrass;
 
 uint _GrassCount;
 int _CullMode;
@@ -88,5 +95,8 @@ void CSVegetationCulling(uint3 id : SV_DispatchThreadID)
             return;
     }
 
-    _VisibleGrass.Append(inst.localToWorld);
+    VisibleGrassInstance visible;
+    visible.localToWorld = inst.localToWorld;
+    visible.worldToObject = inst.worldToObject;
+    _VisibleGrass.Append(visible);
 }
