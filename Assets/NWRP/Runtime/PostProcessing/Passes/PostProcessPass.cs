@@ -523,7 +523,9 @@ namespace NWRP.Runtime.Passes
             bool tonemappingActive,
             NWRPBloom bloom)
         {
-            if (tonemappingActive && tonemapping != null)
+            if (tonemappingActive &&
+                tonemapping != null &&
+                ShouldUseUserTonemapParams(tonemapping.mode.value))
             {
                 cmd.SetGlobalVector(
                     NWRPShaderIds.TonemapParams,
@@ -537,11 +539,23 @@ namespace NWRP.Runtime.Passes
 
             cmd.SetGlobalVector(
                 NWRPShaderIds.TonemapParams,
-                new Vector4(
-                    1f,
-                    1f,
-                    Mathf.Max(1000f, bloom != null ? bloom.maxBrightness.value : 1000f),
-                    2.5f));
+                CreateNeutralTonemapParams(bloom));
+        }
+
+        private static bool ShouldUseUserTonemapParams(NWRPTonemappingMode mode)
+        {
+            return mode == NWRPTonemappingMode.ACES ||
+                mode == NWRPTonemappingMode.ACESFitted ||
+                mode == NWRPTonemappingMode.AGX;
+        }
+
+        private static Vector4 CreateNeutralTonemapParams(NWRPBloom bloom)
+        {
+            return new Vector4(
+                1f,
+                1f,
+                Mathf.Max(1000f, bloom != null ? bloom.maxBrightness.value : 1000f),
+                2.5f);
         }
 
         private void UploadFinalBloomConstants(
