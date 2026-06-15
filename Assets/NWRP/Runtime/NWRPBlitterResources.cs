@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -11,7 +10,6 @@ namespace NWRP
         private const string k_CopyDepthShaderName = "Hidden/NWRP/CopyDepth";
 
         private static bool s_Initialized;
-        private static bool s_InitializedByNWRP;
 
         public static void Initialize()
         {
@@ -27,20 +25,6 @@ namespace NWRP
                 Debug.LogError(
                     "NWRP Blitter requires Hidden/NWRP/CoreBlit and Hidden/NWRP/CoreBlitColorAndDepth.");
                 return;
-            }
-
-            try
-            {
-                Blitter.Initialize(coreBlitShader, coreBlitColorAndDepthShader);
-                s_InitializedByNWRP = true;
-            }
-            catch (Exception exception)
-            {
-                if (!exception.Message.Contains("already initialized"))
-                {
-                    Debug.LogException(exception);
-                    return;
-                }
             }
 
             s_Initialized = true;
@@ -74,13 +58,7 @@ namespace NWRP
 
         public static void Cleanup()
         {
-            if (s_InitializedByNWRP)
-            {
-                Blitter.Cleanup();
-            }
-
             s_Initialized = false;
-            s_InitializedByNWRP = false;
         }
     }
 }

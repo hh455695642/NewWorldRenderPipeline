@@ -24,7 +24,8 @@ namespace NWRP
     }
 
     [Serializable]
-    [VolumeComponentMenuForRenderPipeline("NWRP/Post-processing/Screen Blur", typeof(NewWorldRenderPipeline))]
+    [VolumeComponentMenu("NWRP/Post-processing/Screen Blur")]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPScreenBlur : VolumeComponent
     {
         public const float MaxRadius = 8f;

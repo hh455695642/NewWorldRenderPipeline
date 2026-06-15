@@ -5,7 +5,8 @@ using UnityEngine.Rendering;
 namespace NWRP
 {
     [Serializable]
-    [VolumeComponentMenuForRenderPipeline("NWRP/Environment/Cloud Shadow Projector", typeof(NewWorldRenderPipeline))]
+    [VolumeComponentMenu("NWRP/Environment/Cloud Shadow Projector")]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPCloudShadowProjector : VolumeComponent
     {
         [Tooltip("Enable fullscreen projected cloud shadows for cameras sampling this volume.")]

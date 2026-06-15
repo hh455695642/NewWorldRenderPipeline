@@ -5,7 +5,8 @@ using UnityEngine.Rendering;
 namespace NWRP
 {
     [Serializable]
-    [VolumeComponentMenuForRenderPipeline("NWRP/Post-processing/Bloom", typeof(NewWorldRenderPipeline))]
+    [VolumeComponentMenu("NWRP/Post-processing/Bloom")]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPBloom : VolumeComponent
     {
         [Tooltip("Bloom contribution added before tonemapping.")]

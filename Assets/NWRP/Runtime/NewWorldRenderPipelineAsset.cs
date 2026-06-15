@@ -13,6 +13,10 @@ namespace NWRP
     [CreateAssetMenu(menuName = "Rendering/New World Render Pipeline Asset")]
     public class NewWorldRenderPipelineAsset : RenderPipelineAsset, ISerializationCallbackReceiver
     {
+        public override System.Type pipelineType => typeof(NewWorldRenderPipeline);
+
+        public override string renderPipelineShaderTag => "NewWorldRenderPipeline";
+
         public enum MainLightShadowMode
         {
             Realtime = 0,

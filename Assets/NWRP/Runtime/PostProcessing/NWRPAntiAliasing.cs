@@ -22,7 +22,8 @@ namespace NWRP
     }
 
     [Serializable]
-    [VolumeComponentMenuForRenderPipeline("NWRP/Post-processing/Anti Aliasing", typeof(NewWorldRenderPipeline))]
+    [VolumeComponentMenu("NWRP/Post-processing/Anti Aliasing")]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPAntiAliasing : VolumeComponent
     {
         public const float DefaultFixedThreshold = 0.0833f;

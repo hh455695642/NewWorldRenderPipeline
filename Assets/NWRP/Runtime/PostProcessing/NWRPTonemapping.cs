@@ -25,7 +25,8 @@ namespace NWRP
     }
 
     [Serializable]
-    [VolumeComponentMenuForRenderPipeline("NWRP/Post-processing/Tonemapping", typeof(NewWorldRenderPipeline))]
+    [VolumeComponentMenu("NWRP/Post-processing/Tonemapping")]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPTonemapping : VolumeComponent
     {
         [Tooltip("Tonemapping operator selected by NWRP. None disables the Tonemapping pass.")]

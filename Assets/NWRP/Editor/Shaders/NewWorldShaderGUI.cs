@@ -171,7 +171,7 @@ namespace NWRP.Editor
 
             foreach (var prop in properties)
             {
-                if ((prop.flags & MaterialProperty.PropFlags.HideInInspector) != 0)
+                if ((prop.propertyFlags & ShaderPropertyFlags.HideInInspector) != 0)
                     continue;
 
                 // 跳过已经在上面分组中绘制过的属性

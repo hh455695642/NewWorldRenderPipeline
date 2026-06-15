@@ -22,7 +22,8 @@ namespace NWRP
     }
 
     [Serializable]
-    [VolumeComponentMenuForRenderPipeline("NWRP/Post-processing/Vignette", typeof(NewWorldRenderPipeline))]
+    [VolumeComponentMenu("NWRP/Post-processing/Vignette")]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPVignette : VolumeComponent
     {
         [Tooltip("Outer vignette radius control. 0 is neutral; higher values darken closer to screen center.")]

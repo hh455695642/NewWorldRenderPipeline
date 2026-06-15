@@ -25,7 +25,8 @@ namespace NWRP
     }
 
     [Serializable]
-    [VolumeComponentMenuForRenderPipeline("NWRP/Environment/Fog", typeof(NewWorldRenderPipeline))]
+    [VolumeComponentMenu("NWRP/Environment/Fog")]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPFog : VolumeComponent
     {
         [Tooltip("Enable NWRP forward fog for cameras sampling this volume.")]

@@ -23,7 +23,8 @@ namespace NWRP
     }
 
     [Serializable]
-    [VolumeComponentMenuForRenderPipeline("NWRP/Post-processing/Valley Height Fog", typeof(NewWorldRenderPipeline))]
+    [VolumeComponentMenu("NWRP/Post-processing/Valley Height Fog")]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPValleyHeightFog : VolumeComponent
     {
         [Tooltip("Enable valley height fog for cameras sampling this volume.")]

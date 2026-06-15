@@ -5,7 +5,8 @@ using UnityEngine.Rendering;
 namespace NWRP
 {
     [Serializable]
-    [VolumeComponentMenuForRenderPipeline("NWRP/Post-processing/Color Adjustments", typeof(NewWorldRenderPipeline))]
+    [VolumeComponentMenu("NWRP/Post-processing/Color Adjustments")]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPColorAdjustments : VolumeComponent
     {
         [Tooltip("Beautify-compatible saturation boost. 0 is neutral; 1 matches Beautify's default boost.")]

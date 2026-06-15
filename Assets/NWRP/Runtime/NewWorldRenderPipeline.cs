@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -30,7 +31,7 @@ namespace NWRP
 #endif
         }
 
-        protected override void Render(ScriptableRenderContext context, Camera[] cameras)
+        protected override void Render(ScriptableRenderContext context, List<Camera> cameras)
         {
             foreach (Camera camera in cameras)
             {
