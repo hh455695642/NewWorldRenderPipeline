@@ -837,8 +837,10 @@ PlayerSettings:
     EmbeddedLinux: UNITY_MCP_READY
     GameCoreScarlett: UNITY_MCP_READY
     GameCoreXboxOne: UNITY_MCP_READY
+    Kepler: UNITY_MCP_READY
     LinuxHeadlessSimulation: UNITY_MCP_READY
     Nintendo Switch: UNITY_MCP_READY
+    Nintendo Switch 2: UNITY_MCP_READY
     PS4: UNITY_MCP_READY
     PS5: UNITY_MCP_READY
     QNX: UNITY_MCP_READY

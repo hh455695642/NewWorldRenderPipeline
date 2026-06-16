@@ -20,12 +20,15 @@ namespace NWRP
     {
         private readonly NWRPRenderer _renderer = new NWRPRenderer();
         private readonly NewWorldRenderPipelineAsset _asset;
+        private readonly VolumeProfile _defaultVolumeProfile;
 
         public NewWorldRenderPipeline(NewWorldRenderPipelineAsset asset)
         {
             _asset = asset;
             GraphicsSettings.useScriptableRenderPipelineBatching = asset.useSRPBatcher;
             GraphicsSettings.lightsUseLinearIntensity = true;
+            _defaultVolumeProfile = NWRPVolumeDefaults.CreateProfile();
+            InitializeVolumeManager(_defaultVolumeProfile);
 #if UNITY_EDITOR
             NWRPSceneViewDrawMode.SetupDrawMode();
 #endif
@@ -49,12 +52,34 @@ namespace NWRP
             {
                 _renderer.Dispose();
                 _asset.DisposeRuntimeFeatures();
+                DisposeVolumeManager();
 #if UNITY_EDITOR
                 NWRPSceneViewDrawMode.ResetDrawMode();
 #endif
             }
 
             base.Dispose(disposing);
+        }
+
+        private static void InitializeVolumeManager(VolumeProfile defaultVolumeProfile)
+        {
+            VolumeManager volumeManager = VolumeManager.instance;
+            if (volumeManager.isInitialized)
+            {
+                volumeManager.Deinitialize();
+            }
+
+            volumeManager.Initialize(defaultVolumeProfile, null);
+        }
+
+        private void DisposeVolumeManager()
+        {
+            if (VolumeManager.instance.isInitialized)
+            {
+                VolumeManager.instance.Deinitialize();
+            }
+
+            NWRPVolumeDefaults.DestroyProfile(_defaultVolumeProfile);
         }
     }
 }

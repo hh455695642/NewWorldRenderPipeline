@@ -36,9 +36,9 @@ MonoBehaviour:
     outline:
       enableOutline: 0
     opaqueTexture:
-      enableOpaqueTexture: 0
+      enableOpaqueTexture: 1
     depthTexture:
-      enableDepthTexture: 0
+      enableDepthTexture: 1
       copyDepthMode: 0
     vegetationIndirectRendering:
       enableVegetationIndirectRendering: 1
