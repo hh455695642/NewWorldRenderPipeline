@@ -354,26 +354,26 @@ namespace NWRP
         [System.Serializable]
         public sealed class MainLightShadowCachedSettings
         {
-            [Tooltip("Use cached static main light shadows for Game Cameras. SceneView and Preview cameras fall back to realtime main light shadows.")]
+            [Tooltip("Use cached static main light shadows for Game Cameras and Editor SceneView cameras. Preview cameras fall back to realtime main light shadows.")]
             public bool enableCachedMainLightShadows = false;
 
-            [Tooltip("Enable a per-frame dynamic shadow overlay for Game Cameras when cached main light shadows are active.")]
+            [Tooltip("Enable a per-frame dynamic shadow overlay when cached main light shadows are active.")]
             public bool enableDynamicShadowOverlay = true;
 
-            [Tooltip("Layer mask rendered into the cached static main light shadow atlas for Game Cameras. Moving these casters does not refresh the cache until it is dirtied or invalidated.")]
+            [Tooltip("Layer mask rendered into the cached static main light shadow atlas. Moving these casters does not refresh the cache until it is dirtied or invalidated.")]
             public LayerMask staticCasterLayerMask = ~0;
 
-            [Tooltip("Layer mask rendered into the per-frame dynamic shadow overlay atlas for Game Cameras. Only used when Enable Dynamic Shadow is enabled.")]
+            [Tooltip("Layer mask rendered into the per-frame dynamic shadow overlay atlas. Only used when Enable Dynamic Shadow is enabled.")]
             public LayerMask dynamicCasterLayerMask = 0;
 
-            [Tooltip("Invalidate the cached static shadow atlas from Game Camera movement. Keep disabled for stable cached dynamic shadows; call MarkMainLightShadowCacheDirty when the cached region must refresh.")]
+            [Tooltip("Invalidate the cached static shadow atlas from cached camera movement. Keep disabled for stable cached dynamic shadows; call MarkMainLightShadowCacheDirty when the cached region must refresh.")]
             public bool enableCameraMotionInvalidation = false;
 
-            [Tooltip("Game Camera position delta in world units required to invalidate the cached static shadow atlas when using the OnDirty cached update path.")]
+            [Tooltip("Cached camera position delta in world units required to invalidate the cached static shadow atlas when using the OnDirty cached update path.")]
             [Min(0f)]
             public float cameraPositionInvalidationThreshold = 0.25f;
 
-            [Tooltip("Game Camera rotation delta in degrees required to invalidate the cached static shadow atlas when using the OnDirty cached update path.")]
+            [Tooltip("Cached camera rotation delta in degrees required to invalidate the cached static shadow atlas when using the OnDirty cached update path.")]
             [Min(0f)]
             public float cameraRotationInvalidationThreshold = 0.5f;
 

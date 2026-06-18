@@ -238,8 +238,15 @@ namespace NWRP.Runtime.Passes
             bool includeStaticCasters,
             bool includeDynamicCasters)
         {
-            return frameData.rendererData != null
-                && frameData.rendererData.EnableVegetationIndirectTreeShadows
+            bool allowIndirectTreeShadows = frameData.rendererData != null
+                && frameData.rendererData.EnableVegetationIndirectTreeShadows;
+
+#if UNITY_EDITOR
+            allowIndirectTreeShadows |= frameData.camera != null
+                && frameData.camera.cameraType == CameraType.SceneView;
+#endif
+
+            return allowIndirectTreeShadows
                 && VegetationIndirectShadowRegistry.HasIndirectShadowCasters(
                     new VegetationIndirectShadowContext(
                         frameData.camera,

@@ -160,7 +160,24 @@ namespace NWRP.Runtime.Passes
 
         public static bool ShouldUseCachedMainLightShadow(Camera camera)
         {
-            return camera != null && camera.cameraType == CameraType.Game;
+            return camera != null && ShouldUseCachedMainLightShadow(camera.cameraType);
+        }
+
+        public static bool ShouldUseCachedMainLightShadow(CameraType cameraType)
+        {
+            if (cameraType == CameraType.Game)
+            {
+                return true;
+            }
+
+#if UNITY_EDITOR
+            if (cameraType == CameraType.SceneView)
+            {
+                return true;
+            }
+#endif
+
+            return false;
         }
 
         public static bool TryCull(ref NWRPFrameData frameData, int layerMaskValue, out CullingResults cullResults)

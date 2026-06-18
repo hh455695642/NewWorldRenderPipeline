@@ -949,7 +949,7 @@ namespace NWRP.Editor
             }
 
             EditorGUILayout.HelpBox(
-                "Cached main light shadows only apply to Game Cameras. SceneView and Preview cameras still render realtime main light shadows.",
+                "Cached main light shadows apply to Game Cameras and SceneView cameras. Preview cameras still render realtime main light shadows.",
                 MessageType.None);
 
             if (useMediumPCF && _enableDynamicShadowOverlayProperty.boolValue)
