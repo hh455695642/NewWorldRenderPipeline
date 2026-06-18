@@ -1,3 +1,4 @@
+using NWRP.Runtime.Lighting;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -47,6 +48,7 @@ namespace NWRP
         public int cameraTargetHeight;
         public FilterMode renderScaleFilterMode;
         public bool renderScaleActive;
+        internal NWRPShadowCullingContext shadowCullingContext;
     }
 
     /// <summary>

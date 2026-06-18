@@ -241,6 +241,9 @@ namespace NWRP.Runtime.Passes
             return frameData.rendererData != null
                 && frameData.rendererData.EnableVegetationIndirectTreeShadows
                 && VegetationIndirectShadowRegistry.HasIndirectShadowCasters(
+                    new VegetationIndirectShadowContext(
+                        frameData.camera,
+                        frameData.rendererData),
                     includeStaticCasters,
                     includeDynamicCasters);
         }

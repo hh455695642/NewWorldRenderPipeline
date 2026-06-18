@@ -11,10 +11,9 @@ namespace NWRP.Runtime.Passes
 
         private static readonly Vector4 s_FullScaleBias = new Vector4(1f, 1f, 0f, 0f);
 
-        private readonly int _tempColorId = Shader.PropertyToID("_NWRPCloudShadowTempColor");
-
         private Material _copyMaterial;
         private Material _projectorMaterial;
+        private RTHandle _tempColorHandle;
 
         public CloudShadowProjectorPass()
             : base(NWRPPassEvent.AfterTransparent, "Cloud Shadow Projector")
@@ -47,14 +46,19 @@ namespace NWRP.Runtime.Passes
                 NWRPShaderIds.CameraDepthTexture,
                 frameData.targets.cameraDepthTextureHandle);
 
-            cmd.GetTemporaryRT(_tempColorId, descriptor, FilterMode.Bilinear);
+            NWRPTransientRTHandles.ReAllocateIfNeeded(
+                ref _tempColorHandle,
+                descriptor,
+                FilterMode.Bilinear,
+                TextureWrapMode.Clamp,
+                "_NWRPCloudShadowTempColor");
+
             try
             {
-                RenderTargetIdentifier tempColor = _tempColorId;
-                BlitToTarget(cmd, source, tempColor, viewport, _projectorMaterial, 0);
+                BlitToTarget(cmd, source, _tempColorHandle, viewport, _projectorMaterial, 0);
                 BlitToTarget(
                     cmd,
-                    tempColor,
+                    _tempColorHandle,
                     frameData.targets.cameraColor,
                     viewport,
                     _copyMaterial,
@@ -62,7 +66,6 @@ namespace NWRP.Runtime.Passes
             }
             finally
             {
-                cmd.ReleaseTemporaryRT(_tempColorId);
                 cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
                 cmd.SetViewport(viewport);
             }
@@ -72,6 +75,7 @@ namespace NWRP.Runtime.Passes
         {
             CoreUtils.Destroy(_copyMaterial);
             CoreUtils.Destroy(_projectorMaterial);
+            NWRPTransientRTHandles.Release(ref _tempColorHandle);
             _copyMaterial = null;
             _projectorMaterial = null;
         }

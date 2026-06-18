@@ -8,7 +8,9 @@ using UnityEngine.Serialization;
 public class VegetationIndirectRenderer :
     MonoBehaviour,
     IVegetationIndirectShadowProvider,
-    IVegetationIndirectShadowCasterQuery
+    IVegetationIndirectShadowProviderWithContext,
+    IVegetationIndirectShadowCasterQuery,
+    IVegetationIndirectShadowCasterQueryWithContext
 {
     // Rendering flow:
     // 1) Collect MeshRenderers from VegetationRoots and group by Chunk, then by (mesh+material).
@@ -1047,10 +1049,23 @@ public class VegetationIndirectRenderer :
         bool includeDynamicCasters,
         List<VegetationIndirectShadowDraw> draws)
     {
+        return TryCollectIndirectShadowDraws(
+            new VegetationIndirectShadowContext(_cam, null),
+            includeStaticCasters,
+            includeDynamicCasters,
+            draws);
+    }
+
+    public bool TryCollectIndirectShadowDraws(
+        in VegetationIndirectShadowContext context,
+        bool includeStaticCasters,
+        bool includeDynamicCasters,
+        List<VegetationIndirectShadowDraw> draws)
+    {
         if (draws == null)
             return false;
 
-        if (!CanProvideIndirectShadowCasters())
+        if (!CanProvideIndirectShadowCasters(context.camera, context.rendererData))
             return false;
 
         bool hasDraws = false;
@@ -1098,10 +1113,21 @@ public class VegetationIndirectRenderer :
         bool includeStaticCasters,
         bool includeDynamicCasters)
     {
+        return HasIndirectShadowCasters(
+            new VegetationIndirectShadowContext(_cam, null),
+            includeStaticCasters,
+            includeDynamicCasters);
+    }
+
+    public bool HasIndirectShadowCasters(
+        in VegetationIndirectShadowContext context,
+        bool includeStaticCasters,
+        bool includeDynamicCasters)
+    {
         if (!includeStaticCasters && !includeDynamicCasters)
             return false;
 
-        if (!CanProvideIndirectShadowCasters())
+        if (!CanProvideIndirectShadowCasters(context.camera, context.rendererData))
             return false;
 
         foreach (var chunk in _chunks.Values)
@@ -1126,14 +1152,16 @@ public class VegetationIndirectRenderer :
         return false;
     }
 
-    bool CanProvideIndirectShadowCasters()
+    bool CanProvideIndirectShadowCasters(
+        Camera camera,
+        NWRPRendererData rendererData)
     {
         return Application.isPlaying
             && !debugUseOriginalRenderer
             && !_usingOriginalRendererFallback
             && _csReady
             && castShadows
-            && IsNWRPIndirectRenderingEnabled(_cam)
+            && IsNWRPIndirectRenderingEnabled(camera, rendererData)
             && CullingComputeShader != null
             && _kernelIndex >= 0;
     }
@@ -1161,16 +1189,34 @@ public class VegetationIndirectRenderer :
     //         && !IsNWRPIndirectShadowFeatureActive(_cam);
     // }
 
-    static bool IsNWRPIndirectRenderingEnabled(Camera camera)
+    static bool IsNWRPIndirectRenderingEnabled(
+        Camera camera,
+        NWRPRendererData rendererData = null)
     {
-        return TryGetActiveRendererData(camera, out NWRPRendererData rendererData)
-            && rendererData.EnableVegetationIndirectRendering;
+        return TryResolveRendererData(camera, rendererData, out NWRPRendererData activeRendererData)
+            && activeRendererData.EnableVegetationIndirectRendering;
     }
 
-    static bool IsNWRPIndirectShadowFeatureActive(Camera camera)
+    static bool IsNWRPIndirectShadowFeatureActive(
+        Camera camera,
+        NWRPRendererData rendererData = null)
     {
-        return TryGetActiveRendererData(camera, out NWRPRendererData rendererData)
-            && rendererData.EnableVegetationIndirectTreeShadows;
+        return TryResolveRendererData(camera, rendererData, out NWRPRendererData activeRendererData)
+            && activeRendererData.EnableVegetationIndirectTreeShadows;
+    }
+
+    static bool TryResolveRendererData(
+        Camera camera,
+        NWRPRendererData providedRendererData,
+        out NWRPRendererData rendererData)
+    {
+        if (providedRendererData != null)
+        {
+            rendererData = providedRendererData;
+            return true;
+        }
+
+        return TryGetActiveRendererData(camera, out rendererData);
     }
 
     static bool TryGetActiveRendererData(

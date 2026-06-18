@@ -1,4 +1,5 @@
 using Unity.Collections;
+using NWRP.Runtime.Lighting;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -13,6 +14,7 @@ namespace NWRP.Runtime.Passes
         private readonly Vector4[] _cascadeSplitSpheres = new Vector4[2];
         private readonly MainLightShadowCascadeData[] _cascadeData =
             new MainLightShadowCascadeData[2];
+        private readonly bool[] _cascadeValid = new bool[2];
 
         private RenderTexture _shadowmapTexture;
         private int _shadowmapWidth;
@@ -77,6 +79,17 @@ namespace NWRP.Runtime.Passes
                 out int atlasWidth,
                 out int atlasHeight,
                 out int tileResolution);
+            NWRPShadowCullingContext shadowCullingContext = frameData.shadowCullingContext;
+            bool usePreparedMainCascades = hasRegularShadowCasters
+                && shadowCullingContext != null
+                && shadowCullingContext.HasMainLightShadowFor(mainLightIndex);
+            if (usePreparedMainCascades)
+            {
+                cascadeCount = shadowCullingContext.MainCascadeCount;
+                atlasWidth = shadowCullingContext.MainAtlasWidth;
+                atlasHeight = shadowCullingContext.MainAtlasHeight;
+                tileResolution = shadowCullingContext.MainTileResolution;
+            }
 
             bool anyCascadeRendered;
             using (new ProfilingScope(frameData.cmd, MainLightShadowPassUtils.RenderRealtimeShadowAtlasSampler))
@@ -89,14 +102,6 @@ namespace NWRP.Runtime.Passes
 
                 MainLightShadowPassUtils.ClearShadowAtlas(ref frameData, _shadowmapTexture);
                 CommandBuffer cmd = frameData.cmd;
-                ShadowDrawingSettings shadowDrawingSettings = default;
-                if (hasRegularShadowCasters)
-                {
-                    shadowDrawingSettings = new ShadowDrawingSettings(
-                        frameData.cullingResults,
-                        mainLightIndex,
-                        BatchCullingProjectionType.Orthographic);
-                }
 
                 Vector4 shadowLightDirection = GetShadowLightDirection(ref frameData, mainLightIndex);
                 cmd.SetGlobalFloat(
@@ -107,77 +112,126 @@ namespace NWRP.Runtime.Passes
                 cmd.SetGlobalDepthBias(kRasterDepthBias, kRasterSlopeBias);
                 ExecuteBuffer(ref frameData);
 
-                Vector3 cascadeRatios = cascadeCount == 2
-                    ? new Vector3(asset.MainLightShadowCascadeSplit, 1f, 1f)
-                    : Vector3.zero;
-
                 anyCascadeRendered = false;
+                if (usePreparedMainCascades)
+                {
+                    for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
+                    {
+                        _cascadeValid[cascadeIndex] =
+                            shadowCullingContext.MainCascadeValid[cascadeIndex];
+                        _cascadeData[cascadeIndex] =
+                            shadowCullingContext.MainCascadeData[cascadeIndex];
+                        _cascadeSplitSpheres[cascadeIndex] =
+                            _cascadeData[cascadeIndex].cullingSphere;
+                        _mainLightWorldToShadow[cascadeIndex] = _cascadeValid[cascadeIndex]
+                            ? _cascadeData[cascadeIndex].worldToShadowMatrix
+                            : Matrix4x4.identity;
+                        anyCascadeRendered |= _cascadeValid[cascadeIndex];
+                    }
+                }
+                else
+                {
+                    Vector3 cascadeRatios = cascadeCount == 2
+                        ? new Vector3(asset.MainLightShadowCascadeSplit, 1f, 1f)
+                        : Vector3.zero;
+
+                    for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
+                    {
+                        _cascadeValid[cascadeIndex] = false;
+                        if (!MainLightShadowPassUtils.TryComputeDirectionalShadowCascade(
+                                ref frameData,
+                                mainLightIndex,
+                                cascadeIndex,
+                                cascadeCount,
+                                cascadeRatios,
+                                tileResolution,
+                                mainLight.shadowNearPlane,
+                                mainLight,
+                                allowCameraFrustumFallback: !hasRegularShadowCasters && hasIndirectShadowCasters,
+                                out Matrix4x4 viewMatrix,
+                                out Matrix4x4 projMatrix,
+                                out ShadowSplitData splitData))
+                        {
+                            _mainLightWorldToShadow[cascadeIndex] = Matrix4x4.identity;
+                            _cascadeSplitSpheres[cascadeIndex] = Vector4.zero;
+                            _cascadeData[cascadeIndex] = default;
+                            continue;
+                        }
+
+                        splitData.shadowCascadeBlendCullingFactor = 1.0f;
+                        _cascadeSplitSpheres[cascadeIndex] = splitData.cullingSphere;
+
+                        GetTileOffset(cascadeIndex, tileResolution, out int offsetX, out int offsetY);
+                        _cascadeValid[cascadeIndex] = true;
+                        anyCascadeRendered = true;
+
+                        _cascadeData[cascadeIndex] = new MainLightShadowCascadeData
+                        {
+                            viewMatrix = viewMatrix,
+                            projectionMatrix = projMatrix,
+                            splitData = splitData,
+                            cullingSphere = splitData.cullingSphere,
+                            offsetX = offsetX,
+                            offsetY = offsetY,
+                            resolution = tileResolution
+                        };
+
+                        _mainLightWorldToShadow[cascadeIndex] = BuildWorldToShadowMatrix(
+                            projMatrix,
+                            viewMatrix,
+                            offsetX,
+                            offsetY,
+                            tileResolution,
+                            atlasWidth,
+                            atlasHeight
+                        );
+                    }
+                }
+
+                for (int cascadeIndex = cascadeCount; cascadeIndex < _cascadeValid.Length; cascadeIndex++)
+                {
+                    _cascadeValid[cascadeIndex] = false;
+                    _cascadeData[cascadeIndex] = default;
+                    _mainLightWorldToShadow[cascadeIndex] = Matrix4x4.identity;
+                    _cascadeSplitSpheres[cascadeIndex] = Vector4.zero;
+                }
+
+                bool canDrawRegularShadowCasters = !hasRegularShadowCasters
+                    || (usePreparedMainCascades && shadowCullingContext.Apply(ref frameData));
                 for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
                 {
-                    if (!MainLightShadowPassUtils.TryComputeDirectionalShadowCascade(
-                            ref frameData,
-                            mainLightIndex,
-                            cascadeIndex,
-                            cascadeCount,
-                            cascadeRatios,
-                            tileResolution,
-                            mainLight.shadowNearPlane,
-                            mainLight,
-                            allowCameraFrustumFallback: !hasRegularShadowCasters && hasIndirectShadowCasters,
-                            out Matrix4x4 viewMatrix,
-                            out Matrix4x4 projMatrix,
-                            out ShadowSplitData splitData))
+                    if (!_cascadeValid[cascadeIndex])
                     {
-                        _mainLightWorldToShadow[cascadeIndex] = Matrix4x4.identity;
-                        _cascadeSplitSpheres[cascadeIndex] = Vector4.zero;
-                        _cascadeData[cascadeIndex] = default;
                         continue;
                     }
 
-                    if (hasRegularShadowCasters)
-                    {
-                        splitData.shadowCascadeBlendCullingFactor = 1.0f;
-                        shadowDrawingSettings.splitData = splitData;
-                    }
-
-                    _cascadeSplitSpheres[cascadeIndex] = splitData.cullingSphere;
-
-                    GetTileOffset(cascadeIndex, tileResolution, out int offsetX, out int offsetY);
-                    cmd.SetViewport(new Rect(offsetX, offsetY, tileResolution, tileResolution));
-                    cmd.SetViewProjectionMatrices(viewMatrix, projMatrix);
+                    MainLightShadowCascadeData cascadeData = _cascadeData[cascadeIndex];
+                    cmd.SetViewport(new Rect(
+                        cascadeData.offsetX,
+                        cascadeData.offsetY,
+                        cascadeData.resolution,
+                        cascadeData.resolution));
+                    cmd.SetViewProjectionMatrices(
+                        cascadeData.viewMatrix,
+                        cascadeData.projectionMatrix);
                     cmd.SetGlobalVector(
                         NWRPShaderIds.ShadowBias,
-                        CalculateShadowBias(asset, projMatrix, tileResolution)
+                        CalculateShadowBias(asset, cascadeData.projectionMatrix, cascadeData.resolution)
                     );
                     ExecuteBuffer(ref frameData);
 
-                    if (hasRegularShadowCasters)
+                    if (hasRegularShadowCasters && canDrawRegularShadowCasters)
                     {
-                        frameData.context.DrawShadows(ref shadowDrawingSettings);
+                        ShadowDrawingSettings shadowDrawingSettings =
+                            MainLightShadowPassUtils.CreateShadowDrawingSettings(
+                                frameData.cullingResults,
+                                mainLightIndex,
+                                useRenderingLayerMaskTest: false,
+                                splitIndex: cascadeIndex);
+                        MainLightShadowPassUtils.DrawShadowRendererList(
+                            ref frameData,
+                            ref shadowDrawingSettings);
                     }
-
-                    anyCascadeRendered = true;
-
-                    _cascadeData[cascadeIndex] = new MainLightShadowCascadeData
-                    {
-                        viewMatrix = viewMatrix,
-                        projectionMatrix = projMatrix,
-                        splitData = splitData,
-                        cullingSphere = splitData.cullingSphere,
-                        offsetX = offsetX,
-                        offsetY = offsetY,
-                        resolution = tileResolution
-                    };
-
-                    _mainLightWorldToShadow[cascadeIndex] = BuildWorldToShadowMatrix(
-                        projMatrix,
-                        viewMatrix,
-                        offsetX,
-                        offsetY,
-                        tileResolution,
-                        atlasWidth,
-                        atlasHeight
-                    );
                 }
 
                 cmd.SetGlobalDepthBias(0.0f, 0.0f);
@@ -236,6 +290,9 @@ namespace NWRP.Runtime.Passes
 
             return allowIndirectTreeShadows
                 && VegetationIndirectShadowRegistry.HasIndirectShadowCasters(
+                    new VegetationIndirectShadowContext(
+                        frameData.camera,
+                        frameData.rendererData),
                     includeStaticCasters,
                     includeDynamicCasters);
         }

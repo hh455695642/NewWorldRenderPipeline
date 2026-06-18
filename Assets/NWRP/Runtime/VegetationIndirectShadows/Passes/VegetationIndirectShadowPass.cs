@@ -52,7 +52,11 @@ namespace NWRP.Runtime.Passes
                     continue;
 
                 _draws.Clear();
-                CollectDraws(target);
+                CollectDraws(
+                    target,
+                    new VegetationIndirectShadowContext(
+                        frameData.camera,
+                        frameData.rendererData));
                 if (_draws.Count == 0)
                     continue;
 
@@ -87,7 +91,9 @@ namespace NWRP.Runtime.Passes
 #endif
         }
 
-        private void CollectDraws(MainLightShadowIndirectCasterContext.Target target)
+        private void CollectDraws(
+            MainLightShadowIndirectCasterContext.Target target,
+            in VegetationIndirectShadowContext context)
         {
             // Extension point: add new caster policies at provider level; keep this pass focused on
             // writing main-light shadow atlas targets, not vegetation-type branching.
@@ -96,10 +102,20 @@ namespace NWRP.Runtime.Passes
             {
                 IVegetationIndirectShadowProvider provider =
                     VegetationIndirectShadowRegistry.GetProvider(i);
+                if (provider is IVegetationIndirectShadowProviderWithContext contextProvider)
+                {
+                    contextProvider.TryCollectIndirectShadowDraws(
+                        context,
+                        target.includeStaticCasters,
+                        target.includeDynamicCasters,
+                        _draws);
+                    continue;
+                }
+
                 provider?.TryCollectIndirectShadowDraws(
-                    target.includeStaticCasters,
-                    target.includeDynamicCasters,
-                    _draws);
+                        target.includeStaticCasters,
+                        target.includeDynamicCasters,
+                        _draws);
             }
         }
 

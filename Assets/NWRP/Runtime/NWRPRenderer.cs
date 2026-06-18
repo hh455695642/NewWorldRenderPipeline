@@ -42,6 +42,8 @@ namespace NWRP
             new Vector4[AdditionalLightUtils.MaxAdditionalLights];
         private readonly Vector4[] _additionalLightsSpotDir =
             new Vector4[AdditionalLightUtils.MaxAdditionalLights];
+        private readonly NWRPShadowCullingContext _shadowCullingContext =
+            new NWRPShadowCullingContext();
 
         private readonly List<QueuedPass> _activePasses = new List<QueuedPass>(32);
 
@@ -92,6 +94,7 @@ namespace NWRP
         {
             CoreUtils.Destroy(_coreBlitMaterial);
             _coreBlitMaterial = null;
+            _shadowCullingContext.Dispose();
             ReleaseRendererTargetHandles();
             NWRPBlitterResources.Cleanup();
         }
@@ -122,7 +125,8 @@ namespace NWRP
                 cmd = cmd,
                 asset = asset,
                 rendererData = rendererData,
-                rendererDataIndex = rendererDataIndex
+                rendererDataIndex = rendererDataIndex,
+                shadowCullingContext = _shadowCullingContext
             };
 
             try
@@ -146,6 +150,7 @@ namespace NWRP
                 ReleaseFrameTargets(ref frameData);
                 ExecuteBuffer(ref frameData);
                 frameData.context.Submit();
+                _shadowCullingContext.Dispose();
                 CommandBufferPool.Release(cmd);
             }
         }
@@ -357,11 +362,7 @@ namespace NWRP
             FilteringSettings filteringSettings = new FilteringSettings(
                 RenderQueueRange.opaque,
                 GetOpaqueLayerMaskValue(ref frameData));
-            frameData.context.DrawRenderers(
-                frameData.cullingResults,
-                ref drawingSettings,
-                ref filteringSettings
-            );
+            DrawRendererList(ref frameData, ref drawingSettings, ref filteringSettings);
         }
 
         internal void ExecuteDrawSkybox(ref NWRPFrameData frameData)
@@ -369,7 +370,13 @@ namespace NWRP
             SetCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
 
-            frameData.context.DrawSkybox(frameData.camera);
+            RendererList skyboxRendererList =
+                frameData.context.CreateSkyboxRendererList(frameData.camera);
+            if (skyboxRendererList.isValid)
+            {
+                frameData.cmd.DrawRendererList(skyboxRendererList);
+                ExecuteBuffer(ref frameData);
+            }
         }
 
         internal void ExecuteDrawTransparent(ref NWRPFrameData frameData)
@@ -394,11 +401,7 @@ namespace NWRP
             FilteringSettings filteringSettings = new FilteringSettings(
                 RenderQueueRange.transparent,
                 GetTransparentLayerMaskValue(ref frameData));
-            frameData.context.DrawRenderers(
-                frameData.cullingResults,
-                ref drawingSettings,
-                ref filteringSettings
-            );
+            DrawRendererList(ref frameData, ref drawingSettings, ref filteringSettings);
         }
 
 #if UNITY_EDITOR
@@ -481,8 +484,7 @@ namespace NWRP
             bool canSampleVolumes = camera != null && frameData.asset != null;
             bool canRunPostProcessing =
                 canSampleVolumes
-                && frameData.asset.SupportsPostProcessing
-                && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES2;
+                && frameData.asset.SupportsPostProcessing;
 
             if (!canSampleVolumes)
             {
@@ -1198,6 +1200,67 @@ namespace NWRP
                 Mathf.Max(frameData.cameraTargetHeight, 1));
         }
 
+        internal static void DrawRendererList(
+            ref NWRPFrameData frameData,
+            ref DrawingSettings drawingSettings,
+            ref FilteringSettings filteringSettings)
+        {
+            RendererListParams rendererListParams =
+                new RendererListParams(frameData.cullingResults, drawingSettings, filteringSettings);
+            RendererList rendererList = frameData.context.CreateRendererList(ref rendererListParams);
+            if (!rendererList.isValid)
+            {
+                return;
+            }
+
+            frameData.cmd.DrawRendererList(rendererList);
+            ExecuteBuffer(ref frameData);
+        }
+
+        internal static void DrawRendererList(
+            ref NWRPFrameData frameData,
+            ref DrawingSettings drawingSettings,
+            ref FilteringSettings filteringSettings,
+            ref RenderStateBlock stateBlock)
+        {
+            NativeArray<RenderStateBlock> stateBlocks =
+                new NativeArray<RenderStateBlock>(1, Allocator.Temp);
+            NativeArray<ShaderTagId> tagValues =
+                new NativeArray<ShaderTagId>(1, Allocator.Temp);
+            try
+            {
+                stateBlocks[0] = stateBlock;
+                tagValues[0] = ShaderTagId.none;
+
+                RendererListParams rendererListParams =
+                    new RendererListParams(frameData.cullingResults, drawingSettings, filteringSettings)
+                    {
+                        stateBlocks = stateBlocks,
+                        tagValues = tagValues
+                    };
+                RendererList rendererList = frameData.context.CreateRendererList(ref rendererListParams);
+                if (!rendererList.isValid)
+                {
+                    return;
+                }
+
+                frameData.cmd.DrawRendererList(rendererList);
+                ExecuteBuffer(ref frameData);
+            }
+            finally
+            {
+                if (stateBlocks.IsCreated)
+                {
+                    stateBlocks.Dispose();
+                }
+
+                if (tagValues.IsCreated)
+                {
+                    tagValues.Dispose();
+                }
+            }
+        }
+
         private static RenderTextureDescriptor CreateCameraColorDescriptor(
             Camera camera,
             NewWorldRenderPipelineAsset asset,
@@ -1277,7 +1340,9 @@ namespace NWRP
 
         private static bool SupportsRenderGraphicsFormat(GraphicsFormat format)
         {
-            return SystemInfo.IsFormatSupported(format, FormatUsage.Linear | FormatUsage.Render);
+            return SystemInfo.IsFormatSupported(
+                format,
+                GraphicsFormatUsage.Linear | GraphicsFormatUsage.Render);
         }
 
         private static RenderTextureDescriptor CreateCameraDepthDescriptor(int width, int height)
@@ -1349,7 +1414,7 @@ namespace NWRP
 
         private static bool SupportsDepthTextureColorTarget()
         {
-            return SystemInfo.IsFormatSupported(GraphicsFormat.R32_SFloat, FormatUsage.Render);
+            return SystemInfo.IsFormatSupported(GraphicsFormat.R32_SFloat, GraphicsFormatUsage.Render);
         }
 
         private static Texture GetDefaultDepthTexture()
@@ -1387,13 +1452,35 @@ namespace NWRP
         {
             ExecuteStage(ref frameData, IsSetupCameraPass);
             ExecuteStage(ref frameData, IsSetupLightsPass);
+            PrepareShadowCullingContext(ref frameData);
             ExecuteShadowStage(ref frameData, NWRPProfiling.MainLightShadow, IsMainLightShadowPass);
             ExecuteShadowStage(ref frameData, NWRPProfiling.AdditionalLightShadow, IsAdditionalLightShadowPass);
+            RestoreCameraStateAfterShadowStages(ref frameData);
             ExecuteStage(ref frameData, IsBeforeRenderingPass);
             ExecuteStage(ref frameData, IsMainRenderingOpaquePass);
             ExecuteStage(ref frameData, IsBeforeTransparentPass);
             ExecuteStage(ref frameData, IsMainRenderingTransparentPass);
             ExecuteStage(ref frameData, IsFinalBlitStagePass);
+        }
+
+        private void PrepareShadowCullingContext(ref NWRPFrameData frameData)
+        {
+            frameData.shadowCullingContext?.Prepare(
+                ref frameData,
+                HasRealtimeMainLightShadowPass(),
+                HasMatchingPass(IsAdditionalLightShadowPass));
+        }
+
+        private void RestoreCameraStateAfterShadowStages(ref NWRPFrameData frameData)
+        {
+            if (!HasMatchingPass(IsShadowPass))
+            {
+                return;
+            }
+
+            frameData.context.SetupCameraProperties(frameData.camera);
+            SetCameraRenderTarget(ref frameData);
+            ExecuteBuffer(ref frameData);
         }
 
         private void ExecuteShadowStage(
@@ -1500,6 +1587,19 @@ namespace NWRP
         private static bool IsMainLightShadowPass(QueuedPass queuedPass)
         {
             return ReferenceEquals(queuedPass.pass.profilingGroupSampler, NWRPProfiling.MainLightShadow);
+        }
+
+        private bool HasRealtimeMainLightShadowPass()
+        {
+            for (int i = 0; i < _activePasses.Count; i++)
+            {
+                if (_activePasses[i].pass is MainLightShadowCasterPass)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsAdditionalLightShadowPass(QueuedPass queuedPass)

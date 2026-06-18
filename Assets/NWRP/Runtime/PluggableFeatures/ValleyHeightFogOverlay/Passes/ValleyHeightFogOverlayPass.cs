@@ -50,8 +50,8 @@ namespace NWRP.Runtime.Passes
             FilteringSettings filteringSettings = new FilteringSettings(
                 RenderQueueRange.transparent,
                 NWRPRenderer.GetTransparentLayerMaskValue(ref frameData));
-            frameData.context.DrawRenderers(
-                frameData.cullingResults,
+            NWRPRenderer.DrawRendererList(
+                ref frameData,
                 ref drawingSettings,
                 ref filteringSettings,
                 ref _stateBlock);

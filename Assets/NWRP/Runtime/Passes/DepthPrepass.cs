@@ -43,10 +43,7 @@ namespace NWRP.Runtime.Passes
             FilteringSettings filteringSettings = new FilteringSettings(
                 RenderQueueRange.opaque,
                 NWRPRenderer.GetOpaqueLayerMaskValue(ref frameData));
-            frameData.context.DrawRenderers(
-                frameData.cullingResults,
-                ref drawingSettings,
-                ref filteringSettings);
+            NWRPRenderer.DrawRendererList(ref frameData, ref drawingSettings, ref filteringSettings);
 
             cmd.SetGlobalTexture(
                 NWRPShaderIds.CameraDepthTexture,

@@ -29,9 +29,40 @@ namespace NWRP
             List<VegetationIndirectShadowDraw> draws);
     }
 
+    public readonly struct VegetationIndirectShadowContext
+    {
+        public VegetationIndirectShadowContext(
+            Camera camera,
+            NWRPRendererData rendererData)
+        {
+            this.camera = camera;
+            this.rendererData = rendererData;
+        }
+
+        public readonly Camera camera;
+        public readonly NWRPRendererData rendererData;
+    }
+
+    public interface IVegetationIndirectShadowProviderWithContext
+    {
+        bool TryCollectIndirectShadowDraws(
+            in VegetationIndirectShadowContext context,
+            bool includeStaticCasters,
+            bool includeDynamicCasters,
+            List<VegetationIndirectShadowDraw> draws);
+    }
+
     public interface IVegetationIndirectShadowCasterQuery
     {
         bool HasIndirectShadowCasters(
+            bool includeStaticCasters,
+            bool includeDynamicCasters);
+    }
+
+    public interface IVegetationIndirectShadowCasterQueryWithContext
+    {
+        bool HasIndirectShadowCasters(
+            in VegetationIndirectShadowContext context,
             bool includeStaticCasters,
             bool includeDynamicCasters);
     }
@@ -70,6 +101,17 @@ namespace NWRP
             bool includeStaticCasters,
             bool includeDynamicCasters)
         {
+            return HasIndirectShadowCasters(
+                default,
+                includeStaticCasters,
+                includeDynamicCasters);
+        }
+
+        public static bool HasIndirectShadowCasters(
+            in VegetationIndirectShadowContext context,
+            bool includeStaticCasters,
+            bool includeDynamicCasters)
+        {
             if (!includeStaticCasters && !includeDynamicCasters)
                 return false;
 
@@ -80,6 +122,19 @@ namespace NWRP
                 IVegetationIndirectShadowProvider provider = s_Providers[i];
                 if (provider == null)
                     continue;
+
+                if (provider is IVegetationIndirectShadowCasterQueryWithContext contextQuery)
+                {
+                    if (contextQuery.HasIndirectShadowCasters(
+                            context,
+                            includeStaticCasters,
+                            includeDynamicCasters))
+                    {
+                        return true;
+                    }
+
+                    continue;
+                }
 
                 if (provider is IVegetationIndirectShadowCasterQuery query)
                 {
@@ -94,11 +149,18 @@ namespace NWRP
                 }
 
                 s_QueryScratchDraws.Clear();
-                if (provider.TryCollectIndirectShadowDraws(
+                bool hasDraws = provider is IVegetationIndirectShadowProviderWithContext contextProvider
+                    ? contextProvider.TryCollectIndirectShadowDraws(
+                        context,
                         includeStaticCasters,
                         includeDynamicCasters,
                         s_QueryScratchDraws)
-                    && s_QueryScratchDraws.Count > 0)
+                    : provider.TryCollectIndirectShadowDraws(
+                        includeStaticCasters,
+                        includeDynamicCasters,
+                        s_QueryScratchDraws);
+
+                if (hasDraws && s_QueryScratchDraws.Count > 0)
                 {
                     s_QueryScratchDraws.Clear();
                     return true;

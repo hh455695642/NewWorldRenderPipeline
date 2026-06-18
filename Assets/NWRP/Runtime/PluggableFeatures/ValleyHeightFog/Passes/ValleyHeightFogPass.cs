@@ -13,10 +13,9 @@ namespace NWRP.Runtime.Passes
 
         private static readonly Vector4 s_FullScaleBias = new Vector4(1f, 1f, 0f, 0f);
 
-        private readonly int _tempColorId = Shader.PropertyToID("_NWRPValleyHeightFogTempColor");
-
         private Material _copyMaterial;
         private Material _fogMaterial;
+        private RTHandle _tempColorHandle;
 
         public ValleyHeightFogPass()
             : base(NWRPPassEvent.AfterTransparent, "Valley Height Fog")
@@ -47,15 +46,25 @@ namespace NWRP.Runtime.Passes
             UploadConstants(cmd, frameData.valleyHeightFog);
             int shaderPassIndex = GetShaderPassIndex(frameData.valleyHeightFog);
 
-            cmd.GetTemporaryRT(_tempColorId, descriptor, FilterMode.Bilinear);
+            NWRPTransientRTHandles.ReAllocateIfNeeded(
+                ref _tempColorHandle,
+                descriptor,
+                FilterMode.Bilinear,
+                TextureWrapMode.Clamp,
+                "_NWRPValleyHeightFogTempColor");
+
             try
             {
-                RenderTargetIdentifier tempColor = _tempColorId;
-
-                BlitToTarget(cmd, source, tempColor, viewport, _fogMaterial, shaderPassIndex);
                 BlitToTarget(
                     cmd,
-                    tempColor,
+                    source,
+                    _tempColorHandle,
+                    viewport,
+                    _fogMaterial,
+                    shaderPassIndex);
+                BlitToTarget(
+                    cmd,
+                    _tempColorHandle,
                     frameData.targets.cameraColor,
                     viewport,
                     _copyMaterial,
@@ -63,7 +72,6 @@ namespace NWRP.Runtime.Passes
             }
             finally
             {
-                cmd.ReleaseTemporaryRT(_tempColorId);
                 cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
                 cmd.SetViewport(viewport);
             }
@@ -81,6 +89,7 @@ namespace NWRP.Runtime.Passes
         {
             CoreUtils.Destroy(_copyMaterial);
             CoreUtils.Destroy(_fogMaterial);
+            NWRPTransientRTHandles.Release(ref _tempColorHandle);
             _copyMaterial = null;
             _fogMaterial = null;
         }

@@ -1,3 +1,4 @@
+using System;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -483,6 +484,131 @@ namespace NWRP.Runtime.Passes
             ExecuteBuffer(ref frameData);
         }
 
+        public static ShadowDrawingSettings CreateShadowDrawingSettings(
+            CullingResults cullingResults,
+            int shadowLightIndex,
+            bool useRenderingLayerMaskTest,
+            int splitIndex = -1)
+        {
+            return new ShadowDrawingSettings(cullingResults, shadowLightIndex)
+            {
+                useRenderingLayerMaskTest = useRenderingLayerMaskTest,
+                splitIndex = splitIndex
+            };
+        }
+
+        public struct ShadowCasterCullingScope : IDisposable
+        {
+            private NativeArray<ShadowSplitData> _splitBuffer;
+            private NativeArray<LightShadowCasterCullingInfo> _perLightInfos;
+
+            public bool IsValid { get; private set; }
+
+            internal ShadowCasterCullingScope(
+                int splitCount,
+                int visibleLightCount)
+            {
+                _splitBuffer = new NativeArray<ShadowSplitData>(splitCount, Allocator.Temp);
+                _perLightInfos = new NativeArray<LightShadowCasterCullingInfo>(
+                    visibleLightCount,
+                    Allocator.Temp);
+                IsValid = true;
+            }
+
+            internal void SetSplitData(int splitIndex, ShadowSplitData splitData)
+            {
+                _splitBuffer[splitIndex] = splitData;
+            }
+
+            internal void SetLightInfo(int shadowLightIndex, LightShadowCasterCullingInfo lightInfo)
+            {
+                _perLightInfos[shadowLightIndex] = lightInfo;
+            }
+
+            internal ShadowCastersCullingInfos CreateCullingInfos()
+            {
+                return new ShadowCastersCullingInfos
+                {
+                    splitBuffer = _splitBuffer,
+                    perLightInfos = _perLightInfos
+                };
+            }
+
+            public void Dispose()
+            {
+                IsValid = false;
+
+                if (_splitBuffer.IsCreated)
+                {
+                    _splitBuffer.Dispose();
+                }
+
+                if (_perLightInfos.IsCreated)
+                {
+                    _perLightInfos.Dispose();
+                }
+            }
+        }
+
+        public static ShadowCasterCullingScope CullShadowCastersForCascades(
+            ref NWRPFrameData frameData,
+            CullingResults cullingResults,
+            int shadowLightIndex,
+            MainLightShadowCascadeData[] cascadeData,
+            int cascadeCount)
+        {
+            if (shadowLightIndex < 0
+                || shadowLightIndex >= cullingResults.visibleLights.Length
+                || cascadeData == null
+                || cascadeCount <= 0)
+            {
+                return default;
+            }
+
+            ShadowCasterCullingScope cullingScope =
+                new ShadowCasterCullingScope(cascadeCount, cullingResults.visibleLights.Length);
+            for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
+            {
+                cullingScope.SetSplitData(cascadeIndex, cascadeData[cascadeIndex].splitData);
+            }
+
+            cullingScope.SetLightInfo(
+                shadowLightIndex,
+                new LightShadowCasterCullingInfo
+                {
+                    splitRange = new RangeInt(0, cascadeCount),
+                    projectionType = BatchCullingProjectionType.Orthographic
+                });
+
+            try
+            {
+                ShadowCastersCullingInfos shadowCasterCullingInfos = cullingScope.CreateCullingInfos();
+                frameData.context.CullShadowCasters(cullingResults, shadowCasterCullingInfos);
+                frameData.shadowCullingContext?.MarkDirty();
+                return cullingScope;
+            }
+            catch
+            {
+                cullingScope.Dispose();
+                throw;
+            }
+        }
+
+        public static void DrawShadowRendererList(
+            ref NWRPFrameData frameData,
+            ref ShadowDrawingSettings shadowDrawingSettings)
+        {
+            RendererList rendererList =
+                frameData.context.CreateShadowRendererList(ref shadowDrawingSettings);
+            if (!rendererList.isValid)
+            {
+                return;
+            }
+
+            frameData.cmd.DrawRendererList(rendererList);
+            ExecuteBuffer(ref frameData);
+        }
+
         public static bool RenderMainLightShadowAtlas(
             ref NWRPFrameData frameData,
             CullingResults cullResults,
@@ -507,13 +633,16 @@ namespace NWRP.Runtime.Passes
                 return HasValidCascadeData(cacheState, cascadeCount);
             }
 
-            ShadowDrawingSettings shadowDrawingSettings = new ShadowDrawingSettings(
+            ShadowCasterCullingScope shadowCasterCullingScope = CullShadowCastersForCascades(
+                ref frameData,
                 cullResults,
                 shadowLightIndex,
-                BatchCullingProjectionType.Orthographic)
+                cacheState.CascadeData,
+                cascadeCount);
+            if (!shadowCasterCullingScope.IsValid)
             {
-                useRenderingLayerMaskTest = true
-            };
+                return false;
+            }
 
             float shadowCasterCullMode = frameData.asset != null
                 ? (float)frameData.asset.MainLightShadowCasterCullModeSetting
@@ -525,30 +654,45 @@ namespace NWRP.Runtime.Passes
             ExecuteBuffer(ref frameData);
 
             bool anyCascadeRendered = false;
-            for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
+            try
             {
-                MainLightShadowCascadeData cascadeData = cacheState.CascadeData[cascadeIndex];
-                shadowDrawingSettings.splitData = cascadeData.splitData;
+                for (int cascadeIndex = 0; cascadeIndex < cascadeCount; cascadeIndex++)
+                {
+                    MainLightShadowCascadeData cascadeData = cacheState.CascadeData[cascadeIndex];
 
-                cmd.SetViewport(new Rect(
-                    cascadeData.offsetX,
-                    cascadeData.offsetY,
-                    cascadeData.resolution,
-                    cascadeData.resolution));
-                cmd.SetViewProjectionMatrices(cascadeData.viewMatrix, cascadeData.projectionMatrix);
-                cmd.SetGlobalVector(
-                    NWRPShaderIds.ShadowBias,
-                    CalculateShadowBias(
-                        frameData.asset.MainLightShadowBias,
-                        frameData.asset.MainLightShadowNormalBias,
-                        cascadeData.projectionMatrix,
-                        cascadeData.resolution
-                    )
-                );
-                ExecuteBuffer(ref frameData);
+                    cmd.SetViewport(new Rect(
+                        cascadeData.offsetX,
+                        cascadeData.offsetY,
+                        cascadeData.resolution,
+                        cascadeData.resolution));
+                    cmd.SetViewProjectionMatrices(cascadeData.viewMatrix, cascadeData.projectionMatrix);
+                    cmd.SetGlobalVector(
+                        NWRPShaderIds.ShadowBias,
+                        CalculateShadowBias(
+                            frameData.asset.MainLightShadowBias,
+                            frameData.asset.MainLightShadowNormalBias,
+                            cascadeData.projectionMatrix,
+                            cascadeData.resolution
+                        )
+                    );
+                    ExecuteBuffer(ref frameData);
 
-                frameData.context.DrawShadows(ref shadowDrawingSettings);
-                anyCascadeRendered = true;
+                    if (shadowCasterCullingScope.IsValid)
+                    {
+                        ShadowDrawingSettings shadowDrawingSettings = CreateShadowDrawingSettings(
+                            cullResults,
+                            shadowLightIndex,
+                            useRenderingLayerMaskTest: true,
+                            splitIndex: cascadeIndex);
+                        DrawShadowRendererList(ref frameData, ref shadowDrawingSettings);
+                    }
+
+                    anyCascadeRendered = true;
+                }
+            }
+            finally
+            {
+                shadowCasterCullingScope.Dispose();
             }
 
             cmd.SetGlobalDepthBias(0f, 0f);

@@ -104,11 +104,7 @@ namespace NWRP.Runtime.Passes
                 };
 
                 FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.all, layerMask);
-                frameData.context.DrawRenderers(
-                    frameData.cullingResults,
-                    ref drawingSettings,
-                    ref filteringSettings
-                );
+                NWRPRenderer.DrawRendererList(ref frameData, ref drawingSettings, ref filteringSettings);
             }
 
             MainLightShadowPassUtils.ExecuteBuffer(ref frameData);

@@ -6,7 +6,8 @@ using UnityEngine.Rendering;
 namespace NWRP.Editor
 {
     [CanEditMultipleObjects]
-    [CustomEditorForRenderPipeline(typeof(Light), typeof(NewWorldRenderPipelineAsset))]
+    [CustomEditor(typeof(Light))]
+    [SupportedOnRenderPipeline(typeof(NewWorldRenderPipelineAsset))]
     public sealed class NWRPLightEditor : LightEditor
     {
         private static readonly GUIContent s_TypeLabel = new GUIContent("Type");

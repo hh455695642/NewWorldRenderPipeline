@@ -16,9 +16,8 @@ namespace NWRP.Runtime.Passes
 
         private static readonly Vector4 s_FullScaleBias = new Vector4(1f, 1f, 0f, 0f);
 
-        private readonly int _tempColorId = Shader.PropertyToID("_NWRPScreenBlurTempColor");
-
         private Material _blurMaterial;
+        private RTHandle _tempColorHandle;
 
         public ScreenBlurPass()
             : base(NWRPPassEvent.BeforePostProcess, "NWRP Screen Blur")
@@ -65,22 +64,27 @@ namespace NWRP.Runtime.Passes
             Rect viewport = NWRPRenderer.GetCameraRenderViewport(ref frameData);
 
             UploadConstants(cmd, source.rt, radius);
-            cmd.GetTemporaryRT(_tempColorId, descriptor, FilterMode.Bilinear);
+            NWRPTransientRTHandles.ReAllocateIfNeeded(
+                ref _tempColorHandle,
+                descriptor,
+                FilterMode.Bilinear,
+                TextureWrapMode.Clamp,
+                "_NWRPScreenBlurTempColor");
+
             try
             {
-                RenderTargetIdentifier tempColor = _tempColorId;
                 for (int i = 0; i < iterations; i++)
                 {
                     BlitToTarget(
                         cmd,
                         source,
-                        tempColor,
+                        _tempColorHandle,
                         viewport,
                         _blurMaterial,
                         (int)ScreenBlurShaderPass.Horizontal);
                     BlitToTarget(
                         cmd,
-                        tempColor,
+                        _tempColorHandle,
                         frameData.targets.cameraColor,
                         viewport,
                         _blurMaterial,
@@ -89,7 +93,6 @@ namespace NWRP.Runtime.Passes
             }
             finally
             {
-                cmd.ReleaseTemporaryRT(_tempColorId);
                 cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
                 cmd.SetViewport(viewport);
             }
@@ -98,6 +101,7 @@ namespace NWRP.Runtime.Passes
         public void Dispose()
         {
             CoreUtils.Destroy(_blurMaterial);
+            NWRPTransientRTHandles.Release(ref _tempColorHandle);
             _blurMaterial = null;
         }
 

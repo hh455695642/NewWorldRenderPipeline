@@ -21,14 +21,16 @@ namespace NWRP.Runtime.Passes
         private static readonly Vector4 s_FullScaleBias = new Vector4(1f, 1f, 0f, 0f);
 
         private readonly BloomMipData[] _bloomMips = new BloomMipData[k_BloomMipCount];
-        private readonly int _bloomTempBlurId = Shader.PropertyToID("_NWRPBloomTempBlur");
-        private readonly int _bloomComposeId = Shader.PropertyToID("_NWRPBloomCustomCompose");
-        private readonly int _finalCompositeTempId = Shader.PropertyToID("_NWRPPostProcessTempColor");
+        private readonly string[] _bloomMipDownNames = new string[k_BloomMipCount];
+        private readonly string[] _bloomMipUpNames = new string[k_BloomMipCount];
 
         private Material _copyMaterial;
         private Material _tonemappingMaterial;
         private Material _bloomMaterial;
         private Texture _defaultLensDirtTexture;
+        private RTHandle _bloomTempBlurHandle;
+        private RTHandle _bloomComposeHandle;
+        private RTHandle _finalCompositeTempHandle;
 
         private enum BloomPass
         {
@@ -43,20 +45,18 @@ namespace NWRP.Runtime.Passes
 
         private struct BloomMipData
         {
-            public int down;
-            public int up;
+            public RTHandle down;
+            public RTHandle up;
             public int width;
             public int height;
         }
 
         private struct BloomResources
         {
-            public bool allocated;
             public bool hasBloomTexture;
             public bool hasDirtSourceTexture;
-            public bool usedCustomCompose;
-            public int finalTexture;
-            public int dirtSourceTexture;
+            public RTHandle finalTexture;
+            public RTHandle dirtSourceTexture;
         }
 
         public PostProcessPass()
@@ -64,8 +64,8 @@ namespace NWRP.Runtime.Passes
         {
             for (int i = 0; i < _bloomMips.Length; i++)
             {
-                _bloomMips[i].down = Shader.PropertyToID("_NWRPBloomMipDown" + i);
-                _bloomMips[i].up = Shader.PropertyToID("_NWRPBloomMipUp" + i);
+                _bloomMipDownNames[i] = "_NWRPBloomMipDown" + i;
+                _bloomMipUpNames[i] = "_NWRPBloomMipUp" + i;
             }
         }
 
@@ -79,19 +79,12 @@ namespace NWRP.Runtime.Passes
             }
 
             BloomResources bloomResources = default;
-            try
+            if (PostProcessFeature.IsBloomActive(ref frameData))
             {
-                if (PostProcessFeature.IsBloomActive(ref frameData))
-                {
-                    bloomResources = ExecuteBloom(ref frameData);
-                }
+                bloomResources = ExecuteBloom(ref frameData);
+            }
 
-                ExecuteFinalComposite(ref frameData, bloomResources);
-            }
-            finally
-            {
-                ReleaseBloomResources(frameData.cmd, bloomResources);
-            }
+            ExecuteFinalComposite(ref frameData, bloomResources);
         }
 
         public void Dispose()
@@ -99,6 +92,10 @@ namespace NWRP.Runtime.Passes
             CoreUtils.Destroy(_copyMaterial);
             CoreUtils.Destroy(_tonemappingMaterial);
             CoreUtils.Destroy(_bloomMaterial);
+            ReleaseBloomHandles();
+            NWRPTransientRTHandles.Release(ref _bloomTempBlurHandle);
+            NWRPTransientRTHandles.Release(ref _bloomComposeHandle);
+            NWRPTransientRTHandles.Release(ref _finalCompositeTempHandle);
             _copyMaterial = null;
             _tonemappingMaterial = null;
             _bloomMaterial = null;
@@ -132,14 +129,23 @@ namespace NWRP.Runtime.Passes
 
                 bloomDescriptor.width = mip.width;
                 bloomDescriptor.height = mip.height;
-                cmd.GetTemporaryRT(mip.down, bloomDescriptor, FilterMode.Bilinear);
-                cmd.GetTemporaryRT(mip.up, bloomDescriptor, FilterMode.Bilinear);
+                NWRPTransientRTHandles.ReAllocateIfNeeded(
+                    ref mip.down,
+                    bloomDescriptor,
+                    FilterMode.Bilinear,
+                    TextureWrapMode.Clamp,
+                    _bloomMipDownNames[i]);
+                NWRPTransientRTHandles.ReAllocateIfNeeded(
+                    ref mip.up,
+                    bloomDescriptor,
+                    FilterMode.Bilinear,
+                    TextureWrapMode.Clamp,
+                    _bloomMipUpNames[i]);
+                _bloomMips[i] = mip;
 
                 bloomDescriptor.width = Mathf.Max(1, bloomDescriptor.width / 2);
                 bloomDescriptor.height = Mathf.Max(1, bloomDescriptor.height / 2);
             }
-
-            resources.allocated = true;
 
             UploadBloomConstants(cmd, bloom);
             SetBloomTexelSize(cmd, sourceWidth, sourceHeight);
@@ -190,7 +196,7 @@ namespace NWRP.Runtime.Passes
                 }
             }
 
-            int bloomTexture = _bloomMips[k_BloomLastMip].down;
+            RTHandle bloomTexture = _bloomMips[k_BloomLastMip].down;
             for (int i = k_BloomLastMip; i > 0; i--)
             {
                 cmd.SetGlobalTexture(
@@ -214,9 +220,12 @@ namespace NWRP.Runtime.Passes
                     CreateBloomDescriptor(_bloomMips[0].width, aspectRatio);
                 composeDescriptor.width = _bloomMips[0].width;
                 composeDescriptor.height = _bloomMips[0].height;
-                cmd.GetTemporaryRT(_bloomComposeId, composeDescriptor, FilterMode.Bilinear);
-                resources.usedCustomCompose = true;
-
+                NWRPTransientRTHandles.ReAllocateIfNeeded(
+                    ref _bloomComposeHandle,
+                    composeDescriptor,
+                    FilterMode.Bilinear,
+                    TextureWrapMode.Clamp,
+                    "_NWRPBloomCustomCompose");
                 cmd.SetGlobalTexture(NWRPShaderIds.BloomTexture, _bloomMips[0].up);
                 cmd.SetGlobalTexture(NWRPShaderIds.BloomTexture1, _bloomMips[1].up);
                 cmd.SetGlobalTexture(NWRPShaderIds.BloomTexture2, _bloomMips[2].up);
@@ -227,12 +236,12 @@ namespace NWRP.Runtime.Passes
                 BlitToTarget(
                     cmd,
                     _bloomMips[k_BloomLastMip].down,
-                    _bloomComposeId,
+                    _bloomComposeHandle,
                     _bloomMips[0].width,
                     _bloomMips[0].height,
                     _bloomMaterial,
                     (int)BloomPass.BloomCompose);
-                bloomTexture = _bloomComposeId;
+                bloomTexture = _bloomComposeHandle;
             }
 
             resources.hasBloomTexture = true;
@@ -327,20 +336,26 @@ namespace NWRP.Runtime.Passes
             int height = Mathf.Max(descriptor.height, 1);
             CommandBuffer cmd = frameData.cmd;
 
-            cmd.GetTemporaryRT(_finalCompositeTempId, descriptor, FilterMode.Bilinear);
+            NWRPTransientRTHandles.ReAllocateIfNeeded(
+                ref _finalCompositeTempHandle,
+                descriptor,
+                FilterMode.Bilinear,
+                TextureWrapMode.Clamp,
+                "_NWRPPostProcessTempColor");
+
             try
             {
                 BlitToTarget(
                     cmd,
                     source,
-                    _finalCompositeTempId,
+                    _finalCompositeTempHandle,
                     width,
                     height,
                     _tonemappingMaterial,
                     passIndex);
                 BlitToTarget(
                     cmd,
-                    _finalCompositeTempId,
+                    _finalCompositeTempHandle,
                     frameData.targets.cameraColor,
                     width,
                     height,
@@ -349,7 +364,6 @@ namespace NWRP.Runtime.Passes
             }
             finally
             {
-                cmd.ReleaseTemporaryRT(_finalCompositeTempId);
                 cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
                 cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
             }
@@ -357,7 +371,7 @@ namespace NWRP.Runtime.Passes
 
         private void BlurInPlace(
             CommandBuffer cmd,
-            int source,
+            RTHandle source,
             int width,
             int height,
             float blurScale)
@@ -365,14 +379,19 @@ namespace NWRP.Runtime.Passes
             RenderTextureDescriptor descriptor = CreateBloomDescriptor(width, (float)height / width);
             descriptor.width = width;
             descriptor.height = height;
-            cmd.GetTemporaryRT(_bloomTempBlurId, descriptor, FilterMode.Bilinear);
+            NWRPTransientRTHandles.ReAllocateIfNeeded(
+                ref _bloomTempBlurHandle,
+                descriptor,
+                FilterMode.Bilinear,
+                TextureWrapMode.Clamp,
+                "_NWRPBloomTempBlur");
 
             cmd.SetGlobalFloat(NWRPShaderIds.BloomBlurScale, blurScale);
             SetBloomTexelSize(cmd, width, height);
             BlitToTarget(
                 cmd,
                 source,
-                _bloomTempBlurId,
+                _bloomTempBlurHandle,
                 width,
                 height,
                 _bloomMaterial,
@@ -381,22 +400,20 @@ namespace NWRP.Runtime.Passes
             SetBloomTexelSize(cmd, width, height);
             BlitToTarget(
                 cmd,
-                _bloomTempBlurId,
+                _bloomTempBlurHandle,
                 source,
                 width,
                 height,
                 _bloomMaterial,
                 (int)BloomPass.BlurVertical);
-
-            cmd.ReleaseTemporaryRT(_bloomTempBlurId);
         }
 
         private void BlurDownsampling(
             CommandBuffer cmd,
-            int source,
+            RTHandle source,
             int sourceWidth,
             int sourceHeight,
-            int destination,
+            RTHandle destination,
             int destinationWidth,
             int destinationHeight)
         {
@@ -404,14 +421,19 @@ namespace NWRP.Runtime.Passes
                 CreateBloomDescriptor(destinationWidth, (float)destinationHeight / destinationWidth);
             descriptor.width = destinationWidth;
             descriptor.height = destinationHeight;
-            cmd.GetTemporaryRT(_bloomTempBlurId, descriptor, FilterMode.Bilinear);
+            NWRPTransientRTHandles.ReAllocateIfNeeded(
+                ref _bloomTempBlurHandle,
+                descriptor,
+                FilterMode.Bilinear,
+                TextureWrapMode.Clamp,
+                "_NWRPBloomTempBlur");
 
             cmd.SetGlobalFloat(NWRPShaderIds.BloomBlurScale, 4f);
             SetBloomTexelSize(cmd, sourceWidth, sourceHeight);
             BlitToTarget(
                 cmd,
                 source,
-                _bloomTempBlurId,
+                _bloomTempBlurHandle,
                 destinationWidth,
                 destinationHeight,
                 _bloomMaterial,
@@ -421,14 +443,12 @@ namespace NWRP.Runtime.Passes
             SetBloomTexelSize(cmd, destinationWidth, destinationHeight);
             BlitToTarget(
                 cmd,
-                _bloomTempBlurId,
+                _bloomTempBlurHandle,
                 destination,
                 destinationWidth,
                 destinationHeight,
                 _bloomMaterial,
                 (int)BloomPass.BlurVertical);
-
-            cmd.ReleaseTemporaryRT(_bloomTempBlurId);
         }
 
         private static void BlitToTarget(
@@ -817,7 +837,7 @@ namespace NWRP.Runtime.Passes
             return _defaultLensDirtTexture;
         }
 
-        private int GetLensDirtSourceTexture(int lensDirtSpread)
+        private RTHandle GetLensDirtSourceTexture(int lensDirtSpread)
         {
             int index = Mathf.Clamp(lensDirtSpread, 0, k_BloomLastMip);
             return index >= k_BloomLastMip
@@ -873,22 +893,14 @@ namespace NWRP.Runtime.Passes
                 new Vector4(1f / safeWidth, 1f / safeHeight, safeWidth, safeHeight));
         }
 
-        private void ReleaseBloomResources(CommandBuffer cmd, BloomResources resources)
+        private void ReleaseBloomHandles()
         {
-            if (!resources.allocated || cmd == null)
-            {
-                return;
-            }
-
             for (int i = 0; i < _bloomMips.Length; i++)
             {
-                cmd.ReleaseTemporaryRT(_bloomMips[i].down);
-                cmd.ReleaseTemporaryRT(_bloomMips[i].up);
-            }
-
-            if (resources.usedCustomCompose)
-            {
-                cmd.ReleaseTemporaryRT(_bloomComposeId);
+                BloomMipData mip = _bloomMips[i];
+                NWRPTransientRTHandles.Release(ref mip.down);
+                NWRPTransientRTHandles.Release(ref mip.up);
+                _bloomMips[i] = mip;
             }
         }
 
