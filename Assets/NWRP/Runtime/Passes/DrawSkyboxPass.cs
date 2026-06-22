@@ -14,5 +14,14 @@ namespace NWRP.Runtime.Passes
         {
             _renderer.ExecuteDrawSkybox(ref frameData);
         }
+
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.Write
+            };
+        }
     }
 }

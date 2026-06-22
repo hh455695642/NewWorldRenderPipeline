@@ -10,8 +10,6 @@ namespace NWRP
         SortOrder = 220)]
     public sealed class ValleyHeightFogFeature : NWRPFeature
     {
-        private static bool s_MissingDepthTextureWarningLogged;
-
         private ValleyHeightFogPass _valleyHeightFogPass;
 
         protected override void Create()
@@ -29,12 +27,10 @@ namespace NWRP
                 return false;
             }
 
-            if (!CanUseRendererDepthTexture(ref frameData))
-            {
-                return false;
-            }
-
             requirements.requiresIntermediateColor = true;
+            requirements.Merge(DepthTextureFeature.GetFrameTargetRequirements(
+                DepthTextureFeature.GetCopyMode(ref frameData),
+                frameData.camera));
             return true;
         }
 
@@ -42,12 +38,6 @@ namespace NWRP
         {
             if (!IsActive(ref frameData))
             {
-                return;
-            }
-
-            if (!CanUseRendererDepthTexture(ref frameData))
-            {
-                WarnMissingDepthTexture(ref frameData);
                 return;
             }
 
@@ -59,28 +49,6 @@ namespace NWRP
         {
             return PostProcessFeature.IsPostProcessingEnabled(ref frameData)
                 && frameData.valleyHeightFogActive;
-        }
-
-        private static bool CanUseRendererDepthTexture(ref NWRPFrameData frameData)
-        {
-            return frameData.rendererData != null
-                && frameData.rendererData.EnableDepthTexture;
-        }
-
-        private static void WarnMissingDepthTexture(ref NWRPFrameData frameData)
-        {
-            if (s_MissingDepthTextureWarningLogged)
-            {
-                return;
-            }
-
-            s_MissingDepthTextureWarningLogged = true;
-            string cameraName = frameData.camera != null ? frameData.camera.name : "NULL";
-            Debug.LogWarning(
-                "NWRP Valley Height Fog is active but Renderer Data has "
-                + "Enable Camera Depth Texture disabled. Valley Height Fog was skipped "
-                + $"for camera '{cameraName}'. Enable Camera Depth Texture on the active "
-                + "NWRP Renderer Data to provide _CameraDepthTexture.");
         }
 
         private void OnDisable()

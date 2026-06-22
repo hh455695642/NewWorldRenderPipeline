@@ -18,8 +18,6 @@ namespace NWRP.Runtime.Passes
         private const int k_BloomLastMip = 5;
         private const int k_BloomMipCount = k_BloomLastMip + 1;
 
-        private static readonly Vector4 s_FullScaleBias = new Vector4(1f, 1f, 0f, 0f);
-
         private readonly BloomMipData[] _bloomMips = new BloomMipData[k_BloomMipCount];
         private readonly int _bloomTempBlurId = Shader.PropertyToID("_NWRPBloomTempBlur");
         private readonly int _bloomComposeId = Shader.PropertyToID("_NWRPBloomCustomCompose");
@@ -120,6 +118,17 @@ namespace NWRP.Runtime.Passes
             _defaultLensDirtTexture = null;
         }
 
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.Read,
+                writesBackBuffer =
+                    !ScreenBlurFeature.IsAfterPostProcessActive(ref frameData)
+            };
+        }
+
         private BloomResources ExecuteBloom(ref NWRPFrameData frameData)
         {
             BloomResources resources = default;
@@ -148,10 +157,16 @@ namespace NWRP.Runtime.Passes
 
                 bloomDescriptor.width = mip.width;
                 bloomDescriptor.height = mip.height;
-                cmd.GetTemporaryRT(mip.down, bloomDescriptor, FilterMode.Bilinear);
-                cmd.GetTemporaryRT(mip.up, bloomDescriptor, FilterMode.Bilinear);
-                frameData.debugStats.RecordTemporaryRT(NWRPFrameTemporaryRTKind.Color);
-                frameData.debugStats.RecordTemporaryRT(NWRPFrameTemporaryRTKind.Color);
+                NWRPFullscreenPassUtils.AllocateTempColor(
+                    ref frameData,
+                    mip.down,
+                    bloomDescriptor,
+                    FilterMode.Bilinear);
+                NWRPFullscreenPassUtils.AllocateTempColor(
+                    ref frameData,
+                    mip.up,
+                    bloomDescriptor,
+                    FilterMode.Bilinear);
 
                 bloomDescriptor.width = Mathf.Max(1, bloomDescriptor.width / 2);
                 bloomDescriptor.height = Mathf.Max(1, bloomDescriptor.height / 2);
@@ -235,8 +250,11 @@ namespace NWRP.Runtime.Passes
                     CreateBloomDescriptor(_bloomMips[0].width, aspectRatio);
                 composeDescriptor.width = _bloomMips[0].width;
                 composeDescriptor.height = _bloomMips[0].height;
-                cmd.GetTemporaryRT(_bloomComposeId, composeDescriptor, FilterMode.Bilinear);
-                frameData.debugStats.RecordTemporaryRT(NWRPFrameTemporaryRTKind.Color);
+                NWRPFullscreenPassUtils.AllocateTempColor(
+                    ref frameData,
+                    _bloomComposeId,
+                    composeDescriptor,
+                    FilterMode.Bilinear);
                 resources.usedCustomCompose = true;
 
                 cmd.SetGlobalTexture(NWRPShaderIds.BloomTexture, _bloomMips[0].up);
@@ -290,11 +308,6 @@ namespace NWRP.Runtime.Passes
 
             CommandBuffer cmd = frameData.cmd;
             RTHandle source = frameData.targets.cameraColorHandle;
-            Rect cameraViewport = NWRPRenderer.GetCameraViewport(frameData.camera);
-            RenderBufferLoadAction loadAction =
-                NWRPRenderer.IsDefaultViewport(frameData.camera, cameraViewport)
-                    ? RenderBufferLoadAction.DontCare
-                    : RenderBufferLoadAction.Load;
 
             UploadTonemappingConstants(cmd, frameData.tonemapping, tonemappingActive, frameData.bloom);
             UploadFinalBloomConstants(cmd, frameData.bloom, bloomResources);
@@ -315,25 +328,12 @@ namespace NWRP.Runtime.Passes
                 return;
             }
 
-            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
-            frameData.debugStats.RecordFinalBlit();
-            CoreUtils.SetRenderTarget(
-                cmd,
-                frameData.targets.backBufferColor,
-                loadAction,
-                RenderBufferStoreAction.Store,
-                ClearFlag.None,
-                Color.clear);
-            cmd.SetViewport(cameraViewport);
-
-            Blitter.BlitTexture(
-                cmd,
+            NWRPFullscreenPassUtils.BlitToBackBuffer(
+                ref frameData,
                 source,
-                NWRPRenderer.GetFinalBlitScaleBias(frameData.camera, source),
                 _tonemappingMaterial,
-                passIndex);
-
-            frameData.targets.cameraColorPresented = true;
+                passIndex,
+                recordFinalFusion: false);
         }
 
         private void ExecuteFinalCompositeToCameraColor(
@@ -351,8 +351,11 @@ namespace NWRP.Runtime.Passes
             int height = Mathf.Max(descriptor.height, 1);
             CommandBuffer cmd = frameData.cmd;
 
-            cmd.GetTemporaryRT(_finalCompositeTempId, descriptor, FilterMode.Bilinear);
-            frameData.debugStats.RecordTemporaryRT(NWRPFrameTemporaryRTKind.Color);
+            NWRPFullscreenPassUtils.AllocateTempColor(
+                ref frameData,
+                _finalCompositeTempId,
+                descriptor,
+                FilterMode.Bilinear);
             try
             {
                 BlitToTarget(
@@ -374,7 +377,7 @@ namespace NWRP.Runtime.Passes
             }
             finally
             {
-                cmd.ReleaseTemporaryRT(_finalCompositeTempId);
+                NWRPFullscreenPassUtils.ReleaseTempColor(cmd, _finalCompositeTempId);
                 NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
             }
         }
@@ -390,8 +393,11 @@ namespace NWRP.Runtime.Passes
             RenderTextureDescriptor descriptor = CreateBloomDescriptor(width, (float)height / width);
             descriptor.width = width;
             descriptor.height = height;
-            cmd.GetTemporaryRT(_bloomTempBlurId, descriptor, FilterMode.Bilinear);
-            frameData.debugStats.RecordTemporaryRT(NWRPFrameTemporaryRTKind.Color);
+            NWRPFullscreenPassUtils.AllocateTempColor(
+                ref frameData,
+                _bloomTempBlurId,
+                descriptor,
+                FilterMode.Bilinear);
 
             cmd.SetGlobalFloat(NWRPShaderIds.BloomBlurScale, blurScale);
             SetBloomTexelSize(cmd, width, height);
@@ -414,7 +420,7 @@ namespace NWRP.Runtime.Passes
                 _bloomMaterial,
                 (int)BloomPass.BlurVertical);
 
-            cmd.ReleaseTemporaryRT(_bloomTempBlurId);
+            NWRPFullscreenPassUtils.ReleaseTempColor(cmd, _bloomTempBlurId);
         }
 
         private void BlurDownsampling(
@@ -431,8 +437,11 @@ namespace NWRP.Runtime.Passes
                 CreateBloomDescriptor(destinationWidth, (float)destinationHeight / destinationWidth);
             descriptor.width = destinationWidth;
             descriptor.height = destinationHeight;
-            cmd.GetTemporaryRT(_bloomTempBlurId, descriptor, FilterMode.Bilinear);
-            frameData.debugStats.RecordTemporaryRT(NWRPFrameTemporaryRTKind.Color);
+            NWRPFullscreenPassUtils.AllocateTempColor(
+                ref frameData,
+                _bloomTempBlurId,
+                descriptor,
+                FilterMode.Bilinear);
 
             cmd.SetGlobalFloat(NWRPShaderIds.BloomBlurScale, 4f);
             SetBloomTexelSize(cmd, sourceWidth, sourceHeight);
@@ -456,7 +465,7 @@ namespace NWRP.Runtime.Passes
                 _bloomMaterial,
                 (int)BloomPass.BlurVertical);
 
-            cmd.ReleaseTemporaryRT(_bloomTempBlurId);
+            NWRPFullscreenPassUtils.ReleaseTempColor(cmd, _bloomTempBlurId);
         }
 
         private static void BlitToTarget(
@@ -468,18 +477,14 @@ namespace NWRP.Runtime.Passes
             Material material,
             int passIndex)
         {
-            CommandBuffer cmd = frameData.cmd;
-            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
-            frameData.debugStats.RecordFullscreenBlit();
-            CoreUtils.SetRenderTarget(
-                cmd,
+            NWRPFullscreenPassUtils.BlitToTarget(
+                ref frameData,
+                source,
                 destination,
-                RenderBufferLoadAction.DontCare,
-                RenderBufferStoreAction.Store,
-                ClearFlag.None,
-                Color.clear);
-            cmd.SetViewport(new Rect(0f, 0f, width, height));
-            Blitter.BlitTexture(cmd, source, s_FullScaleBias, material, passIndex);
+                width,
+                height,
+                material,
+                passIndex);
         }
 
         private static void BlitToTarget(
@@ -491,18 +496,14 @@ namespace NWRP.Runtime.Passes
             Material material,
             int passIndex)
         {
-            CommandBuffer cmd = frameData.cmd;
-            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
-            frameData.debugStats.RecordFullscreenBlit();
-            CoreUtils.SetRenderTarget(
-                cmd,
+            NWRPFullscreenPassUtils.BlitToTarget(
+                ref frameData,
+                source,
                 destination,
-                RenderBufferLoadAction.DontCare,
-                RenderBufferStoreAction.Store,
-                ClearFlag.None,
-                Color.clear);
-            cmd.SetViewport(new Rect(0f, 0f, width, height));
-            Blitter.BlitTexture(cmd, source, s_FullScaleBias, material, passIndex);
+                width,
+                height,
+                material,
+                passIndex);
         }
 
         private static void UploadBloomConstants(CommandBuffer cmd, NWRPBloom bloom)
@@ -903,15 +904,7 @@ namespace NWRP.Runtime.Passes
 
         private static RenderTextureDescriptor CreateTempDescriptor(RenderTexture sourceTexture)
         {
-            RenderTextureDescriptor descriptor = sourceTexture.descriptor;
-            descriptor.depthBufferBits = 0;
-            descriptor.depthStencilFormat = GraphicsFormat.None;
-            descriptor.msaaSamples = 1;
-            descriptor.bindMS = false;
-            descriptor.useMipMap = false;
-            descriptor.autoGenerateMips = false;
-            descriptor.enableRandomWrite = false;
-            return descriptor;
+            return NWRPFullscreenPassUtils.CreateColorDescriptor(sourceTexture);
         }
 
         private static void SetBloomTexelSize(CommandBuffer cmd, int width, int height)
@@ -933,13 +926,13 @@ namespace NWRP.Runtime.Passes
             int mipCount = Mathf.Clamp(resources.mipCount, 0, _bloomMips.Length);
             for (int i = 0; i < mipCount; i++)
             {
-                cmd.ReleaseTemporaryRT(_bloomMips[i].down);
-                cmd.ReleaseTemporaryRT(_bloomMips[i].up);
+                NWRPFullscreenPassUtils.ReleaseTempColor(cmd, _bloomMips[i].down);
+                NWRPFullscreenPassUtils.ReleaseTempColor(cmd, _bloomMips[i].up);
             }
 
             if (resources.usedCustomCompose)
             {
-                cmd.ReleaseTemporaryRT(_bloomComposeId);
+                NWRPFullscreenPassUtils.ReleaseTempColor(cmd, _bloomComposeId);
             }
         }
 

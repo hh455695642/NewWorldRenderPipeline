@@ -51,6 +51,16 @@ namespace NWRP.Runtime.Passes
             _copyColorMaterial = null;
         }
 
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.Read,
+                opaqueTexture = NWRPFrameResourceAccess.Write
+            };
+        }
+
         private bool EnsureMaterial()
         {
             if (_copyColorMaterial != null)

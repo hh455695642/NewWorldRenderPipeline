@@ -83,6 +83,16 @@ namespace NWRP.Runtime.Passes
             _copyDepthMaterial = null;
         }
 
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraDepth = NWRPFrameResourceAccess.Read,
+                cameraDepthTexture = NWRPFrameResourceAccess.Write
+            };
+        }
+
         public static bool CanCopyDepth(Camera camera)
         {
             return SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.Depth);

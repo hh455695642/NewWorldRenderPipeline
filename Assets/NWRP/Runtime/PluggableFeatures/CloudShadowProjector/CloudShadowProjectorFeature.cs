@@ -22,18 +22,21 @@ namespace NWRP
             out NWRPFrameTargetRequirements requirements)
         {
             requirements = default;
-            if (!CanRun(ref frameData))
+            if (!IsActive(ref frameData))
             {
                 return false;
             }
 
             requirements.requiresIntermediateColor = true;
+            requirements.Merge(DepthTextureFeature.GetFrameTargetRequirements(
+                DepthTextureFeature.GetCopyMode(ref frameData),
+                frameData.camera));
             return true;
         }
 
         public override void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData)
         {
-            if (!CanRun(ref frameData))
+            if (!IsActive(ref frameData))
             {
                 return;
             }
@@ -51,8 +54,8 @@ namespace NWRP
         internal static bool CanRun(ref NWRPFrameData frameData)
         {
             return IsActive(ref frameData)
-                && frameData.rendererData != null
-                && frameData.rendererData.EnableDepthTexture;
+                && frameData.targets.hasCameraDepthTexture
+                && frameData.targets.cameraDepthTextureHandle != null;
         }
 
         private void OnDisable()

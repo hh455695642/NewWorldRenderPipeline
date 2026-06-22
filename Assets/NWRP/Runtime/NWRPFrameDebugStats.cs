@@ -16,6 +16,7 @@ namespace NWRP
         public int cameraColorCopyCount;
         public int cameraDepthCopyCount;
         public int shadowAtlasCopyCount;
+        public int cameraColorFinalPassFusionCount;
         public int temporaryColorRTCount;
         public int temporaryDepthRTCount;
 
@@ -61,6 +62,11 @@ namespace NWRP
         public void RecordShadowAtlasCopy()
         {
             shadowAtlasCopyCount++;
+        }
+
+        public void RecordCameraColorFinalPassFusion()
+        {
+            cameraColorFinalPassFusionCount++;
         }
 
         public void RecordTemporaryRT(NWRPFrameTemporaryRTKind kind)

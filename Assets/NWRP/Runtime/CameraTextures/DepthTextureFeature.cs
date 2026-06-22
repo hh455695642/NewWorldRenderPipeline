@@ -39,13 +39,13 @@ namespace NWRP
 
         public override void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData)
         {
-            if (frameData.rendererData == null || !frameData.rendererData.EnableDepthTexture)
+            if (!ShouldEnqueueDepthTexturePass(ref frameData))
             {
                 return;
             }
 
             NewWorldRenderPipelineAsset.DepthTextureCopyMode copyMode =
-                frameData.rendererData.DepthTextureCopyModeSetting;
+                GetCopyMode(ref frameData);
             if (ShouldUseDepthPrepass(copyMode, frameData.camera))
             {
                 _depthPrepass ??= new DepthPrepass();
@@ -84,6 +84,25 @@ namespace NWRP
         {
             return copyMode == NewWorldRenderPipelineAsset.DepthTextureCopyMode.ForcePrepass
                 || !CopyDepthPass.CanCopyDepth(camera);
+        }
+
+        internal static NewWorldRenderPipelineAsset.DepthTextureCopyMode GetCopyMode(
+            ref NWRPFrameData frameData)
+        {
+            return frameData.rendererData != null
+                ? frameData.rendererData.DepthTextureCopyModeSetting
+                : NewWorldRenderPipelineAsset.DepthTextureCopyMode.AfterOpaques;
+        }
+
+        private static bool ShouldEnqueueDepthTexturePass(ref NWRPFrameData frameData)
+        {
+            if (frameData.rendererData != null
+                && frameData.rendererData.EnableDepthTexture)
+            {
+                return true;
+            }
+
+            return frameData.targets.hasCameraDepthTexture;
         }
 
         private static NWRPPassEvent GetCopyDepthPassEvent(

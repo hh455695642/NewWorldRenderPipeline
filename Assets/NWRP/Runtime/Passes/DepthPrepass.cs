@@ -55,6 +55,15 @@ namespace NWRP.Runtime.Passes
             NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
         }
 
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraDepthTexture = NWRPFrameResourceAccess.Write
+            };
+        }
+
         private static void ExecuteBuffer(ref NWRPFrameData frameData)
         {
             frameData.context.ExecuteCommandBuffer(frameData.cmd);

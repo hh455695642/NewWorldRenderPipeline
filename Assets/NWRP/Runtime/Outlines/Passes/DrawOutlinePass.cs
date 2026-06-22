@@ -33,5 +33,15 @@ namespace NWRP.Runtime.Passes
                 ref filteringSettings
             );
         }
+
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.Write,
+                cameraDepth = NWRPFrameResourceAccess.Write
+            };
+        }
     }
 }

@@ -817,9 +817,15 @@ namespace NWRP
 
             if (needIntermediateDepth)
             {
+                bool useMemorylessDepth =
+                    CanUseMemorylessIntermediateDepth(
+                        requirements,
+                        needIntermediateColor,
+                        needIntermediateDepth);
                 RenderTextureDescriptor depthDescriptor = CreateCameraDepthDescriptor(
                     frameData.cameraTargetWidth,
-                    frameData.cameraTargetHeight);
+                    frameData.cameraTargetHeight,
+                    useMemorylessDepth);
                 ReAllocateFrameTargetIfNeeded(
                     ref _cameraDepthHandle,
                     depthDescriptor,
@@ -1092,6 +1098,16 @@ namespace NWRP
                     source.rtHandleProperties.rtHandleScale.y)
                 : Vector2.one;
 
+            return GetFinalBlitScaleBias(camera, viewportScale);
+        }
+
+        internal static Vector4 GetFinalBlitScaleBias(Camera camera)
+        {
+            return GetFinalBlitScaleBias(camera, Vector2.one);
+        }
+
+        private static Vector4 GetFinalBlitScaleBias(Camera camera, Vector2 viewportScale)
+        {
             // Match URP FinalBlit: RT -> backbuffer needs a Y flip on top-left UV backends.
             bool yFlip = camera != null
                 && camera.cameraType != CameraType.SceneView
@@ -1345,7 +1361,23 @@ namespace NWRP
             return SystemInfo.IsFormatSupported(format, FormatUsage.Linear | FormatUsage.Render);
         }
 
-        private static RenderTextureDescriptor CreateCameraDepthDescriptor(int width, int height)
+        private static bool CanUseMemorylessIntermediateDepth(
+            NWRPFrameTargetRequirements requirements,
+            bool needIntermediateColor,
+            bool needIntermediateDepth)
+        {
+            return needIntermediateDepth
+                && needIntermediateColor
+                && !requirements.requiresDepthTexture
+                && !requirements.requiresDepthTextureCopy
+                && !requirements.requiresDepthTexturePrepass
+                && !requirements.requiresOpaqueTexture;
+        }
+
+        private static RenderTextureDescriptor CreateCameraDepthDescriptor(
+            int width,
+            int height,
+            bool memorylessDepth = false)
         {
             RenderTextureDescriptor descriptor = new RenderTextureDescriptor(
                 Mathf.Max(width, 1),
@@ -1358,6 +1390,9 @@ namespace NWRP
                 useMipMap = false,
                 autoGenerateMips = false
             };
+            descriptor.memoryless = memorylessDepth
+                ? RenderTextureMemoryless.Depth
+                : RenderTextureMemoryless.None;
 
             return descriptor;
         }
@@ -1446,6 +1481,42 @@ namespace NWRP
 #endif
 
             _activePasses.Sort(s_QueuedPassComparer);
+            AnalyzeFrameGraph(ref frameData);
+        }
+
+        private void AnalyzeFrameGraph(ref NWRPFrameData frameData)
+        {
+            frameData.frameGraph = default;
+
+            for (int passIndex = 0; passIndex < _activePasses.Count; passIndex++)
+            {
+                NWRPPass pass = _activePasses[passIndex].pass;
+                if (pass == null || pass.passEvent >= NWRPPassEvent.DebugOverlay)
+                {
+                    continue;
+                }
+
+                frameData.frameGraph.RecordPassUsage(
+                    pass.GetFrameResourceUsage(ref frameData));
+            }
+
+            for (int passIndex = _activePasses.Count - 1; passIndex >= 0; passIndex--)
+            {
+                NWRPPass pass = _activePasses[passIndex].pass;
+                if (pass == null || pass.passEvent >= NWRPPassEvent.DebugOverlay)
+                {
+                    continue;
+                }
+
+                NWRPFramePassResourceUsage usage =
+                    pass.GetFrameResourceUsage(ref frameData);
+                if (usage.canPresentCameraColorToBackBuffer)
+                {
+                    frameData.frameGraph.cameraColorFinalPresentPass = pass;
+                }
+
+                return;
+            }
         }
 
         private void ExecutePassQueue(ref NWRPFrameData frameData)
@@ -1735,6 +1806,7 @@ namespace NWRP
                 + $"opaqueCopy={stats.cameraColorCopyCount}, "
                 + $"depthCopy={stats.cameraDepthCopyCount}, "
                 + $"shadowCopy={stats.shadowAtlasCopyCount}, "
+                + $"finalFusion={stats.cameraColorFinalPassFusionCount}, "
                 + $"tempColorRT={stats.temporaryColorRTCount}, "
                 + $"tempDepthRT={stats.temporaryDepthRTCount}");
         }

@@ -85,7 +85,8 @@ namespace NWRP
             NWRPSerializedFeatureState state =
                 NWRPBuiltInFeatureCatalog.AnalyzeSerializedFeatures(features);
 
-            if (!state.hasDepthTexture && rendererData.EnableDepthTexture)
+            if (!state.hasDepthTexture
+                && ShouldEnqueueDepthTextureFeature(ref frameData, rendererData))
             {
                 EnqueueRuntimeFeature<DepthTextureFeature>(
                     renderer,
@@ -244,6 +245,14 @@ namespace NWRP
 #else
             return false;
 #endif
+        }
+
+        private static bool ShouldEnqueueDepthTextureFeature(
+            ref NWRPFrameData frameData,
+            NWRPRendererData rendererData)
+        {
+            return (rendererData != null && rendererData.EnableDepthTexture)
+                || frameData.targets.hasCameraDepthTexture;
         }
     }
 }

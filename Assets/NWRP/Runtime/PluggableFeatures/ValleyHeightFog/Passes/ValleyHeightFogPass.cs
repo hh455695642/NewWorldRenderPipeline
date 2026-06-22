@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace NWRP.Runtime.Passes
@@ -10,10 +9,6 @@ namespace NWRP.Runtime.Passes
 
         public const int SingleLayerShaderPass = 0;
         public const int ThreeLayerShaderPass = 1;
-
-        private static readonly Vector4 s_FullScaleBias = new Vector4(1f, 1f, 0f, 0f);
-
-        private readonly int _tempColorId = Shader.PropertyToID("_NWRPValleyHeightFogTempColor");
 
         private Material _copyMaterial;
         private Material _fogMaterial;
@@ -40,32 +35,63 @@ namespace NWRP.Runtime.Passes
             }
 
             RTHandle source = frameData.targets.cameraColorHandle;
-            RenderTextureDescriptor descriptor = CreateTempDescriptor(source.rt);
+            RenderTextureDescriptor descriptor =
+                NWRPFullscreenPassUtils.CreateColorDescriptor(source.rt);
             CommandBuffer cmd = frameData.cmd;
             Rect viewport = NWRPRenderer.GetCameraRenderViewport(ref frameData);
+            bool presentToBackBuffer =
+                frameData.frameGraph.IsCameraColorFinalPresentPass(this);
+            bool presentedToBackBuffer = false;
 
             UploadConstants(cmd, frameData.valleyHeightFog);
             int shaderPassIndex = GetShaderPassIndex(frameData.valleyHeightFog);
 
-            cmd.GetTemporaryRT(_tempColorId, descriptor, FilterMode.Bilinear);
-            frameData.debugStats.RecordTemporaryRT(NWRPFrameTemporaryRTKind.Color);
+            NWRPFullscreenPassUtils.AllocateTempColor(
+                ref frameData,
+                NWRPFullscreenTempSlot.A,
+                descriptor,
+                FilterMode.Bilinear);
             try
             {
-                RenderTargetIdentifier tempColor = _tempColorId;
+                RenderTargetIdentifier tempColor =
+                    NWRPFullscreenPassUtils.GetTempColorId(NWRPFullscreenTempSlot.A);
 
-                BlitToTarget(ref frameData, source, tempColor, viewport, _fogMaterial, shaderPassIndex);
-                BlitToTarget(
+                NWRPFullscreenPassUtils.BlitToTarget(
                     ref frameData,
+                    source,
                     tempColor,
-                    frameData.targets.cameraColor,
                     viewport,
-                    _copyMaterial,
-                    0);
+                    _fogMaterial,
+                    shaderPassIndex);
+                if (presentToBackBuffer)
+                {
+                    NWRPFullscreenPassUtils.BlitToBackBuffer(
+                        ref frameData,
+                        tempColor,
+                        _copyMaterial,
+                        0);
+                    presentedToBackBuffer = true;
+                }
+                else
+                {
+                    NWRPFullscreenPassUtils.BlitToTarget(
+                        ref frameData,
+                        tempColor,
+                        frameData.targets.cameraColor,
+                        viewport,
+                        _copyMaterial,
+                        0);
+                }
             }
             finally
             {
-                cmd.ReleaseTemporaryRT(_tempColorId);
-                NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
+                NWRPFullscreenPassUtils.ReleaseTempColor(
+                    cmd,
+                    NWRPFullscreenTempSlot.A);
+                if (!presentedToBackBuffer)
+                {
+                    NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
+                }
             }
         }
 
@@ -83,6 +109,31 @@ namespace NWRP.Runtime.Passes
             CoreUtils.Destroy(_fogMaterial);
             _copyMaterial = null;
             _fogMaterial = null;
+        }
+
+        public override bool CanPresentCameraColorToBackBuffer(ref NWRPFrameData frameData)
+        {
+            return CanPresentFinalFog(ref frameData);
+        }
+
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            NWRPFramePassResourceUsage usage =
+                NWRPFramePassResourceUsage.CameraColorReadWrite(
+                    CanPresentFinalFog(ref frameData));
+            usage.cameraDepthTexture = NWRPFrameResourceAccess.Read;
+            return usage;
+        }
+
+        private static bool CanPresentFinalFog(ref NWRPFrameData frameData)
+        {
+            return ValleyHeightFogFeature.IsActive(ref frameData)
+                && frameData.camera != null
+                && frameData.camera.cameraType == CameraType.Game
+                && frameData.targets.usesIntermediateColor
+                && frameData.targets.cameraColorHandle != null
+                && frameData.targets.hasCameraDepthTexture;
         }
 
         private bool EnsureMaterials()
@@ -105,63 +156,6 @@ namespace NWRP.Runtime.Passes
             }
 
             return _copyMaterial != null && _fogMaterial != null;
-        }
-
-        private static RenderTextureDescriptor CreateTempDescriptor(RenderTexture sourceTexture)
-        {
-            RenderTextureDescriptor descriptor = sourceTexture.descriptor;
-            descriptor.depthBufferBits = 0;
-            descriptor.depthStencilFormat = GraphicsFormat.None;
-            descriptor.msaaSamples = 1;
-            descriptor.bindMS = false;
-            descriptor.useMipMap = false;
-            descriptor.autoGenerateMips = false;
-            descriptor.enableRandomWrite = false;
-            return descriptor;
-        }
-
-        private static void BlitToTarget(
-            ref NWRPFrameData frameData,
-            RTHandle source,
-            RenderTargetIdentifier destination,
-            Rect viewport,
-            Material material,
-            int passIndex)
-        {
-            CommandBuffer cmd = frameData.cmd;
-            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
-            frameData.debugStats.RecordFullscreenBlit();
-            CoreUtils.SetRenderTarget(
-                cmd,
-                destination,
-                RenderBufferLoadAction.DontCare,
-                RenderBufferStoreAction.Store,
-                ClearFlag.None,
-                Color.clear);
-            cmd.SetViewport(viewport);
-            Blitter.BlitTexture(cmd, source, s_FullScaleBias, material, passIndex);
-        }
-
-        private static void BlitToTarget(
-            ref NWRPFrameData frameData,
-            RenderTargetIdentifier source,
-            RenderTargetIdentifier destination,
-            Rect viewport,
-            Material material,
-            int passIndex)
-        {
-            CommandBuffer cmd = frameData.cmd;
-            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
-            frameData.debugStats.RecordFullscreenBlit();
-            CoreUtils.SetRenderTarget(
-                cmd,
-                destination,
-                RenderBufferLoadAction.DontCare,
-                RenderBufferStoreAction.Store,
-                ClearFlag.None,
-                Color.clear);
-            cmd.SetViewport(viewport);
-            Blitter.BlitTexture(cmd, source, s_FullScaleBias, material, passIndex);
         }
 
         private static void UploadConstants(CommandBuffer cmd, NWRPValleyHeightFog fog)
