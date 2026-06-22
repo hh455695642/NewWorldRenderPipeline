@@ -286,6 +286,26 @@ namespace NWRP
         }
 
         [System.Serializable]
+        public sealed class MobileBandwidthSettings
+        {
+            [InspectorName("Enable Mobile Fullscreen Budget")]
+            [Tooltip("Clamp high-bandwidth fullscreen resources for tile-based mobile GPUs. Disable only for desktop lookdev parity checks.")]
+            public bool enableMobileFullscreenBudget = true;
+
+            [Range(1, 6)]
+            [Tooltip("Maximum bloom pyramid mips allocated by the mobile bandwidth budget.")]
+            public int bloomMaxMipCount = 4;
+
+            [Range(64, 4096)]
+            [Tooltip("Maximum bloom base width before the pyramid halves each mip.")]
+            public int bloomMaxBaseSize = 512;
+
+            [InspectorName("Log Frame Debug Stats")]
+            [Tooltip("Log per-camera render target, fullscreen blit, copy, and temporary RT counters. Use only while profiling.")]
+            public bool logFrameDebugStats = false;
+        }
+
+        [System.Serializable]
         public sealed class MainLightShadowToggleSettings
         {
             [Tooltip("Enable all main light shadow rendering. When disabled, both realtime and cached main light shadows are skipped.")]
@@ -526,6 +546,9 @@ namespace NWRP
         [Tooltip("Upscale filter used by the final blit when render scale creates an intermediate camera color target.")]
         public RenderScaleFilterMode renderScaleFilterMode = RenderScaleFilterMode.Bilinear;
 
+        [Header("Mobile Bandwidth")]
+        public MobileBandwidthSettings mobileBandwidth = new MobileBandwidthSettings();
+
         [Header("Main Light Shadows")]
         public MainLightShadowSettings mainLightShadows = new MainLightShadowSettings();
 
@@ -737,6 +760,20 @@ namespace NWRP
             renderScaleFilterMode == RenderScaleFilterMode.Point
                 ? FilterMode.Point
                 : FilterMode.Bilinear;
+        public bool EnableMobileFullscreenBudget =>
+            mobileBandwidth != null && mobileBandwidth.enableMobileFullscreenBudget;
+        public int MobileBloomMaxMipCount =>
+            Mathf.Clamp(
+                mobileBandwidth != null ? mobileBandwidth.bloomMaxMipCount : 6,
+                1,
+                6);
+        public int MobileBloomMaxBaseSize =>
+            Mathf.Clamp(
+                mobileBandwidth != null ? mobileBandwidth.bloomMaxBaseSize : 4096,
+                64,
+                4096);
+        public bool LogFrameDebugStats =>
+            mobileBandwidth != null && mobileBandwidth.logFrameDebugStats;
 
         internal NWRPRendererData GetRendererData(int index, out int resolvedIndex)
         {
@@ -995,6 +1032,7 @@ namespace NWRP
         void ISerializationCallbackReceiver.OnBeforeSerialize()
         {
             EnsureFeatureSettings();
+            EnsureMobileBandwidthSettings();
             FeatureSettingsData.RemoveNullFeatures();
             ResolveDefaultRendererIndex();
 
@@ -1017,6 +1055,7 @@ namespace NWRP
             EnsureMainLightShadowSettings(allowAssetFileMigration: false);
             EnsureAdditionalLightShadowSettings();
             EnsureFeatureSettings();
+            EnsureMobileBandwidthSettings();
             FeatureSettingsData.RemoveNullFeatures();
             ResolveDefaultRendererIndex();
         }
@@ -1027,10 +1066,15 @@ namespace NWRP
             EnsureMainLightShadowSettings(allowAssetFileMigration: true);
             EnsureAdditionalLightShadowSettings();
             EnsureFeatureSettings();
+            EnsureMobileBandwidthSettings();
             FeatureSettingsData.RemoveNullFeatures();
             ResolveDefaultRendererIndex();
 
             renderScale = ValidateRenderScale(renderScale);
+            mobileBandwidth.bloomMaxMipCount =
+                Mathf.Clamp(mobileBandwidth.bloomMaxMipCount, 1, 6);
+            mobileBandwidth.bloomMaxBaseSize =
+                Mathf.Clamp(mobileBandwidth.bloomMaxBaseSize, 64, 4096);
 
             MainLightShadowSettings settings = mainLightShadows;
             settings.atlas.mainLightShadowResolution = Mathf.ClosestPowerOfTwo(
@@ -1109,6 +1153,14 @@ namespace NWRP
             }
 
             featureSettings.EnsureInitialized();
+        }
+
+        private void EnsureMobileBandwidthSettings()
+        {
+            if (mobileBandwidth == null)
+            {
+                mobileBandwidth = new MobileBandwidthSettings();
+            }
         }
 
         private static float ValidateRenderScale(float value)

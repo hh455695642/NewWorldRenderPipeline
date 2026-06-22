@@ -47,6 +47,8 @@ namespace NWRP
         public int cameraTargetHeight;
         public FilterMode renderScaleFilterMode;
         public bool renderScaleActive;
+        public NWRPCameraAttachmentState cameraAttachmentState;
+        public NWRPFrameDebugStats debugStats;
     }
 
     /// <summary>

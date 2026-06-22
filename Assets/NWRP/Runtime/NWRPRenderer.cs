@@ -136,6 +136,7 @@ namespace NWRP
                         ConfigureFrameTargets(ref frameData);
                         BuildPassQueue(ref frameData);
                         ExecutePassQueue(ref frameData);
+                        LogFrameDebugStats(ref frameData);
                     }
                 }
 
@@ -168,16 +169,21 @@ namespace NWRP
         {
             frameData.context.SetupCameraProperties(frameData.camera);
 
-            SetCameraRenderTarget(ref frameData);
-
             CameraClearFlags clearFlags = frameData.camera.clearFlags;
-            frameData.cmd.ClearRenderTarget(
-                clearDepth: clearFlags <= CameraClearFlags.Depth,
-                clearColor: clearFlags <= CameraClearFlags.SolidColor,
-                backgroundColor: clearFlags == CameraClearFlags.SolidColor
-                    ? frameData.camera.backgroundColor.linear
-                    : Color.clear
-            );
+            bool clearDepth = clearFlags <= CameraClearFlags.Depth;
+            bool clearColor = clearFlags <= CameraClearFlags.SolidColor;
+            Color clearColorValue = clearFlags == CameraClearFlags.SolidColor
+                ? frameData.camera.backgroundColor.linear
+                : Color.clear;
+
+            SetCameraRenderTarget(
+                ref frameData,
+                NWRPCameraAttachmentPolicy.ForUsage(
+                    NWRPCameraAttachmentUsage.CameraSetup,
+                    clearColor,
+                    clearDepth),
+                MakeClearFlag(clearColor, clearDepth),
+                clearColorValue);
 
             ExecuteBuffer(ref frameData);
         }
@@ -337,7 +343,7 @@ namespace NWRP
 
         internal void ExecuteDrawOpaque(ref NWRPFrameData frameData)
         {
-            SetCameraRenderTarget(ref frameData);
+            RestoreCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
 
             SortingSettings sortingSettings = new SortingSettings(frameData.camera)
@@ -366,7 +372,7 @@ namespace NWRP
 
         internal void ExecuteDrawSkybox(ref NWRPFrameData frameData)
         {
-            SetCameraRenderTarget(ref frameData);
+            RestoreCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
 
             frameData.context.DrawSkybox(frameData.camera);
@@ -374,7 +380,7 @@ namespace NWRP
 
         internal void ExecuteDrawTransparent(ref NWRPFrameData frameData)
         {
-            SetCameraRenderTarget(ref frameData);
+            RestoreCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
 
             SortingSettings sortingSettings = new SortingSettings(frameData.camera)
@@ -752,6 +758,9 @@ namespace NWRP
 
         private void ConfigureFrameTargets(ref NWRPFrameData frameData)
         {
+            frameData.cameraAttachmentState = default;
+            frameData.debugStats = default;
+
             NWRPFrameTargetRequirements requirements =
                 NWRPFeatureScheduler.CollectFrameTargetRequirements(ref frameData);
 
@@ -1027,6 +1036,8 @@ namespace NWRP
 
             using (new ProfilingScope(frameData.cmd, NWRPProfiling.FinalBlit))
             {
+                InvalidateCameraRenderTarget(ref frameData);
+                frameData.debugStats.RecordFinalBlit();
                 CoreUtils.SetRenderTarget(
                     frameData.cmd,
                     frameData.targets.backBufferColor,
@@ -1116,19 +1127,73 @@ namespace NWRP
             return _coreBlitMaterial != null;
         }
 
-        private static void SetCameraRenderTarget(ref NWRPFrameData frameData)
+        internal static void RestoreCameraRenderTarget(ref NWRPFrameData frameData)
+        {
+            SetCameraRenderTarget(
+                ref frameData,
+                NWRPCameraAttachmentPolicy.ForUsage(
+                    NWRPCameraAttachmentUsage.ContinueCamera,
+                    clearsColor: false,
+                    clearsDepth: false),
+                ClearFlag.None,
+                Color.clear);
+        }
+
+        internal static void InvalidateCameraRenderTarget(ref NWRPFrameData frameData)
+        {
+            frameData.cameraAttachmentState.Invalidate();
+            frameData.debugStats.RecordNonCameraTargetBind();
+        }
+
+        private static void SetCameraRenderTarget(
+            ref NWRPFrameData frameData,
+            NWRPCameraAttachmentPolicy policy,
+            ClearFlag clearFlag,
+            Color clearColor)
         {
             if (frameData.cmd == null || !frameData.targets.hasCameraTargets)
             {
                 return;
             }
 
-            frameData.cmd.SetRenderTarget(
-                frameData.targets.cameraColor,
-                frameData.targets.cameraDepth);
-            frameData.cmd.SetViewport(GetCameraRenderViewport(ref frameData));
+            Rect viewport = GetCameraRenderViewport(ref frameData);
+            bool canSkipBind = clearFlag == ClearFlag.None
+                && frameData.cameraAttachmentState.CanSkipCameraTargetBind(policy, viewport);
+            frameData.debugStats.RecordCameraTargetBind(canSkipBind);
+            if (!canSkipBind)
+            {
+                CoreUtils.SetRenderTarget(
+                    frameData.cmd,
+                    frameData.targets.cameraColor,
+                    policy.colorLoadAction,
+                    policy.colorStoreAction,
+                    frameData.targets.cameraDepth,
+                    policy.depthLoadAction,
+                    policy.depthStoreAction,
+                    clearFlag,
+                    clearColor);
+                frameData.cmd.SetViewport(viewport);
+                frameData.cameraAttachmentState.MarkCameraTargetBound(policy, viewport);
+            }
+
             SetCameraMatrices(ref frameData);
             SetCameraScreenGlobals(ref frameData);
+        }
+
+        private static ClearFlag MakeClearFlag(bool clearColor, bool clearDepth)
+        {
+            ClearFlag clearFlag = ClearFlag.None;
+            if (clearColor)
+            {
+                clearFlag |= ClearFlag.Color;
+            }
+
+            if (clearDepth)
+            {
+                clearFlag |= ClearFlag.Depth;
+            }
+
+            return clearFlag;
         }
 
         private static bool IsCameraProjectionMatrixFlipped(Camera camera, RTHandle colorHandle)
@@ -1649,6 +1714,29 @@ namespace NWRP
 
             frameData.context.ExecuteCommandBuffer(frameData.cmd);
             frameData.cmd.Clear();
+        }
+
+        private static void LogFrameDebugStats(ref NWRPFrameData frameData)
+        {
+            if (frameData.asset == null || !frameData.asset.LogFrameDebugStats)
+            {
+                return;
+            }
+
+            NWRPFrameDebugStats stats = frameData.debugStats;
+            string cameraName = frameData.camera != null ? frameData.camera.name : "NULL";
+            Debug.Log(
+                $"NWRP Frame Stats [{cameraName}] "
+                + $"cameraBind={stats.cameraTargetBindCount}, "
+                + $"cameraSkip={stats.cameraTargetSkipCount}, "
+                + $"nonCameraBind={stats.nonCameraTargetBindCount}, "
+                + $"fullscreenBlit={stats.fullscreenBlitCount}, "
+                + $"finalBlit={stats.finalBlitCount}, "
+                + $"opaqueCopy={stats.cameraColorCopyCount}, "
+                + $"depthCopy={stats.cameraDepthCopyCount}, "
+                + $"shadowCopy={stats.shadowAtlasCopyCount}, "
+                + $"tempColorRT={stats.temporaryColorRTCount}, "
+                + $"tempDepthRT={stats.temporaryDepthRTCount}");
         }
     }
 }

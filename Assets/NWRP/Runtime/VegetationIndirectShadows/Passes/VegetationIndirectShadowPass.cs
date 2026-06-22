@@ -108,6 +108,7 @@ namespace NWRP.Runtime.Passes
             MainLightShadowIndirectCasterContext.Target target)
         {
             CommandBuffer cmd = frameData.cmd;
+            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
             cmd.SetRenderTarget(
                 target.shadowmapTexture,
                 RenderBufferLoadAction.Load,

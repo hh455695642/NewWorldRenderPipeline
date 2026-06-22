@@ -66,20 +66,21 @@ namespace NWRP.Runtime.Passes
 
             UploadConstants(cmd, source.rt, radius);
             cmd.GetTemporaryRT(_tempColorId, descriptor, FilterMode.Bilinear);
+            frameData.debugStats.RecordTemporaryRT(NWRPFrameTemporaryRTKind.Color);
             try
             {
                 RenderTargetIdentifier tempColor = _tempColorId;
                 for (int i = 0; i < iterations; i++)
                 {
                     BlitToTarget(
-                        cmd,
+                        ref frameData,
                         source,
                         tempColor,
                         viewport,
                         _blurMaterial,
                         (int)ScreenBlurShaderPass.Horizontal);
                     BlitToTarget(
-                        cmd,
+                        ref frameData,
                         tempColor,
                         frameData.targets.cameraColor,
                         viewport,
@@ -90,8 +91,7 @@ namespace NWRP.Runtime.Passes
             finally
             {
                 cmd.ReleaseTemporaryRT(_tempColorId);
-                cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-                cmd.SetViewport(viewport);
+                NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
             }
         }
 
@@ -148,13 +148,16 @@ namespace NWRP.Runtime.Passes
         }
 
         private static void BlitToTarget(
-            CommandBuffer cmd,
+            ref NWRPFrameData frameData,
             RTHandle source,
             RenderTargetIdentifier destination,
             Rect viewport,
             Material material,
             int passIndex)
         {
+            CommandBuffer cmd = frameData.cmd;
+            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
+            frameData.debugStats.RecordFullscreenBlit();
             CoreUtils.SetRenderTarget(
                 cmd,
                 destination,
@@ -167,13 +170,16 @@ namespace NWRP.Runtime.Passes
         }
 
         private static void BlitToTarget(
-            CommandBuffer cmd,
+            ref NWRPFrameData frameData,
             RenderTargetIdentifier source,
             RenderTargetIdentifier destination,
             Rect viewport,
             Material material,
             int passIndex)
         {
+            CommandBuffer cmd = frameData.cmd;
+            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
+            frameData.debugStats.RecordFullscreenBlit();
             CoreUtils.SetRenderTarget(
                 cmd,
                 destination,

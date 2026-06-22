@@ -44,6 +44,8 @@ namespace NWRP.Runtime.Passes
 
             cmd.SetGlobalTexture(NWRPShaderIds.CameraDepthAttachment, source.nameID);
             ConfigureKeywords(copyToDepth);
+            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
+            frameData.debugStats.RecordCameraDepthCopy();
             if (copyToDepth)
             {
                 SetDepthCopyTarget(cmd, frameData.targets.cameraDepthTexture);
@@ -72,8 +74,7 @@ namespace NWRP.Runtime.Passes
             }
 
             cmd.SetGlobalTexture(NWRPShaderIds.CameraDepthTexture, destination.nameID);
-            cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-            cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
+            NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
         }
 
         public void Dispose()

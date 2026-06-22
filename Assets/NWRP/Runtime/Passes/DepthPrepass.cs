@@ -22,6 +22,7 @@ namespace NWRP.Runtime.Passes
             }
 
             CommandBuffer cmd = frameData.cmd;
+            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
             cmd.SetRenderTarget(
                 new RenderTargetIdentifier(BuiltinRenderTextureType.None),
                 frameData.targets.cameraDepthTexture);
@@ -51,8 +52,7 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalTexture(
                 NWRPShaderIds.CameraDepthTexture,
                 frameData.targets.cameraDepthTextureHandle);
-            cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-            cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
+            NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
         }
 
         private static void ExecuteBuffer(ref NWRPFrameData frameData)

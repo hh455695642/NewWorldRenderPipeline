@@ -23,6 +23,11 @@ namespace NWRP.Editor
         private SerializedProperty _enableRenderScaleProperty;
         private SerializedProperty _renderScaleProperty;
         private SerializedProperty _renderScaleFilterModeProperty;
+        private SerializedProperty _mobileBandwidthProperty;
+        private SerializedProperty _enableMobileFullscreenBudgetProperty;
+        private SerializedProperty _mobileBloomMaxMipCountProperty;
+        private SerializedProperty _mobileBloomMaxBaseSizeProperty;
+        private SerializedProperty _logFrameDebugStatsProperty;
         private SerializedProperty _rendererDataListProperty;
         private SerializedProperty _defaultRendererIndexProperty;
         private SerializedProperty _featureSettingsProperty;
@@ -99,6 +104,18 @@ namespace NWRP.Editor
             _enableRenderScaleProperty = serializedObject.FindProperty("enableRenderScale");
             _renderScaleProperty = serializedObject.FindProperty("renderScale");
             _renderScaleFilterModeProperty = serializedObject.FindProperty("renderScaleFilterMode");
+            _mobileBandwidthProperty = serializedObject.FindProperty("mobileBandwidth");
+            if (_mobileBandwidthProperty != null)
+            {
+                _enableMobileFullscreenBudgetProperty =
+                    _mobileBandwidthProperty.FindPropertyRelative("enableMobileFullscreenBudget");
+                _mobileBloomMaxMipCountProperty =
+                    _mobileBandwidthProperty.FindPropertyRelative("bloomMaxMipCount");
+                _mobileBloomMaxBaseSizeProperty =
+                    _mobileBandwidthProperty.FindPropertyRelative("bloomMaxBaseSize");
+                _logFrameDebugStatsProperty =
+                    _mobileBandwidthProperty.FindPropertyRelative("logFrameDebugStats");
+            }
             _rendererDataListProperty = serializedObject.FindProperty("rendererDataList");
             _defaultRendererIndexProperty = serializedObject.FindProperty("defaultRendererIndex");
             CreateRendererDataList();
@@ -282,6 +299,39 @@ namespace NWRP.Editor
             {
                 EditorGUILayout.HelpBox(
                     "Eligible Game cameras render into a scaled intermediate color/depth target. Mark UI cameras as Force Native on NWRPCameraData to keep Screen Space Camera UI sharp.",
+                    MessageType.Info);
+            }
+
+            EditorGUILayout.Space(2f);
+            DrawSubsectionLabel("Mobile Bandwidth");
+            if (_mobileBandwidthProperty == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "The pipeline asset has not serialized the Mobile Bandwidth block yet. Reimport or resave the asset after script compilation.",
+                    MessageType.Warning);
+                return;
+            }
+
+            EditorGUILayout.PropertyField(
+                _enableMobileFullscreenBudgetProperty,
+                new GUIContent("Enable Mobile Fullscreen Budget"));
+            using (new EditorGUI.DisabledScope(!_enableMobileFullscreenBudgetProperty.boolValue))
+            {
+                EditorGUILayout.PropertyField(
+                    _mobileBloomMaxMipCountProperty,
+                    new GUIContent("Bloom Max Mips"));
+                EditorGUILayout.PropertyField(
+                    _mobileBloomMaxBaseSizeProperty,
+                    new GUIContent("Bloom Max Base Size"));
+            }
+            EditorGUILayout.PropertyField(
+                _logFrameDebugStatsProperty,
+                new GUIContent("Log Frame Debug Stats"));
+
+            if (_enableMobileFullscreenBudgetProperty.boolValue)
+            {
+                EditorGUILayout.HelpBox(
+                    "Caps fullscreen bloom allocations for tile-based mobile GPUs. Keep this enabled for Android/iOS performance passes.",
                     MessageType.Info);
             }
         }

@@ -27,6 +27,8 @@ namespace NWRP.Runtime.Passes
             }
 
             CommandBuffer cmd = frameData.cmd;
+            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
+            frameData.debugStats.RecordCameraColorCopy();
             Blitter.BlitCameraTexture(
                 cmd,
                 frameData.targets.cameraColorHandle,
@@ -40,8 +42,7 @@ namespace NWRP.Runtime.Passes
                 NWRPShaderIds.CameraOpaqueTexture,
                 frameData.targets.opaqueTextureHandle);
 
-            cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-            cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
+            NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
         }
 
         public void Dispose()

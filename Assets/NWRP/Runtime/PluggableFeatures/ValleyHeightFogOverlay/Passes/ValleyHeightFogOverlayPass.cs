@@ -25,9 +25,7 @@ namespace NWRP.Runtime.Passes
                 return;
             }
 
-            CommandBuffer cmd = frameData.cmd;
-            cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-            cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
+            NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
 
             SortingSettings sortingSettings = new SortingSettings(frameData.camera)
