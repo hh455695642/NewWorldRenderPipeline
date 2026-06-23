@@ -40,6 +40,7 @@ namespace NWRP
         public static bool IsValid => TargetCount > 0;
         public static int TargetCount { get; private set; }
         public static bool HasPendingStaticCacheDraw { get; private set; }
+        public static bool HasPendingDynamicOverlayDraw { get; private set; }
 
         public static Target GetTarget(int targetIndex)
         {
@@ -76,12 +77,19 @@ namespace NWRP
                 target.cascadeData[i] = cascadeData[i];
 
             HasPendingStaticCacheDraw |= includeStaticCasters && !includeDynamicCasters;
+            HasPendingDynamicOverlayDraw |= includeDynamicCasters;
+        }
+
+        public static void MarkPendingDynamicOverlayDraw()
+        {
+            HasPendingDynamicOverlayDraw = true;
         }
 
         public static void Clear()
         {
             TargetCount = 0;
             HasPendingStaticCacheDraw = false;
+            HasPendingDynamicOverlayDraw = false;
 
             for (int i = 0; i < kMaxTargets; i++)
                 s_Targets[i].Clear();

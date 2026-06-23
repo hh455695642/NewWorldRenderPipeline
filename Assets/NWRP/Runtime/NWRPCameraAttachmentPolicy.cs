@@ -6,7 +6,11 @@ namespace NWRP
     public enum NWRPCameraAttachmentUsage
     {
         CameraSetup,
-        ContinueCamera
+        BeginCameraColor,
+        ContinueCamera,
+        ContinueCameraColor,
+        LastCameraDepthUse,
+        FinalBackBufferWrite
     }
 
     public readonly struct NWRPCameraAttachmentPolicy
@@ -33,13 +37,23 @@ namespace NWRP
             bool clearsColor,
             bool clearsDepth)
         {
-            if (usage == NWRPCameraAttachmentUsage.CameraSetup)
+            if (usage == NWRPCameraAttachmentUsage.CameraSetup
+                || usage == NWRPCameraAttachmentUsage.BeginCameraColor)
             {
                 return new NWRPCameraAttachmentPolicy(
                     clearsColor ? RenderBufferLoadAction.DontCare : RenderBufferLoadAction.Load,
                     RenderBufferStoreAction.Store,
                     clearsDepth ? RenderBufferLoadAction.DontCare : RenderBufferLoadAction.Load,
                     RenderBufferStoreAction.Store);
+            }
+
+            if (usage == NWRPCameraAttachmentUsage.LastCameraDepthUse)
+            {
+                return new NWRPCameraAttachmentPolicy(
+                    RenderBufferLoadAction.Load,
+                    RenderBufferStoreAction.Store,
+                    RenderBufferLoadAction.Load,
+                    RenderBufferStoreAction.DontCare);
             }
 
             return new NWRPCameraAttachmentPolicy(

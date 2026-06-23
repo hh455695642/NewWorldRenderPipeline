@@ -62,6 +62,8 @@ namespace NWRP
         private RTHandle _cameraDepthHandle;
         private RTHandle _cameraDepthTextureHandle;
         private RTHandle _opaqueTextureHandle;
+        private readonly NWRPTransientResourceAllocator _transientResourceAllocator =
+            new NWRPTransientResourceAllocator();
         private int _enqueueCounter;
 
         public NWRPRenderer()
@@ -122,8 +124,11 @@ namespace NWRP
                 cmd = cmd,
                 asset = asset,
                 rendererData = rendererData,
-                rendererDataIndex = rendererDataIndex
+                rendererDataIndex = rendererDataIndex,
+                transientResources = _transientResourceAllocator,
+                currentPassIndex = -1
             };
+            _transientResourceAllocator.Reset();
 
             try
             {
@@ -136,6 +141,8 @@ namespace NWRP
                         ConfigureFrameTargets(ref frameData);
                         BuildPassQueue(ref frameData);
                         ExecutePassQueue(ref frameData);
+                        frameData.debugStats.RecordTransientResources(
+                            frameData.transientResources);
                         LogFrameDebugStats(ref frameData);
                     }
                 }
@@ -220,18 +227,29 @@ namespace NWRP
                 && frameData.targets.cameraColorHandle != null
                 && frameData.targets.cameraColorHandle.nameID == BuiltinRenderTextureType.CameraTarget
                 && camera.targetTexture == null;
-            bool yFlip = !isCameraColorFinalTarget;
-            float flipSign = yFlip ? -1.0f : 1.0f;
-            Vector4 scaleBiasRt = flipSign < 0.0f
-                ? new Vector4(flipSign, 1.0f, -1.0f, 1.0f)
-                : new Vector4(flipSign, 0.0f, 1.0f, 1.0f);
-
-            frameData.cmd.SetGlobalVector(NWRPShaderIds.ScaleBiasRt, scaleBiasRt);
+            SetFullscreenScaleBiasRt(ref frameData, isCameraColorFinalTarget);
             frameData.cmd.SetGlobalVector(
                 NWRPShaderIds.CameraDepthTextureScaleBias,
                 GetCameraDepthTextureScaleBias(
                     camera,
                     frameData.targets.cameraDepthTextureWrittenByPrepass));
+        }
+
+        internal static void SetFullscreenScaleBiasRt(
+            ref NWRPFrameData frameData,
+            bool isGameBackBufferTarget)
+        {
+            if (frameData.cmd == null)
+            {
+                return;
+            }
+
+            bool yFlip = !isGameBackBufferTarget;
+            float flipSign = yFlip ? -1.0f : 1.0f;
+            Vector4 scaleBiasRt = flipSign < 0.0f
+                ? new Vector4(flipSign, 1.0f, -1.0f, 1.0f)
+                : new Vector4(flipSign, 0.0f, 1.0f, 1.0f);
+            frameData.cmd.SetGlobalVector(NWRPShaderIds.ScaleBiasRt, scaleBiasRt);
         }
 
         private static Vector4 GetCameraDepthTextureScaleBias(
@@ -510,6 +528,7 @@ namespace NWRP
                         camera.transform,
                         camera.cullingMask,
                         null);
+                    ResolveDepthConsumerEffectsFromVolume(ref frameData);
 
                     if (canRunPostProcessing)
                     {
@@ -529,6 +548,7 @@ namespace NWRP
                     frameData.cameraData.GetVolumeTrigger(camera),
                     frameData.cameraData.VolumeLayerMask,
                     frameData.cameraData);
+                ResolveDepthConsumerEffectsFromVolume(ref frameData);
 
                 if (frameData.cameraData.renderPostProcessing && canRunPostProcessing)
                 {
@@ -627,6 +647,14 @@ namespace NWRP
             frameData.screenBlurActive =
                 screenBlur != null
                 && screenBlur.IsActive();
+        }
+
+        private static void ResolveDepthConsumerEffectsFromVolume(ref NWRPFrameData frameData)
+        {
+            if (frameData.volumeStack == null)
+            {
+                return;
+            }
 
             NWRPValleyHeightFog valleyHeightFog =
                 frameData.volumeStack.GetComponent<NWRPValleyHeightFog>();
@@ -1145,10 +1173,22 @@ namespace NWRP
 
         internal static void RestoreCameraRenderTarget(ref NWRPFrameData frameData)
         {
+            bool isLastCameraDepthUse =
+                frameData.currentPassIndex >= 0
+                && frameData.currentPassIndex
+                    == frameData.frameGraph.cameraDepthLastUsePassIndex
+                && frameData.frameGraph.canDiscardCameraDepthAfterLastUse;
+            if (isLastCameraDepthUse)
+            {
+                frameData.debugStats.RecordDiscardedDepthStore();
+            }
+
             SetCameraRenderTarget(
                 ref frameData,
                 NWRPCameraAttachmentPolicy.ForUsage(
-                    NWRPCameraAttachmentUsage.ContinueCamera,
+                    isLastCameraDepthUse
+                        ? NWRPCameraAttachmentUsage.LastCameraDepthUse
+                        : NWRPCameraAttachmentUsage.ContinueCamera,
                     clearsColor: false,
                     clearsDepth: false),
                 ClearFlag.None,
@@ -1486,7 +1526,12 @@ namespace NWRP
 
         private void AnalyzeFrameGraph(ref NWRPFrameData frameData)
         {
-            frameData.frameGraph = default;
+            List<NWRPFramePassResourceUsage> usages =
+                new List<NWRPFramePassResourceUsage>(_activePasses.Count);
+            List<NWRPPass> usagePasses =
+                new List<NWRPPass>(_activePasses.Count);
+            List<int> queuedPassIndices =
+                new List<int>(_activePasses.Count);
 
             for (int passIndex = 0; passIndex < _activePasses.Count; passIndex++)
             {
@@ -1496,27 +1541,45 @@ namespace NWRP
                     continue;
                 }
 
-                frameData.frameGraph.RecordPassUsage(
-                    pass.GetFrameResourceUsage(ref frameData));
+                usages.Add(pass.GetFrameResourceUsage(ref frameData));
+                usagePasses.Add(pass);
+                queuedPassIndices.Add(passIndex);
             }
 
-            for (int passIndex = _activePasses.Count - 1; passIndex >= 0; passIndex--)
+            frameData.frameGraph = NWRPFrameGraphAnalyzer.Analyze(usages);
+            int finalPresentIndex =
+                frameData.frameGraph.cameraColorFinalPresentPassIndex;
+            if (finalPresentIndex >= 0 && finalPresentIndex < usagePasses.Count)
             {
-                NWRPPass pass = _activePasses[passIndex].pass;
-                if (pass == null || pass.passEvent >= NWRPPassEvent.DebugOverlay)
-                {
-                    continue;
-                }
-
-                NWRPFramePassResourceUsage usage =
-                    pass.GetFrameResourceUsage(ref frameData);
-                if (usage.canPresentCameraColorToBackBuffer)
-                {
-                    frameData.frameGraph.cameraColorFinalPresentPass = pass;
-                }
-
-                return;
+                frameData.frameGraph.cameraColorFinalPresentPass =
+                    usagePasses[finalPresentIndex];
             }
+
+            frameData.frameGraph.cameraColorFinalPresentPassIndex =
+                MapUsagePassIndexToQueuedPassIndex(
+                    frameData.frameGraph.cameraColorFinalPresentPassIndex,
+                    queuedPassIndices);
+            frameData.frameGraph.cameraDepthLastUsePassIndex =
+                MapUsagePassIndexToQueuedPassIndex(
+                    frameData.frameGraph.cameraDepthLastUsePassIndex,
+                    queuedPassIndices);
+
+            frameData.debugStats.RecordRenderPassClusters(
+                frameData.frameGraph.renderPassClusterCount);
+        }
+
+        private static int MapUsagePassIndexToQueuedPassIndex(
+            int usagePassIndex,
+            List<int> queuedPassIndices)
+        {
+            if (usagePassIndex < 0
+                || queuedPassIndices == null
+                || usagePassIndex >= queuedPassIndices.Count)
+            {
+                return -1;
+            }
+
+            return queuedPassIndices[usagePassIndex];
         }
 
         private void ExecutePassQueue(ref NWRPFrameData frameData)
@@ -1553,7 +1616,7 @@ namespace NWRP
                         continue;
                     }
 
-                    ExecutePass(ref frameData, _activePasses[passIndex].pass);
+                    ExecutePass(ref frameData, _activePasses[passIndex].pass, passIndex);
                 }
             }
 
@@ -1578,14 +1641,18 @@ namespace NWRP
                     continue;
                 }
 
-                ExecutePass(ref frameData, _activePasses[passIndex].pass);
+                ExecutePass(ref frameData, _activePasses[passIndex].pass, passIndex);
             }
 
             ExecuteBuffer(ref frameData);
         }
 
-        private static void ExecutePass(ref NWRPFrameData frameData, NWRPPass pass)
+        private static void ExecutePass(
+            ref NWRPFrameData frameData,
+            NWRPPass pass,
+            int passIndex)
         {
+            frameData.currentPassIndex = passIndex;
             if (pass.usePassProfilingScope)
             {
                 using (new ProfilingScope(frameData.cmd, pass.profilingSampler))
@@ -1808,7 +1875,13 @@ namespace NWRP
                 + $"shadowCopy={stats.shadowAtlasCopyCount}, "
                 + $"finalFusion={stats.cameraColorFinalPassFusionCount}, "
                 + $"tempColorRT={stats.temporaryColorRTCount}, "
-                + $"tempDepthRT={stats.temporaryDepthRTCount}");
+                + $"tempDepthRT={stats.temporaryDepthRTCount}, "
+                + $"logicalTransientColorRT={stats.logicalTransientColorRTCount}, "
+                + $"physicalTransientColorRT={stats.physicalTransientColorRTCount}, "
+                + $"renderPassClusters={stats.renderPassClusterCount}, "
+                + $"discardedDepthStore={stats.discardedDepthStoreCount}, "
+                + $"forcedOpaqueCopy={stats.forcedOpaqueTextureCopyCount}, "
+                + $"forcedDepthCopy={stats.forcedDepthTextureCopyCount}");
         }
     }
 }

@@ -94,6 +94,14 @@ namespace NWRP
                 : NewWorldRenderPipelineAsset.DepthTextureCopyMode.AfterOpaques;
         }
 
+        internal static bool AllowsFeatureDepthTextureRequest(
+            ref NWRPFrameData frameData)
+        {
+            return frameData.rendererData == null
+                || frameData.rendererData.DepthTexturePolicy
+                    != NewWorldRenderPipelineAsset.CameraTexturePolicy.Off;
+        }
+
         private static bool ShouldEnqueueDepthTexturePass(ref NWRPFrameData frameData)
         {
             if (frameData.rendererData != null

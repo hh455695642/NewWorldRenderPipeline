@@ -60,12 +60,23 @@ namespace NWRP.Runtime.Passes
 
             if (dynamicOverlayEnabled && _cacheState.CombinedShadowmapTexture != null)
             {
+                bool hasRegularDynamicCasters = TryGetDynamicOverlayCulling(
+                    ref frameData,
+                    asset,
+                    mainLight,
+                    out CullingResults dynamicCullResults,
+                    out int dynamicLightIndex,
+                    out VisibleLight dynamicVisibleLight);
+                bool hasIndirectDynamicCasters =
+                    MainLightShadowIndirectCasterContext.HasPendingDynamicOverlayDraw;
+
                 using (new ProfilingScope(frameData.cmd, MainLightShadowPassUtils.RenderDynamicOverlaySampler))
                 {
-                    bool copiedStaticAtlas = MainLightShadowPassUtils.CopyShadowAtlas(
-                        ref frameData,
-                        _cacheState.StaticShadowmapTexture,
-                        _cacheState.CombinedShadowmapTexture);
+                    bool copiedStaticAtlas = (hasRegularDynamicCasters || hasIndirectDynamicCasters)
+                        && MainLightShadowPassUtils.CopyShadowAtlas(
+                            ref frameData,
+                            _cacheState.StaticShadowmapTexture,
+                            _cacheState.CombinedShadowmapTexture);
 
                     if (copiedStaticAtlas)
                     {
@@ -76,27 +87,18 @@ namespace NWRP.Runtime.Passes
 
                         bool includeStaticIndirectCasters =
                             MainLightShadowIndirectCasterContext.HasPendingStaticCacheDraw;
-                        MainLightShadowIndirectCasterContext.AddTarget(
-                            _cacheState.CombinedShadowmapTexture,
-                            _cacheState.CascadeData,
-                            _cacheState.CascadeCount,
-                            MainLightShadowPassUtils.GetShadowLightDirection(mainVisibleLight),
-                            includeStaticCasters: includeStaticIndirectCasters,
-                            includeDynamicCasters: true);
+                        if (includeStaticIndirectCasters || hasIndirectDynamicCasters)
+                        {
+                            MainLightShadowIndirectCasterContext.AddTarget(
+                                _cacheState.CombinedShadowmapTexture,
+                                _cacheState.CascadeData,
+                                _cacheState.CascadeCount,
+                                MainLightShadowPassUtils.GetShadowLightDirection(mainVisibleLight),
+                                includeStaticCasters: includeStaticIndirectCasters,
+                                includeDynamicCasters: hasIndirectDynamicCasters);
+                        }
 
-                        CullingResults dynamicCullResults = frameData.cullingResults;
-                        int dynamicCasterLayerMask = asset.DynamicCasterLayerMask.value;
-
-                        if ((MainLightShadowPassUtils.IsEverythingLayerMask(dynamicCasterLayerMask)
-                                || MainLightShadowPassUtils.TryCull(
-                                    ref frameData,
-                                    dynamicCasterLayerMask,
-                                    out dynamicCullResults))
-                            && MainLightShadowPassUtils.TryGetMainLightIndex(
-                                dynamicCullResults,
-                                mainLight,
-                                out int dynamicLightIndex,
-                                out VisibleLight dynamicVisibleLight))
+                        if (hasRegularDynamicCasters)
                         {
                             MainLightShadowPassUtils.BindShadowAtlas(
                                 ref frameData,
@@ -126,6 +128,42 @@ namespace NWRP.Runtime.Passes
             );
 
             frameData.context.SetupCameraProperties(frameData.camera);
+        }
+
+        private static bool TryGetDynamicOverlayCulling(
+            ref NWRPFrameData frameData,
+            NewWorldRenderPipelineAsset asset,
+            Light mainLight,
+            out CullingResults dynamicCullResults,
+            out int dynamicLightIndex,
+            out VisibleLight dynamicVisibleLight)
+        {
+            dynamicCullResults = frameData.cullingResults;
+            dynamicLightIndex = -1;
+            dynamicVisibleLight = default;
+
+            int dynamicCasterLayerMask = asset.DynamicCasterLayerMask.value;
+            if (!MainLightShadowPassUtils.IsEverythingLayerMask(dynamicCasterLayerMask)
+                && !MainLightShadowPassUtils.TryCull(
+                    ref frameData,
+                    dynamicCasterLayerMask,
+                    out dynamicCullResults))
+            {
+                return false;
+            }
+
+            if (!MainLightShadowPassUtils.TryGetMainLightIndex(
+                    dynamicCullResults,
+                    mainLight,
+                    out dynamicLightIndex,
+                    out dynamicVisibleLight))
+            {
+                return false;
+            }
+
+            return dynamicCullResults.GetShadowCasterBounds(
+                dynamicLightIndex,
+                out Bounds _);
         }
 
         private void UploadDisabledGlobals(ref NWRPFrameData frameData)

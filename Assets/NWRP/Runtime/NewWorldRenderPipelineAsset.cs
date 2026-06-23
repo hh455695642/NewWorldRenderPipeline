@@ -59,6 +59,13 @@ namespace NWRP
             ForcePrepass = 2
         }
 
+        public enum CameraTexturePolicy
+        {
+            Off = 0,
+            AutoFeatureOnly = 1,
+            Force = 2
+        }
+
         public enum HDRColorBufferPrecision
         {
             _32Bits = 0,
@@ -252,21 +259,38 @@ namespace NWRP
         [System.Serializable]
         public sealed class OpaqueTextureSettings
         {
+            [InspectorName("Camera Opaque Texture Policy")]
+            [Tooltip("Off disables _CameraOpaqueTexture. Auto Feature Only reserves the path for explicit feature requests. Force copies opaque color every camera.")]
+            public CameraTexturePolicy texturePolicy = CameraTexturePolicy.Off;
+
             [InspectorName("Enable Camera Opaque Texture")]
+            [HideInInspector]
             [Tooltip("Copy opaque camera color to _CameraOpaqueTexture after skybox and before transparents. Costs one full-screen copy and one color RT.")]
             public bool enableOpaqueTexture = false;
+
+            public bool ShouldForceTexture =>
+                texturePolicy == CameraTexturePolicy.Force;
         }
 
         [System.Serializable]
         public sealed class DepthTextureSettings
         {
+            [InspectorName("Camera Depth Texture Policy")]
+            [Tooltip("Off disables _CameraDepthTexture. Auto Feature Only creates it only for active depth consumers. Force creates it every camera.")]
+            public CameraTexturePolicy texturePolicy =
+                CameraTexturePolicy.AutoFeatureOnly;
+
             [InspectorName("Enable Camera Depth Texture")]
+            [HideInInspector]
             [Tooltip("Copy or pre-render opaque scene depth to _CameraDepthTexture. Costs one depth texture and usually one full-screen depth copy.")]
             public bool enableDepthTexture = false;
 
             [InspectorName("Camera Depth Texture Mode")]
             [Tooltip("Controls when NWRP makes _CameraDepthTexture available.")]
             public DepthTextureCopyMode copyDepthMode = DepthTextureCopyMode.AfterOpaques;
+
+            public bool ShouldForceTexture =>
+                texturePolicy == CameraTexturePolicy.Force;
         }
 
         [System.Serializable]
@@ -299,6 +323,10 @@ namespace NWRP
             [Range(64, 4096)]
             [Tooltip("Maximum bloom base width before the pyramid halves each mip.")]
             public int bloomMaxBaseSize = 512;
+
+            [Range(0, AdditionalLightUtils.MaxAdditionalLights)]
+            [Tooltip("Maximum additional punctual lights uploaded to mobile forward lighting when the mobile fullscreen budget is enabled.")]
+            public int maxAdditionalLights = 4;
 
             [InspectorName("Log Frame Debug Stats")]
             [Tooltip("Log per-camera render target, fullscreen blit, copy, and temporary RT counters. Use only while profiling.")]
@@ -772,6 +800,13 @@ namespace NWRP
                 mobileBandwidth != null ? mobileBandwidth.bloomMaxBaseSize : 4096,
                 64,
                 4096);
+        public int MobileMaxAdditionalLights =>
+            Mathf.Clamp(
+                mobileBandwidth != null
+                    ? mobileBandwidth.maxAdditionalLights
+                    : AdditionalLightUtils.MaxAdditionalLights,
+                0,
+                AdditionalLightUtils.MaxAdditionalLights);
         public bool LogFrameDebugStats =>
             mobileBandwidth != null && mobileBandwidth.logFrameDebugStats;
 
@@ -1075,6 +1110,11 @@ namespace NWRP
                 Mathf.Clamp(mobileBandwidth.bloomMaxMipCount, 1, 6);
             mobileBandwidth.bloomMaxBaseSize =
                 Mathf.Clamp(mobileBandwidth.bloomMaxBaseSize, 64, 4096);
+            mobileBandwidth.maxAdditionalLights =
+                Mathf.Clamp(
+                    mobileBandwidth.maxAdditionalLights,
+                    0,
+                    AdditionalLightUtils.MaxAdditionalLights);
 
             MainLightShadowSettings settings = mainLightShadows;
             settings.atlas.mainLightShadowResolution = Mathf.ClosestPowerOfTwo(

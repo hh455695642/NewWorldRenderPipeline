@@ -19,6 +19,12 @@ namespace NWRP
         public int cameraColorFinalPassFusionCount;
         public int temporaryColorRTCount;
         public int temporaryDepthRTCount;
+        public int logicalTransientColorRTCount;
+        public int physicalTransientColorRTCount;
+        public int renderPassClusterCount;
+        public int discardedDepthStoreCount;
+        public int forcedOpaqueTextureCopyCount;
+        public int forcedDepthTextureCopyCount;
 
         public void RecordCameraTargetBind(bool skipped)
         {
@@ -78,6 +84,37 @@ namespace NWRP
             }
 
             temporaryColorRTCount++;
+        }
+
+        public void RecordTransientResources(NWRPTransientResourceAllocator allocator)
+        {
+            if (allocator == null)
+            {
+                return;
+            }
+
+            logicalTransientColorRTCount = allocator.LogicalResourceCount;
+            physicalTransientColorRTCount = allocator.PhysicalResourceCount;
+        }
+
+        public void RecordRenderPassClusters(int count)
+        {
+            renderPassClusterCount = count;
+        }
+
+        public void RecordDiscardedDepthStore()
+        {
+            discardedDepthStoreCount++;
+        }
+
+        public void RecordForcedOpaqueTextureCopy()
+        {
+            forcedOpaqueTextureCopyCount++;
+        }
+
+        public void RecordForcedDepthTextureCopy()
+        {
+            forcedDepthTextureCopyCount++;
         }
     }
 }

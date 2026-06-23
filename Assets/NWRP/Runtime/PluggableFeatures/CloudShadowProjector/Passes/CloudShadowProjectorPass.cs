@@ -45,6 +45,15 @@ namespace NWRP.Runtime.Passes
             cmd.SetGlobalTexture(
                 NWRPShaderIds.CameraDepthTexture,
                 frameData.targets.cameraDepthTextureHandle);
+            if (presentToBackBuffer)
+            {
+                NWRPFullscreenPassUtils.BlitToBackBuffer(
+                    ref frameData,
+                    source,
+                    _projectorMaterial,
+                    0);
+                return;
+            }
 
             NWRPFullscreenPassUtils.AllocateTempColor(
                 ref frameData,
@@ -62,25 +71,13 @@ namespace NWRP.Runtime.Passes
                     viewport,
                     _projectorMaterial,
                     0);
-                if (presentToBackBuffer)
-                {
-                    NWRPFullscreenPassUtils.BlitToBackBuffer(
-                        ref frameData,
-                        tempColor,
-                        _copyMaterial,
-                        0);
-                    presentedToBackBuffer = true;
-                }
-                else
-                {
-                    NWRPFullscreenPassUtils.BlitToTarget(
-                        ref frameData,
-                        tempColor,
-                        frameData.targets.cameraColor,
-                        viewport,
-                        _copyMaterial,
-                        0);
-                }
+                NWRPFullscreenPassUtils.BlitToTarget(
+                    ref frameData,
+                    tempColor,
+                    frameData.targets.cameraColor,
+                    viewport,
+                    _copyMaterial,
+                    0);
             }
             finally
             {

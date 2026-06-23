@@ -49,6 +49,8 @@ namespace NWRP
         public bool renderScaleActive;
         public NWRPCameraAttachmentState cameraAttachmentState;
         public NWRPFrameGraphData frameGraph;
+        public NWRPTransientResourceAllocator transientResources;
+        public int currentPassIndex;
         public NWRPFrameDebugStats debugStats;
     }
 
@@ -119,6 +121,8 @@ namespace NWRP
         public NWRPFrameResourceAccess cameraDepth;
         public NWRPFrameResourceAccess cameraDepthTexture;
         public NWRPFrameResourceAccess opaqueTexture;
+        public NWRPFrameResourceAccess transientColor;
+        public bool keepsCameraDepthAfterPass;
         public bool canPresentCameraColorToBackBuffer;
         public bool writesBackBuffer;
 
@@ -134,8 +138,11 @@ namespace NWRP
 
         public bool ReadsCameraColor => Reads(cameraColor);
         public bool WritesCameraColor => Writes(cameraColor);
+        public bool UsesCameraColor => Reads(cameraColor) || Writes(cameraColor);
+        public bool UsesCameraDepth => Reads(cameraDepth) || Writes(cameraDepth);
         public bool ReadsCameraDepthTexture => Reads(cameraDepthTexture);
         public bool ReadsOpaqueTexture => Reads(opaqueTexture);
+        public bool UsesTransientColor => Reads(transientColor) || Writes(transientColor);
 
         private static bool Reads(NWRPFrameResourceAccess access)
         {
@@ -160,6 +167,10 @@ namespace NWRP
         public int cameraColorWritePassCount;
         public int depthTextureReadPassCount;
         public int opaqueTextureReadPassCount;
+        public int cameraColorFinalPresentPassIndex;
+        public int cameraDepthLastUsePassIndex;
+        public int renderPassClusterCount;
+        public bool canDiscardCameraDepthAfterLastUse;
         public bool hasBackBufferWriterBeforeDebug;
 
         public void RecordPassUsage(NWRPFramePassResourceUsage usage)

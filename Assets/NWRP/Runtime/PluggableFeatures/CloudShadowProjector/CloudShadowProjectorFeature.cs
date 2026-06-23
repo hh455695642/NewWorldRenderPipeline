@@ -27,6 +27,11 @@ namespace NWRP
                 return false;
             }
 
+            if (!DepthTextureFeature.AllowsFeatureDepthTextureRequest(ref frameData))
+            {
+                return false;
+            }
+
             requirements.requiresIntermediateColor = true;
             requirements.Merge(DepthTextureFeature.GetFrameTargetRequirements(
                 DepthTextureFeature.GetCopyMode(ref frameData),
@@ -36,7 +41,7 @@ namespace NWRP
 
         public override void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData)
         {
-            if (!IsActive(ref frameData))
+            if (!CanSchedule(ref frameData))
             {
                 return;
             }
@@ -56,6 +61,12 @@ namespace NWRP
             return IsActive(ref frameData)
                 && frameData.targets.hasCameraDepthTexture
                 && frameData.targets.cameraDepthTextureHandle != null;
+        }
+
+        internal static bool CanSchedule(ref NWRPFrameData frameData)
+        {
+            return IsActive(ref frameData)
+                && frameData.targets.hasCameraDepthTexture;
         }
 
         private void OnDisable()

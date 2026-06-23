@@ -57,6 +57,19 @@ namespace NWRP.Runtime.Passes
             in RenderTextureDescriptor descriptor,
             FilterMode filterMode)
         {
+            if (frameData.transientResources != null)
+            {
+                NWRPFrameResourceDesc resourceDesc = NWRPFrameResourceDesc.Color(
+                    descriptor.width,
+                    descriptor.height,
+                    descriptor.graphicsFormat,
+                    filterMode);
+                frameData.transientResources.Allocate(
+                    resourceDesc,
+                    frameData.currentPassIndex,
+                    frameData.currentPassIndex);
+            }
+
             frameData.cmd.GetTemporaryRT(textureId, descriptor, filterMode);
             frameData.debugStats.RecordTemporaryRT(NWRPFrameTemporaryRTKind.Color);
         }
@@ -207,6 +220,9 @@ namespace NWRP.Runtime.Passes
         {
             NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
             frameData.debugStats.RecordFullscreenBlit();
+            NWRPRenderer.SetFullscreenScaleBiasRt(
+                ref frameData,
+                isGameBackBufferTarget: false);
             CoreUtils.SetRenderTarget(
                 frameData.cmd,
                 destination,
@@ -233,6 +249,15 @@ namespace NWRP.Runtime.Passes
             {
                 frameData.debugStats.RecordCameraColorFinalPassFusion();
             }
+
+            bool isGameBackBufferTarget =
+                frameData.camera != null
+                && frameData.camera.cameraType == CameraType.Game
+                && frameData.camera.targetTexture == null;
+            NWRPRenderer.SetFullscreenScaleBiasRt(
+                ref frameData,
+                isGameBackBufferTarget);
+
             CoreUtils.SetRenderTarget(
                 frameData.cmd,
                 frameData.targets.backBufferColor,

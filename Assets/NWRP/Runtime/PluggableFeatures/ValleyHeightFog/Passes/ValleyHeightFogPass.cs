@@ -45,6 +45,15 @@ namespace NWRP.Runtime.Passes
 
             UploadConstants(cmd, frameData.valleyHeightFog);
             int shaderPassIndex = GetShaderPassIndex(frameData.valleyHeightFog);
+            if (presentToBackBuffer)
+            {
+                NWRPFullscreenPassUtils.BlitToBackBuffer(
+                    ref frameData,
+                    source,
+                    _fogMaterial,
+                    shaderPassIndex);
+                return;
+            }
 
             NWRPFullscreenPassUtils.AllocateTempColor(
                 ref frameData,
@@ -63,25 +72,13 @@ namespace NWRP.Runtime.Passes
                     viewport,
                     _fogMaterial,
                     shaderPassIndex);
-                if (presentToBackBuffer)
-                {
-                    NWRPFullscreenPassUtils.BlitToBackBuffer(
-                        ref frameData,
-                        tempColor,
-                        _copyMaterial,
-                        0);
-                    presentedToBackBuffer = true;
-                }
-                else
-                {
-                    NWRPFullscreenPassUtils.BlitToTarget(
-                        ref frameData,
-                        tempColor,
-                        frameData.targets.cameraColor,
-                        viewport,
-                        _copyMaterial,
-                        0);
-                }
+                NWRPFullscreenPassUtils.BlitToTarget(
+                    ref frameData,
+                    tempColor,
+                    frameData.targets.cameraColor,
+                    viewport,
+                    _copyMaterial,
+                    0);
             }
             finally
             {

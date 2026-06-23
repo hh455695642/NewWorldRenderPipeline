@@ -37,8 +37,9 @@ namespace NWRP
 
         public override void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData)
         {
-            if (frameData.rendererData == null
-                || !frameData.rendererData.EnableOpaqueTexture)
+            if (!frameData.targets.hasOpaqueTexture
+                && (frameData.rendererData == null
+                    || !frameData.rendererData.EnableOpaqueTexture))
             {
                 return;
             }

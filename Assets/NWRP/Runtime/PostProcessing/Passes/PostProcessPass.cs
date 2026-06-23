@@ -58,17 +58,25 @@ namespace NWRP.Runtime.Passes
             public int dirtSourceTexture;
         }
 
-        internal readonly struct BloomBudget
+        public readonly struct BloomBudget
         {
             public readonly int mipCount;
             public readonly int lastMipIndex;
             public readonly int baseSize;
+            public readonly bool allowCustomCompose;
+            public readonly bool allowLensDirtExtraCompose;
 
-            public BloomBudget(int mipCount, int baseSize)
+            public BloomBudget(
+                int mipCount,
+                int baseSize,
+                bool allowCustomCompose,
+                bool allowLensDirtExtraCompose)
             {
                 this.mipCount = Mathf.Clamp(mipCount, 1, k_BloomMipCount);
                 lastMipIndex = this.mipCount - 1;
                 this.baseSize = Mathf.Max(baseSize, 4);
+                this.allowCustomCompose = allowCustomCompose;
+                this.allowLensDirtExtraCompose = allowLensDirtExtraCompose;
             }
         }
 
@@ -242,7 +250,8 @@ namespace NWRP.Runtime.Passes
                 bloomTexture = _bloomMips[i - 1].up;
             }
 
-            if (bloom.customize.value
+            if (budget.allowCustomCompose
+                && bloom.customize.value
                 && bloom.intensity.value > 0f
                 && budget.mipCount == k_BloomMipCount)
             {
@@ -277,7 +286,9 @@ namespace NWRP.Runtime.Passes
 
             resources.hasBloomTexture = true;
             resources.finalTexture = bloomTexture;
-            resources.hasDirtSourceTexture = bloom.lensDirtIntensity.value > 0f;
+            resources.hasDirtSourceTexture =
+                budget.allowLensDirtExtraCompose
+                && bloom.lensDirtIntensity.value > 0f;
             resources.dirtSourceTexture = GetLensDirtSourceTexture(bloom.lensDirtSpread.value);
             return resources;
         }
@@ -866,20 +877,26 @@ namespace NWRP.Runtime.Passes
             return Mathf.Clamp(size, 4, Mathf.Max(sourceWidth, 4));
         }
 
-        internal static BloomBudget ResolveBloomBudget(
+        public static BloomBudget ResolveBloomBudget(
             NewWorldRenderPipelineAsset asset,
             int requestedBaseSize)
         {
             if (asset == null || !asset.EnableMobileFullscreenBudget)
             {
-                return new BloomBudget(k_BloomMipCount, requestedBaseSize);
+                return new BloomBudget(
+                    k_BloomMipCount,
+                    requestedBaseSize,
+                    true,
+                    true);
             }
 
             int maxMipCount = asset.MobileBloomMaxMipCount;
             int maxBaseSize = asset.MobileBloomMaxBaseSize;
             return new BloomBudget(
                 maxMipCount,
-                Mathf.Min(Mathf.Max(requestedBaseSize, 4), maxBaseSize));
+                Mathf.Min(Mathf.Max(requestedBaseSize, 4), maxBaseSize),
+                false,
+                false);
         }
 
         private static RenderTextureDescriptor CreateBloomDescriptor(int width, float aspectRatio)
