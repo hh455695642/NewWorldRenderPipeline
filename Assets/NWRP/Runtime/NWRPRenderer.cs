@@ -503,10 +503,12 @@ namespace NWRP
             }
 
             bool canSampleVolumes = camera != null && frameData.asset != null;
-            bool canRunPostProcessing =
+            bool canRunVolumeFullscreenEffects =
                 canSampleVolumes
-                && frameData.asset.SupportsPostProcessing
                 && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES2;
+            bool canRunPostProcessing =
+                canRunVolumeFullscreenEffects
+                && frameData.asset.SupportsPostProcessing;
 
             if (!canSampleVolumes)
             {
@@ -534,6 +536,11 @@ namespace NWRP
                     {
                         ResolvePostProcessingFromVolume(ref frameData);
                     }
+
+                    if (canRunVolumeFullscreenEffects)
+                    {
+                        ResolveScreenBlurFromVolume(ref frameData);
+                    }
                 }
 
                 ResolveFogSettings(ref frameData);
@@ -553,6 +560,12 @@ namespace NWRP
                 if (frameData.cameraData.renderPostProcessing && canRunPostProcessing)
                 {
                     ResolvePostProcessingFromVolume(ref frameData);
+                }
+
+                if (frameData.cameraData.renderPostProcessing
+                    && canRunVolumeFullscreenEffects)
+                {
+                    ResolveScreenBlurFromVolume(ref frameData);
                 }
             }
 
@@ -640,6 +653,14 @@ namespace NWRP
             frameData.antiAliasingActive =
                 antiAliasing != null
                 && antiAliasing.IsActive();
+        }
+
+        private static void ResolveScreenBlurFromVolume(ref NWRPFrameData frameData)
+        {
+            if (frameData.volumeStack == null)
+            {
+                return;
+            }
 
             NWRPScreenBlur screenBlur =
                 frameData.volumeStack.GetComponent<NWRPScreenBlur>();
@@ -1559,6 +1580,10 @@ namespace NWRP
                 MapUsagePassIndexToQueuedPassIndex(
                     frameData.frameGraph.cameraColorFinalPresentPassIndex,
                     queuedPassIndices);
+            frameData.frameGraph.cameraColorLastUsePassIndex =
+                MapUsagePassIndexToQueuedPassIndex(
+                    frameData.frameGraph.cameraColorLastUsePassIndex,
+                    queuedPassIndices);
             frameData.frameGraph.cameraDepthLastUsePassIndex =
                 MapUsagePassIndexToQueuedPassIndex(
                     frameData.frameGraph.cameraDepthLastUsePassIndex,
@@ -1566,6 +1591,9 @@ namespace NWRP
 
             frameData.debugStats.RecordRenderPassClusters(
                 frameData.frameGraph.renderPassClusterCount);
+            frameData.debugStats.RecordFrameGraphPassIndices(
+                frameData.frameGraph.cameraColorLastUsePassIndex,
+                frameData.frameGraph.cameraColorFinalPresentPassIndex);
         }
 
         private static int MapUsagePassIndexToQueuedPassIndex(
@@ -1879,6 +1907,8 @@ namespace NWRP
                 + $"logicalTransientColorRT={stats.logicalTransientColorRTCount}, "
                 + $"physicalTransientColorRT={stats.physicalTransientColorRTCount}, "
                 + $"renderPassClusters={stats.renderPassClusterCount}, "
+                + $"colorLastUsePass={stats.cameraColorLastUsePassIndex}, "
+                + $"colorFinalPresentPass={stats.cameraColorFinalPresentPassIndex}, "
                 + $"discardedDepthStore={stats.discardedDepthStoreCount}, "
                 + $"forcedOpaqueCopy={stats.forcedOpaqueTextureCopyCount}, "
                 + $"forcedDepthCopy={stats.forcedDepthTextureCopyCount}");

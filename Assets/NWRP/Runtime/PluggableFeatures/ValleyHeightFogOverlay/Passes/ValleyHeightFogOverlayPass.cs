@@ -55,6 +55,16 @@ namespace NWRP.Runtime.Passes
                 ref _stateBlock);
         }
 
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.ReadWrite,
+                cameraDepth = NWRPFrameResourceAccess.Read
+            };
+        }
+
         private static void ExecuteBuffer(ref NWRPFrameData frameData)
         {
             frameData.context.ExecuteCommandBuffer(frameData.cmd);

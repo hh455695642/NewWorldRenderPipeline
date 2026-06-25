@@ -154,7 +154,8 @@ namespace NWRP.Runtime.Passes
             float aspectRatio = (float)sourceHeight / sourceWidth;
             int requestedBaseSize = GetBloomBaseSize(sourceWidth, bloom.resolution.value);
             BloomBudget budget = ResolveBloomBudget(frameData.asset, requestedBaseSize);
-            RenderTextureDescriptor bloomDescriptor = CreateBloomDescriptor(budget.baseSize, aspectRatio);
+            RenderTextureDescriptor bloomDescriptor =
+                CreateBloomDescriptor(budget.baseSize, aspectRatio, frameData.asset);
 
             for (int i = 0; i < budget.mipCount; i++)
             {
@@ -256,7 +257,10 @@ namespace NWRP.Runtime.Passes
                 && budget.mipCount == k_BloomMipCount)
             {
                 RenderTextureDescriptor composeDescriptor =
-                    CreateBloomDescriptor(_bloomMips[0].width, aspectRatio);
+                    CreateBloomDescriptor(
+                        _bloomMips[0].width,
+                        aspectRatio,
+                        frameData.asset);
                 composeDescriptor.width = _bloomMips[0].width;
                 composeDescriptor.height = _bloomMips[0].height;
                 NWRPFullscreenPassUtils.AllocateTempColor(
@@ -401,7 +405,8 @@ namespace NWRP.Runtime.Passes
             float blurScale)
         {
             CommandBuffer cmd = frameData.cmd;
-            RenderTextureDescriptor descriptor = CreateBloomDescriptor(width, (float)height / width);
+            RenderTextureDescriptor descriptor =
+                CreateBloomDescriptor(width, (float)height / width, frameData.asset);
             descriptor.width = width;
             descriptor.height = height;
             NWRPFullscreenPassUtils.AllocateTempColor(
@@ -445,7 +450,10 @@ namespace NWRP.Runtime.Passes
         {
             CommandBuffer cmd = frameData.cmd;
             RenderTextureDescriptor descriptor =
-                CreateBloomDescriptor(destinationWidth, (float)destinationHeight / destinationWidth);
+                CreateBloomDescriptor(
+                    destinationWidth,
+                    (float)destinationHeight / destinationWidth,
+                    frameData.asset);
             descriptor.width = destinationWidth;
             descriptor.height = destinationHeight;
             NWRPFullscreenPassUtils.AllocateTempColor(
@@ -901,11 +909,19 @@ namespace NWRP.Runtime.Passes
 
         private static RenderTextureDescriptor CreateBloomDescriptor(int width, float aspectRatio)
         {
+            return CreateBloomDescriptor(width, aspectRatio, null);
+        }
+
+        private static RenderTextureDescriptor CreateBloomDescriptor(
+            int width,
+            float aspectRatio,
+            NewWorldRenderPipelineAsset asset)
+        {
             int safeWidth = Mathf.Max(width, 1);
             RenderTextureDescriptor descriptor = new RenderTextureDescriptor(
                 safeWidth,
                 Mathf.Max(1, Mathf.RoundToInt(safeWidth * aspectRatio)),
-                RenderTextureFormat.ARGBHalf,
+                ResolveBloomGraphicsFormat(asset),
                 0)
             {
                 depthBufferBits = 0,
@@ -917,6 +933,31 @@ namespace NWRP.Runtime.Passes
                 enableRandomWrite = false
             };
             return descriptor;
+        }
+
+        private static GraphicsFormat ResolveBloomGraphicsFormat(
+            NewWorldRenderPipelineAsset asset)
+        {
+            if (asset != null
+                && asset.EnableMobileFullscreenBudget
+                && SupportsBloomRenderFormat(GraphicsFormat.B10G11R11_UFloatPack32))
+            {
+                return GraphicsFormat.B10G11R11_UFloatPack32;
+            }
+
+            if (SupportsBloomRenderFormat(GraphicsFormat.R16G16B16A16_SFloat))
+            {
+                return GraphicsFormat.R16G16B16A16_SFloat;
+            }
+
+            return SystemInfo.GetGraphicsFormat(DefaultFormat.HDR);
+        }
+
+        private static bool SupportsBloomRenderFormat(GraphicsFormat format)
+        {
+            return SystemInfo.IsFormatSupported(
+                format,
+                FormatUsage.Linear | FormatUsage.Render);
         }
 
         private static RenderTextureDescriptor CreateTempDescriptor(RenderTexture sourceTexture)

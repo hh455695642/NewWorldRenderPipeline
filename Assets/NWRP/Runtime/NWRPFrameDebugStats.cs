@@ -25,6 +25,8 @@ namespace NWRP
         public int discardedDepthStoreCount;
         public int forcedOpaqueTextureCopyCount;
         public int forcedDepthTextureCopyCount;
+        public int cameraColorLastUsePassIndex;
+        public int cameraColorFinalPresentPassIndex;
 
         public void RecordCameraTargetBind(bool skipped)
         {
@@ -100,6 +102,14 @@ namespace NWRP
         public void RecordRenderPassClusters(int count)
         {
             renderPassClusterCount = count;
+        }
+
+        public void RecordFrameGraphPassIndices(
+            int colorLastUsePassIndex,
+            int colorFinalPresentPassIndex)
+        {
+            cameraColorLastUsePassIndex = colorLastUsePassIndex;
+            cameraColorFinalPresentPassIndex = colorFinalPresentPassIndex;
         }
 
         public void RecordDiscardedDepthStore()

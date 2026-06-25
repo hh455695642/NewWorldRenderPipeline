@@ -168,6 +168,7 @@ namespace NWRP
         public int depthTextureReadPassCount;
         public int opaqueTextureReadPassCount;
         public int cameraColorFinalPresentPassIndex;
+        public int cameraColorLastUsePassIndex;
         public int cameraDepthLastUsePassIndex;
         public int renderPassClusterCount;
         public bool canDiscardCameraDepthAfterLastUse;

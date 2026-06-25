@@ -176,9 +176,12 @@ namespace NWRP
         {
             NWRPFrameGraphData graph = default;
             graph.cameraColorFinalPresentPassIndex = -1;
+            graph.cameraColorLastUsePassIndex = -1;
             graph.cameraDepthLastUsePassIndex = -1;
 
             bool inCameraAttachmentCluster = false;
+            int lastCameraColorUseIndex = -1;
+            int lastPresentCandidateIndex = -1;
             if (usages == null)
             {
                 return graph;
@@ -191,7 +194,12 @@ namespace NWRP
 
                 if (usage.canPresentCameraColorToBackBuffer)
                 {
-                    graph.cameraColorFinalPresentPassIndex = i;
+                    lastPresentCandidateIndex = i;
+                }
+
+                if (usage.UsesCameraColor)
+                {
+                    lastCameraColorUseIndex = i;
                 }
 
                 if (usage.UsesCameraDepth)
@@ -212,6 +220,11 @@ namespace NWRP
                 }
             }
 
+            graph.cameraColorLastUsePassIndex = lastCameraColorUseIndex;
+            graph.cameraColorFinalPresentPassIndex =
+                lastPresentCandidateIndex == lastCameraColorUseIndex
+                    ? lastPresentCandidateIndex
+                    : -1;
             graph.canDiscardCameraDepthAfterLastUse =
                 graph.cameraDepthLastUsePassIndex >= 0;
             return graph;

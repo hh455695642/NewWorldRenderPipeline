@@ -21,7 +21,8 @@ namespace NWRP
         {
             if (renderer == null
                 || frameData.camera == null
-                || frameData.camera.cameraType == CameraType.Preview)
+                //|| frameData.camera.cameraType == CameraType.Preview
+                )
             {
                 return;
             }
