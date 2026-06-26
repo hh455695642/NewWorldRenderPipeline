@@ -4,11 +4,13 @@ using UnityEngine.Rendering;
 namespace NWRP.Runtime.Passes
 {
     public sealed class CloudShadowProjectorPass : NWRPPass
+        , INWRPFullscreenEffectNode
     {
         private const string k_ShaderName = "Hidden/NWRP/Environment/CloudShadowProjector";
         private const float k_MinProjectorAxisSize = 0.001f;
 
-        private Material _copyMaterial;
+        private readonly NWRPFullscreenChain _fullscreenChain =
+            new NWRPFullscreenChain();
         private Material _projectorMaterial;
 
         public CloudShadowProjectorPass()
@@ -18,84 +20,13 @@ namespace NWRP.Runtime.Passes
 
         public override void Execute(ref NWRPFrameData frameData)
         {
-            if (!CloudShadowProjectorFeature.CanRun(ref frameData)
-                || frameData.targets.cameraColorHandle == null
-                || frameData.targets.cameraColorHandle.rt == null
-                || !frameData.targets.hasCameraDepthTexture
-                || frameData.targets.cameraDepthTextureHandle == null)
-            {
-                return;
-            }
-
-            if (!EnsureMaterials())
-            {
-                return;
-            }
-
-            RTHandle source = frameData.targets.cameraColorHandle;
-            RenderTextureDescriptor descriptor =
-                NWRPFullscreenPassUtils.CreateColorDescriptor(source.rt);
-            CommandBuffer cmd = frameData.cmd;
-            Rect viewport = NWRPRenderer.GetCameraRenderViewport(ref frameData);
-            bool presentToBackBuffer =
-                frameData.frameGraph.IsCameraColorFinalPresentPass(this);
-            bool presentedToBackBuffer = false;
-
-            UploadConstants(cmd, frameData.cloudShadowProjector);
-            cmd.SetGlobalTexture(
-                NWRPShaderIds.CameraDepthTexture,
-                frameData.targets.cameraDepthTextureHandle);
-            if (presentToBackBuffer)
-            {
-                NWRPFullscreenPassUtils.BlitToBackBuffer(
-                    ref frameData,
-                    source,
-                    _projectorMaterial,
-                    0);
-                return;
-            }
-
-            NWRPFullscreenPassUtils.AllocateTempColor(
-                ref frameData,
-                NWRPFullscreenTempSlot.A,
-                descriptor,
-                FilterMode.Bilinear);
-            try
-            {
-                RenderTargetIdentifier tempColor =
-                    NWRPFullscreenPassUtils.GetTempColorId(NWRPFullscreenTempSlot.A);
-                NWRPFullscreenPassUtils.BlitToTarget(
-                    ref frameData,
-                    source,
-                    tempColor,
-                    viewport,
-                    _projectorMaterial,
-                    0);
-                NWRPFullscreenPassUtils.BlitToTarget(
-                    ref frameData,
-                    tempColor,
-                    frameData.targets.cameraColor,
-                    viewport,
-                    _copyMaterial,
-                    0);
-            }
-            finally
-            {
-                NWRPFullscreenPassUtils.ReleaseTempColor(
-                    cmd,
-                    NWRPFullscreenTempSlot.A);
-                if (!presentedToBackBuffer)
-                {
-                    NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
-                }
-            }
+            _fullscreenChain.Execute(ref frameData, this, this);
         }
 
         public void Dispose()
         {
-            CoreUtils.Destroy(_copyMaterial);
+            _fullscreenChain.Dispose();
             CoreUtils.Destroy(_projectorMaterial);
-            _copyMaterial = null;
             _projectorMaterial = null;
         }
 
@@ -124,13 +55,25 @@ namespace NWRP.Runtime.Passes
                 && frameData.targets.hasCameraDepthTexture;
         }
 
-        private bool EnsureMaterials()
-        {
-            if (_copyMaterial == null)
-            {
-                _copyMaterial = NWRPBlitterResources.CreateCoreBlitMaterial();
-            }
+        NWRPPassEvent INWRPFullscreenEffectNode.PassEvent => passEvent;
 
+        bool INWRPFullscreenEffectNode.RequiresDepthTexture => true;
+
+        bool INWRPFullscreenEffectNode.RequiresOpaqueTexture => false;
+
+        bool INWRPFullscreenEffectNode.IsActive(ref NWRPFrameData frameData)
+        {
+            return CloudShadowProjectorFeature.CanRun(ref frameData);
+        }
+
+        bool INWRPFullscreenEffectNode.CanPresentToBackBuffer(
+            ref NWRPFrameData frameData)
+        {
+            return CanPresentFinalCloudShadow(ref frameData);
+        }
+
+        bool INWRPFullscreenEffectNode.Prepare(ref NWRPFrameData frameData)
+        {
             if (_projectorMaterial == null)
             {
                 Shader shader = Shader.Find(k_ShaderName);
@@ -143,7 +86,37 @@ namespace NWRP.Runtime.Passes
                 _projectorMaterial = CoreUtils.CreateEngineMaterial(shader);
             }
 
-            return _copyMaterial != null && _projectorMaterial != null;
+            if (_projectorMaterial == null)
+            {
+                return false;
+            }
+
+            UploadConstants(frameData.cmd, frameData.cloudShadowProjector);
+            frameData.cmd.SetGlobalTexture(
+                NWRPShaderIds.CameraDepthTexture,
+                frameData.targets.cameraDepthTextureHandle);
+            return true;
+        }
+
+        int INWRPFullscreenEffectNode.GetPassCount(ref NWRPFrameData frameData)
+        {
+            return 1;
+        }
+
+        bool INWRPFullscreenEffectNode.TryGetPass(
+            ref NWRPFrameData frameData,
+            int passIndex,
+            bool isFinalPass,
+            out NWRPFullscreenEffectPass fullscreenPass)
+        {
+            fullscreenPass = default;
+            if (passIndex != 0)
+            {
+                return false;
+            }
+
+            fullscreenPass = new NWRPFullscreenEffectPass(_projectorMaterial, 0);
+            return true;
         }
 
         private static void UploadConstants(

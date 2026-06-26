@@ -1902,6 +1902,8 @@ namespace NWRP
                 + $"depthCopy={stats.cameraDepthCopyCount}, "
                 + $"shadowCopy={stats.shadowAtlasCopyCount}, "
                 + $"finalFusion={stats.cameraColorFinalPassFusionCount}, "
+                + $"fullscreenChainNode={stats.fullscreenChainNodeCount}, "
+                + $"fullscreenChainTempRT={stats.fullscreenChainTempRTCount}, "
                 + $"tempColorRT={stats.temporaryColorRTCount}, "
                 + $"tempDepthRT={stats.temporaryDepthRTCount}, "
                 + $"logicalTransientColorRT={stats.logicalTransientColorRTCount}, "

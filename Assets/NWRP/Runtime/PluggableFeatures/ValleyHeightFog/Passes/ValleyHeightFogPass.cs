@@ -4,13 +4,15 @@ using UnityEngine.Rendering;
 namespace NWRP.Runtime.Passes
 {
     public sealed class ValleyHeightFogPass : NWRPPass
+        , INWRPFullscreenEffectNode
     {
         private const string k_ShaderName = "Hidden/NWRP/PostProcess/ValleyHeightFog";
 
         public const int SingleLayerShaderPass = 0;
         public const int ThreeLayerShaderPass = 1;
 
-        private Material _copyMaterial;
+        private readonly NWRPFullscreenChain _fullscreenChain =
+            new NWRPFullscreenChain();
         private Material _fogMaterial;
 
         public ValleyHeightFogPass()
@@ -20,76 +22,7 @@ namespace NWRP.Runtime.Passes
 
         public override void Execute(ref NWRPFrameData frameData)
         {
-            if (!ValleyHeightFogFeature.IsActive(ref frameData)
-                || frameData.targets.cameraColorHandle == null
-                || frameData.targets.cameraColorHandle.rt == null
-                || !frameData.targets.hasCameraDepthTexture
-                || frameData.targets.cameraDepthTextureHandle == null)
-            {
-                return;
-            }
-
-            if (!EnsureMaterials())
-            {
-                return;
-            }
-
-            RTHandle source = frameData.targets.cameraColorHandle;
-            RenderTextureDescriptor descriptor =
-                NWRPFullscreenPassUtils.CreateColorDescriptor(source.rt);
-            CommandBuffer cmd = frameData.cmd;
-            Rect viewport = NWRPRenderer.GetCameraRenderViewport(ref frameData);
-            bool presentToBackBuffer =
-                frameData.frameGraph.IsCameraColorFinalPresentPass(this);
-            bool presentedToBackBuffer = false;
-
-            UploadConstants(cmd, frameData.valleyHeightFog);
-            int shaderPassIndex = GetShaderPassIndex(frameData.valleyHeightFog);
-            if (presentToBackBuffer)
-            {
-                NWRPFullscreenPassUtils.BlitToBackBuffer(
-                    ref frameData,
-                    source,
-                    _fogMaterial,
-                    shaderPassIndex);
-                return;
-            }
-
-            NWRPFullscreenPassUtils.AllocateTempColor(
-                ref frameData,
-                NWRPFullscreenTempSlot.A,
-                descriptor,
-                FilterMode.Bilinear);
-            try
-            {
-                RenderTargetIdentifier tempColor =
-                    NWRPFullscreenPassUtils.GetTempColorId(NWRPFullscreenTempSlot.A);
-
-                NWRPFullscreenPassUtils.BlitToTarget(
-                    ref frameData,
-                    source,
-                    tempColor,
-                    viewport,
-                    _fogMaterial,
-                    shaderPassIndex);
-                NWRPFullscreenPassUtils.BlitToTarget(
-                    ref frameData,
-                    tempColor,
-                    frameData.targets.cameraColor,
-                    viewport,
-                    _copyMaterial,
-                    0);
-            }
-            finally
-            {
-                NWRPFullscreenPassUtils.ReleaseTempColor(
-                    cmd,
-                    NWRPFullscreenTempSlot.A);
-                if (!presentedToBackBuffer)
-                {
-                    NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
-                }
-            }
+            _fullscreenChain.Execute(ref frameData, this, this);
         }
 
         public static int GetShaderPassIndex(NWRPValleyHeightFog fog)
@@ -102,9 +35,8 @@ namespace NWRP.Runtime.Passes
 
         public void Dispose()
         {
-            CoreUtils.Destroy(_copyMaterial);
+            _fullscreenChain.Dispose();
             CoreUtils.Destroy(_fogMaterial);
-            _copyMaterial = null;
             _fogMaterial = null;
         }
 
@@ -133,13 +65,25 @@ namespace NWRP.Runtime.Passes
                 && frameData.targets.hasCameraDepthTexture;
         }
 
-        private bool EnsureMaterials()
-        {
-            if (_copyMaterial == null)
-            {
-                _copyMaterial = NWRPBlitterResources.CreateCoreBlitMaterial();
-            }
+        NWRPPassEvent INWRPFullscreenEffectNode.PassEvent => passEvent;
 
+        bool INWRPFullscreenEffectNode.RequiresDepthTexture => true;
+
+        bool INWRPFullscreenEffectNode.RequiresOpaqueTexture => false;
+
+        bool INWRPFullscreenEffectNode.IsActive(ref NWRPFrameData frameData)
+        {
+            return ValleyHeightFogFeature.IsActive(ref frameData);
+        }
+
+        bool INWRPFullscreenEffectNode.CanPresentToBackBuffer(
+            ref NWRPFrameData frameData)
+        {
+            return CanPresentFinalFog(ref frameData);
+        }
+
+        bool INWRPFullscreenEffectNode.Prepare(ref NWRPFrameData frameData)
+        {
             if (_fogMaterial == null)
             {
                 Shader shader = Shader.Find(k_ShaderName);
@@ -152,7 +96,36 @@ namespace NWRP.Runtime.Passes
                 _fogMaterial = CoreUtils.CreateEngineMaterial(shader);
             }
 
-            return _copyMaterial != null && _fogMaterial != null;
+            if (_fogMaterial == null)
+            {
+                return false;
+            }
+
+            UploadConstants(frameData.cmd, frameData.valleyHeightFog);
+            return true;
+        }
+
+        int INWRPFullscreenEffectNode.GetPassCount(ref NWRPFrameData frameData)
+        {
+            return 1;
+        }
+
+        bool INWRPFullscreenEffectNode.TryGetPass(
+            ref NWRPFrameData frameData,
+            int passIndex,
+            bool isFinalPass,
+            out NWRPFullscreenEffectPass fullscreenPass)
+        {
+            fullscreenPass = default;
+            if (passIndex != 0)
+            {
+                return false;
+            }
+
+            fullscreenPass = new NWRPFullscreenEffectPass(
+                _fogMaterial,
+                GetShaderPassIndex(frameData.valleyHeightFog));
+            return true;
         }
 
         private static void UploadConstants(CommandBuffer cmd, NWRPValleyHeightFog fog)

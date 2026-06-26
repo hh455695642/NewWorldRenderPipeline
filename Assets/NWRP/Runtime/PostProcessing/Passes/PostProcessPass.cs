@@ -11,6 +11,7 @@ namespace NWRP.Runtime.Passes
     /// external frame graph stays Transparent -> NWRP PostProcess -> DebugOverlay/FinalBlit.
     /// </summary>
     public sealed class PostProcessPass : NWRPPass
+        , INWRPFullscreenEffectNode
     {
         private const string k_TonemappingShaderName = "Hidden/NWRP/PostProcess/Tonemapping";
         private const string k_BloomShaderName = "Hidden/NWRP/PostProcess/Bloom";
@@ -21,12 +22,13 @@ namespace NWRP.Runtime.Passes
         private readonly BloomMipData[] _bloomMips = new BloomMipData[k_BloomMipCount];
         private readonly int _bloomTempBlurId = Shader.PropertyToID("_NWRPBloomTempBlur");
         private readonly int _bloomComposeId = Shader.PropertyToID("_NWRPBloomCustomCompose");
-        private readonly int _finalCompositeTempId = Shader.PropertyToID("_NWRPPostProcessTempColor");
 
-        private Material _copyMaterial;
+        private readonly NWRPFullscreenChain _fullscreenChain =
+            new NWRPFullscreenChain();
         private Material _tonemappingMaterial;
         private Material _bloomMaterial;
         private Texture _defaultLensDirtTexture;
+        private int _finalCompositePassIndex = -1;
 
         private enum BloomPass
         {
@@ -117,10 +119,9 @@ namespace NWRP.Runtime.Passes
 
         public void Dispose()
         {
-            CoreUtils.Destroy(_copyMaterial);
+            _fullscreenChain.Dispose();
             CoreUtils.Destroy(_tonemappingMaterial);
             CoreUtils.Destroy(_bloomMaterial);
-            _copyMaterial = null;
             _tonemappingMaterial = null;
             _bloomMaterial = null;
             _defaultLensDirtTexture = null;
@@ -129,12 +130,8 @@ namespace NWRP.Runtime.Passes
         public override NWRPFramePassResourceUsage GetFrameResourceUsage(
             ref NWRPFrameData frameData)
         {
-            return new NWRPFramePassResourceUsage
-            {
-                cameraColor = NWRPFrameResourceAccess.Read,
-                writesBackBuffer =
-                    !ScreenBlurFeature.IsAfterPostProcessActive(ref frameData)
-            };
+            return NWRPFramePassResourceUsage.CameraColorReadWrite(
+                CanPresentFinalComposite(ref frameData));
         }
 
         private BloomResources ExecuteBloom(ref NWRPFrameData frameData)
@@ -337,64 +334,24 @@ namespace NWRP.Runtime.Passes
                 PostProcessFeature.IsVignetteActive(ref frameData));
             UploadFxaaConstants(ref frameData, source, fxaaActive);
 
-            if (ScreenBlurFeature.IsAfterPostProcessActive(ref frameData))
-            {
-                ExecuteFinalCompositeToCameraColor(ref frameData, source, passIndex);
-                return;
-            }
-
-            NWRPFullscreenPassUtils.BlitToBackBuffer(
-                ref frameData,
-                source,
-                _tonemappingMaterial,
-                passIndex,
-                recordFinalFusion: false);
-        }
-
-        private void ExecuteFinalCompositeToCameraColor(
-            ref NWRPFrameData frameData,
-            RTHandle source,
-            int passIndex)
-        {
-            if (source == null || source.rt == null || !EnsureCopyMaterial())
-            {
-                return;
-            }
-
-            RenderTextureDescriptor descriptor = CreateTempDescriptor(source.rt);
-            int width = Mathf.Max(descriptor.width, 1);
-            int height = Mathf.Max(descriptor.height, 1);
-            CommandBuffer cmd = frameData.cmd;
-
-            NWRPFullscreenPassUtils.AllocateTempColor(
-                ref frameData,
-                _finalCompositeTempId,
-                descriptor,
-                FilterMode.Bilinear);
+            _finalCompositePassIndex = passIndex;
             try
             {
-                BlitToTarget(
-                    ref frameData,
-                    source,
-                    _finalCompositeTempId,
-                    width,
-                    height,
-                    _tonemappingMaterial,
-                    passIndex);
-                BlitToTarget(
-                    ref frameData,
-                    _finalCompositeTempId,
-                    frameData.targets.cameraColor,
-                    width,
-                    height,
-                    _copyMaterial,
-                    0);
+                _fullscreenChain.Execute(ref frameData, this, this);
             }
             finally
             {
-                NWRPFullscreenPassUtils.ReleaseTempColor(cmd, _finalCompositeTempId);
-                NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
+                _finalCompositePassIndex = -1;
             }
+        }
+
+        private static bool CanPresentFinalComposite(ref NWRPFrameData frameData)
+        {
+            return PostProcessFeature.HasAnyActivePostProcess(ref frameData)
+                && frameData.camera != null
+                && frameData.camera.cameraType == CameraType.Game
+                && frameData.targets.usesIntermediateColor
+                && frameData.targets.cameraColorHandle != null;
         }
 
         private void BlurInPlace(
@@ -960,11 +917,6 @@ namespace NWRP.Runtime.Passes
                 FormatUsage.Linear | FormatUsage.Render);
         }
 
-        private static RenderTextureDescriptor CreateTempDescriptor(RenderTexture sourceTexture)
-        {
-            return NWRPFullscreenPassUtils.CreateColorDescriptor(sourceTexture);
-        }
-
         private static void SetBloomTexelSize(CommandBuffer cmd, int width, int height)
         {
             float safeWidth = Mathf.Max(width, 1);
@@ -1012,15 +964,50 @@ namespace NWRP.Runtime.Passes
             return _tonemappingMaterial != null;
         }
 
-        private bool EnsureCopyMaterial()
+        NWRPPassEvent INWRPFullscreenEffectNode.PassEvent => passEvent;
+
+        bool INWRPFullscreenEffectNode.RequiresDepthTexture => false;
+
+        bool INWRPFullscreenEffectNode.RequiresOpaqueTexture => false;
+
+        bool INWRPFullscreenEffectNode.IsActive(ref NWRPFrameData frameData)
         {
-            if (_copyMaterial != null)
+            return PostProcessFeature.HasAnyActivePostProcess(ref frameData)
+                && _finalCompositePassIndex >= 0;
+        }
+
+        bool INWRPFullscreenEffectNode.CanPresentToBackBuffer(
+            ref NWRPFrameData frameData)
+        {
+            return CanPresentFinalComposite(ref frameData);
+        }
+
+        bool INWRPFullscreenEffectNode.Prepare(ref NWRPFrameData frameData)
+        {
+            return _finalCompositePassIndex >= 0 && EnsureTonemappingMaterial();
+        }
+
+        int INWRPFullscreenEffectNode.GetPassCount(ref NWRPFrameData frameData)
+        {
+            return _finalCompositePassIndex >= 0 ? 1 : 0;
+        }
+
+        bool INWRPFullscreenEffectNode.TryGetPass(
+            ref NWRPFrameData frameData,
+            int passIndex,
+            bool isFinalPass,
+            out NWRPFullscreenEffectPass fullscreenPass)
+        {
+            fullscreenPass = default;
+            if (passIndex != 0 || _finalCompositePassIndex < 0)
             {
-                return true;
+                return false;
             }
 
-            _copyMaterial = NWRPBlitterResources.CreateCoreBlitMaterial();
-            return _copyMaterial != null;
+            fullscreenPass = new NWRPFullscreenEffectPass(
+                _tonemappingMaterial,
+                _finalCompositePassIndex);
+            return true;
         }
 
         private bool EnsureBloomMaterial()
