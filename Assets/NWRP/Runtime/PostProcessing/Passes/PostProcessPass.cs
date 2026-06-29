@@ -66,19 +66,16 @@ namespace NWRP.Runtime.Passes
             public readonly int lastMipIndex;
             public readonly int baseSize;
             public readonly bool allowCustomCompose;
-            public readonly bool allowLensDirtExtraCompose;
 
             public BloomBudget(
                 int mipCount,
                 int baseSize,
-                bool allowCustomCompose,
-                bool allowLensDirtExtraCompose)
+                bool allowCustomCompose)
             {
                 this.mipCount = Mathf.Clamp(mipCount, 1, k_BloomMipCount);
                 lastMipIndex = this.mipCount - 1;
                 this.baseSize = Mathf.Max(baseSize, 4);
                 this.allowCustomCompose = allowCustomCompose;
-                this.allowLensDirtExtraCompose = allowLensDirtExtraCompose;
             }
         }
 
@@ -150,7 +147,7 @@ namespace NWRP.Runtime.Passes
             int sourceHeight = Mathf.Max(sourceTexture.height, 1);
             float aspectRatio = (float)sourceHeight / sourceWidth;
             int requestedBaseSize = GetBloomBaseSize(sourceWidth, bloom.resolution.value);
-            BloomBudget budget = ResolveBloomBudget(frameData.asset, requestedBaseSize);
+            BloomBudget budget = ResolveBloomBudget(bloom, requestedBaseSize);
             RenderTextureDescriptor bloomDescriptor =
                 CreateBloomDescriptor(budget.baseSize, aspectRatio, frameData.asset);
 
@@ -287,10 +284,9 @@ namespace NWRP.Runtime.Passes
 
             resources.hasBloomTexture = true;
             resources.finalTexture = bloomTexture;
-            resources.hasDirtSourceTexture =
-                budget.allowLensDirtExtraCompose
-                && bloom.lensDirtIntensity.value > 0f;
-            resources.dirtSourceTexture = GetLensDirtSourceTexture(bloom.lensDirtSpread.value);
+            resources.hasDirtSourceTexture = bloom.lensDirtIntensity.value > 0f;
+            resources.dirtSourceTexture =
+                GetLensDirtSourceTexture(bloom.lensDirtSpread.value, budget.lastMipIndex);
             return resources;
         }
 
@@ -828,11 +824,11 @@ namespace NWRP.Runtime.Passes
             return _defaultLensDirtTexture;
         }
 
-        private int GetLensDirtSourceTexture(int lensDirtSpread)
+        private int GetLensDirtSourceTexture(int lensDirtSpread, int lastAvailableMipIndex)
         {
-            int index = Mathf.Clamp(lensDirtSpread, 0, k_BloomLastMip);
-            return index >= k_BloomLastMip
-                ? _bloomMips[k_BloomLastMip].down
+            int index = Mathf.Clamp(lensDirtSpread, 0, lastAvailableMipIndex);
+            return index >= lastAvailableMipIndex
+                ? _bloomMips[lastAvailableMipIndex].down
                 : _bloomMips[index].up;
         }
 
@@ -843,25 +839,16 @@ namespace NWRP.Runtime.Passes
         }
 
         public static BloomBudget ResolveBloomBudget(
-            NewWorldRenderPipelineAsset asset,
+            NWRPBloom bloom,
             int requestedBaseSize)
         {
-            if (asset == null || !asset.EnableMobileFullscreenBudget)
-            {
-                return new BloomBudget(
-                    k_BloomMipCount,
-                    requestedBaseSize,
-                    true,
-                    true);
-            }
-
-            int maxMipCount = asset.MobileBloomMaxMipCount;
-            int maxBaseSize = asset.MobileBloomMaxBaseSize;
+            int maxMipCount = bloom != null ? bloom.maxMipCount.value : 4;
+            int maxBaseSize = bloom != null ? bloom.maxBaseSize.value : 512;
+            int mipCount = Mathf.Clamp(maxMipCount, 1, k_BloomMipCount);
             return new BloomBudget(
-                maxMipCount,
+                mipCount,
                 Mathf.Min(Mathf.Max(requestedBaseSize, 4), maxBaseSize),
-                false,
-                false);
+                bloom != null && bloom.customize.value && mipCount == k_BloomMipCount);
         }
 
         private static RenderTextureDescriptor CreateBloomDescriptor(int width, float aspectRatio)
@@ -895,9 +882,7 @@ namespace NWRP.Runtime.Passes
         private static GraphicsFormat ResolveBloomGraphicsFormat(
             NewWorldRenderPipelineAsset asset)
         {
-            if (asset != null
-                && asset.EnableMobileFullscreenBudget
-                && SupportsBloomRenderFormat(GraphicsFormat.B10G11R11_UFloatPack32))
+            if (SupportsBloomRenderFormat(GraphicsFormat.B10G11R11_UFloatPack32))
             {
                 return GraphicsFormat.B10G11R11_UFloatPack32;
             }

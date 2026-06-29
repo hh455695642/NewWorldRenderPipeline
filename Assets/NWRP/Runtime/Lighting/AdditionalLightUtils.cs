@@ -127,13 +127,7 @@ namespace NWRP.Runtime.Lighting
             AdditionalLightData[] additionalLights)
         {
             int arrayLimit = additionalLights != null ? additionalLights.Length : 0;
-            int assetLimit = MaxAdditionalLights;
-            if (frameData.asset != null && frameData.asset.EnableMobileFullscreenBudget)
-            {
-                assetLimit = frameData.asset.MobileMaxAdditionalLights;
-            }
-
-            return Mathf.Clamp(assetLimit, 0, Mathf.Min(MaxAdditionalLights, arrayLimit));
+            return Mathf.Clamp(MaxAdditionalLights, 0, arrayLimit);
         }
 
         private static float GetAdditionalLightSortScore(

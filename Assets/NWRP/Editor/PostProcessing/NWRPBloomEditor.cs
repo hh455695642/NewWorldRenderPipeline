@@ -49,6 +49,8 @@ namespace NWRP.Editor
         private SerializedDataParameter _tint;
         private SerializedDataParameter _antiflicker;
         private SerializedDataParameter _resolution;
+        private SerializedDataParameter _maxMipCount;
+        private SerializedDataParameter _maxBaseSize;
         private SerializedDataParameter _quickerBlur;
         private SerializedDataParameter _customize;
         private readonly SerializedDataParameter[] _weights = new SerializedDataParameter[6];
@@ -69,6 +71,8 @@ namespace NWRP.Editor
             _tint = FindParameter("tint");
             _antiflicker = FindParameter("antiflicker");
             _resolution = FindParameter("resolution");
+            _maxMipCount = FindParameter("maxMipCount");
+            _maxBaseSize = FindParameter("maxBaseSize");
             _quickerBlur = FindParameter("quickerBlur");
             _customize = FindParameter("customize");
 
@@ -109,11 +113,20 @@ namespace NWRP.Editor
             PropertyField(_tint);
             PropertyField(_antiflicker);
             PropertyField(_resolution);
+            PropertyField(_maxMipCount);
+            PropertyField(_maxBaseSize);
             PropertyField(_quickerBlur);
             PropertyField(_customize);
 
             if (_customize.overrideState.boolValue && _customize.value.boolValue)
             {
+                if (_maxMipCount.value.intValue < 6)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Custom layer compose requires Max Mip Count 6. The mobile budget will skip the full custom compose path at lower mip counts.",
+                        MessageType.Warning);
+                }
+
                 DrawHeader("Custom Layer Controls");
                 EditorGUI.indentLevel++;
                 for (int i = 0; i < 6; i++)

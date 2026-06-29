@@ -37,6 +37,12 @@ namespace NWRP
         [Tooltip("Base bloom pyramid resolution. Higher values increase bandwidth.")]
         public ClampedIntParameter resolution = new ClampedIntParameter(1, 1, 10);
 
+        [Tooltip("Maximum bloom pyramid mips allocated by this Volume profile.")]
+        public ClampedIntParameter maxMipCount = new ClampedIntParameter(4, 1, 6);
+
+        [Tooltip("Maximum bloom base width before the pyramid halves each mip.")]
+        public ClampedIntParameter maxBaseSize = new ClampedIntParameter(512, 64, 4096);
+
         [Tooltip("Combines downsample and blur work for a cheaper, softer mobile path.")]
         public BoolParameter quickerBlur = new BoolParameter(false);
 
