@@ -18,8 +18,8 @@
       "hash": "85c101f5329ec1b0c6f70cba44614166dd78f53c"
     },
     "com.ivanmurzak.unity.mcp": {
-      "version": "0.81.0",
-      "depth": 0,
+      "version": "0.82.2",
+      "depth": 1,
       "source": "registry",
       "dependencies": {
         "com.unity.test-framework": "1.1.33",
@@ -35,6 +35,16 @@
       "dependencies": {
         "com.ivanmurzak.unity.mcp": "0.81.0",
         "com.unity.modules.particlesystem": "1.0.0"
+      },
+      "url": "https://package.openupm.com"
+    },
+    "com.ivanmurzak.unity.mcp.probuilder": {
+      "version": "1.2.22",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.ivanmurzak.unity.mcp": "0.82.2",
+        "com.unity.probuilder": "5.2.4"
       },
       "url": "https://package.openupm.com"
     },
@@ -137,6 +147,18 @@
       "dependencies": {},
       "url": "https://packages.unity.com"
     },
+    "com.unity.probuilder": {
+      "version": "6.0.9",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.shadergraph": "17.0.3",
+        "com.unity.modules.imgui": "1.0.0",
+        "com.unity.modules.physics": "1.0.0",
+        "com.unity.settings-manager": "1.0.3"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.recorder": {
       "version": "5.1.6",
       "depth": 0,
@@ -182,6 +204,13 @@
     },
     "com.unity.searcher": {
       "version": "4.9.4",
+      "depth": 2,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.settings-manager": {
+      "version": "2.1.1",
       "depth": 2,
       "source": "registry",
       "dependencies": {},

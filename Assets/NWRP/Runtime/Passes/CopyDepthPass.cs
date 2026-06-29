@@ -44,6 +44,8 @@ namespace NWRP.Runtime.Passes
 
             cmd.SetGlobalTexture(NWRPShaderIds.CameraDepthAttachment, source.nameID);
             ConfigureKeywords(copyToDepth);
+            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
+            frameData.debugStats.RecordCameraDepthCopy();
             if (copyToDepth)
             {
                 SetDepthCopyTarget(cmd, frameData.targets.cameraDepthTexture);
@@ -72,14 +74,23 @@ namespace NWRP.Runtime.Passes
             }
 
             cmd.SetGlobalTexture(NWRPShaderIds.CameraDepthTexture, destination.nameID);
-            cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-            cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
+            NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
         }
 
         public void Dispose()
         {
             CoreUtils.Destroy(_copyDepthMaterial);
             _copyDepthMaterial = null;
+        }
+
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraDepth = NWRPFrameResourceAccess.Read,
+                cameraDepthTexture = NWRPFrameResourceAccess.Write
+            };
         }
 
         public static bool CanCopyDepth(Camera camera)

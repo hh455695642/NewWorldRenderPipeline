@@ -29,5 +29,15 @@ namespace NWRP.Runtime.Passes
                 NWRPRenderer.GetOpaqueLayerMaskValue(ref frameData));
             NWRPRenderer.DrawRendererList(ref frameData, ref drawingSettings, ref filteringSettings);
         }
+
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.Write,
+                cameraDepth = NWRPFrameResourceAccess.Write
+            };
+        }
     }
 }

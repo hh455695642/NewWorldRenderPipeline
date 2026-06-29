@@ -53,9 +53,17 @@ namespace NWRP
 
         public bool EnableOutline => FeatureSettingsData.outline.enableOutline;
 
-        public bool EnableOpaqueTexture => FeatureSettingsData.opaqueTexture.enableOpaqueTexture;
+        public NewWorldRenderPipelineAsset.CameraTexturePolicy OpaqueTexturePolicy =>
+            FeatureSettingsData.opaqueTexture.texturePolicy;
 
-        public bool EnableDepthTexture => FeatureSettingsData.depthTexture.enableDepthTexture;
+        public NewWorldRenderPipelineAsset.CameraTexturePolicy DepthTexturePolicy =>
+            FeatureSettingsData.depthTexture.texturePolicy;
+
+        public bool EnableOpaqueTexture =>
+            FeatureSettingsData.opaqueTexture.ShouldForceTexture;
+
+        public bool EnableDepthTexture =>
+            FeatureSettingsData.depthTexture.ShouldForceTexture;
 
         public NewWorldRenderPipelineAsset.DepthTextureCopyMode DepthTextureCopyModeSetting =>
             FeatureSettingsData.depthTexture.copyDepthMode;
@@ -81,8 +89,12 @@ namespace NWRP
                 source.outline.enableOutline;
             featureSettings.opaqueTexture.enableOpaqueTexture =
                 source.opaqueTexture.enableOpaqueTexture;
+            featureSettings.opaqueTexture.texturePolicy =
+                source.opaqueTexture.texturePolicy;
             featureSettings.depthTexture.enableDepthTexture =
                 source.depthTexture.enableDepthTexture;
+            featureSettings.depthTexture.texturePolicy =
+                source.depthTexture.texturePolicy;
             featureSettings.depthTexture.copyDepthMode =
                 source.depthTexture.copyDepthMode;
             featureSettings.vegetationIndirectRendering

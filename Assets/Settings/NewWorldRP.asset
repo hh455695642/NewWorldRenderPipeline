@@ -36,9 +36,11 @@ MonoBehaviour:
     outline:
       enableOutline: 0
     opaqueTexture:
-      enableOpaqueTexture: 1
+      texturePolicy: 0
+      enableOpaqueTexture: 0
     depthTexture:
-      enableDepthTexture: 1
+      texturePolicy: 1
+      enableDepthTexture: 0
       copyDepthMode: 0
     vegetationIndirectRendering:
       enableVegetationIndirectRendering: 1
@@ -89,12 +91,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useSRPBatcher: 1
   useGPUInstancing: 1
-  supportsHDR: 1
+  supportsHDR: 0
   hdrColorBufferPrecision: 0
-  supportsPostProcessing: 1
-  enableRenderScale: 1
+  supportsPostProcessing: 0
+  enableRenderScale: 0
   renderScale: 1
   renderScaleFilterMode: 1
+  mobileBandwidth:
+    enableMobileFullscreenBudget: 1
+    bloomMaxMipCount: 4
+    bloomMaxBaseSize: 512
+    maxAdditionalLights: 4
+    logFrameDebugStats: 0
   mainLightShadows:
     toggles:
       enableMainLightShadows: 1
@@ -104,7 +112,7 @@ MonoBehaviour:
       mainLightShadowCascadeSplit: 0.35
     atlas:
       mainLightShadowResolution: 2048
-      mainLightShadowFilterMode: 1
+      mainLightShadowFilterMode: 0
       mainLightShadowFilterRadius: 0.89
     bias:
       mainLightShadowBias: 0.7
@@ -138,7 +146,7 @@ MonoBehaviour:
     mainLightShadowCascadeSplit: 0.35
     mainLightShadowBias: 0.7
     mainLightShadowNormalBias: 0.1
-    mainLightShadowFilterMode: 1
+    mainLightShadowFilterMode: 0
     mainLightShadowFilterRadius: 0.89
     mainLightShadowReceiverDepthBias: 0
     mainLightShadowReceiverNormalBias: 0
@@ -174,9 +182,11 @@ MonoBehaviour:
     outline:
       enableOutline: 0
     opaqueTexture:
-      enableOpaqueTexture: 1
+      texturePolicy: 0
+      enableOpaqueTexture: 0
     depthTexture:
-      enableDepthTexture: 1
+      texturePolicy: 1
+      enableDepthTexture: 0
       copyDepthMode: 0
     vegetationIndirectRendering:
       enableVegetationIndirectRendering: 1

@@ -219,16 +219,17 @@ Shader "Hidden/NWRP/PostProcess/ValleyHeightFog"
 
         half4 FragSingleLayer(Varyings input) : SV_Target
         {
-            float2 uv = input.texcoord.xy;
-            half4 sceneColor = SampleValleyFogSource(uv);
+            float2 sourceUV = input.texcoord.xy;
+            float2 screenUV = GetBlitScreenUV(input.positionCS);
+            half4 sceneColor = SampleValleyFogSource(sourceUV);
 
-            float rawDepth = SampleSceneDepth(uv);
+            float rawDepth = SampleSceneDepth(screenUV);
             if (!IsSceneDepthValid(rawDepth))
             {
                 return sceneColor;
             }
 
-            float3 positionWS = ComputeSceneWorldSpacePosition(uv, rawDepth);
+            float3 positionWS = ComputeSceneWorldSpacePosition(screenUV, rawDepth);
             float dynamicBaseHeight = NWRP_VALLEY_FOG_BASE_HEIGHT;
 
             UNITY_BRANCH
@@ -283,10 +284,11 @@ Shader "Hidden/NWRP/PostProcess/ValleyHeightFog"
 
         half4 FragThreeLayer(Varyings input) : SV_Target
         {
-            float2 uv = input.texcoord.xy;
-            half4 sceneColor = SampleValleyFogSource(uv);
+            float2 sourceUV = input.texcoord.xy;
+            float2 screenUV = GetBlitScreenUV(input.positionCS);
+            half4 sceneColor = SampleValleyFogSource(sourceUV);
 
-            float rawDepth = SampleSceneDepth(uv);
+            float rawDepth = SampleSceneDepth(screenUV);
             bool isSkybox = !IsSceneDepthValid(rawDepth);
             float3 positionWS;
 
@@ -296,7 +298,7 @@ Shader "Hidden/NWRP/PostProcess/ValleyHeightFog"
             if (isSkybox)
             {
                 float3 safeWorldPos = ComputeWorldSpacePosition(
-                    uv,
+                    screenUV,
                     0.5,
                     UNITY_MATRIX_I_VP);
                 float3 viewDir = normalize(safeWorldPos - _WorldSpaceCameraPos);
@@ -308,7 +310,7 @@ Shader "Hidden/NWRP/PostProcess/ValleyHeightFog"
             }
             else
             {
-                positionWS = ComputeSceneWorldSpacePosition(uv, rawDepth);
+                positionWS = ComputeSceneWorldSpacePosition(screenUV, rawDepth);
             }
 
             float height = positionWS.y;

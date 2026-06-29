@@ -5,6 +5,12 @@ namespace NWRP
 {
     internal static class NWRPFeatureScheduler
     {
+        private static readonly List<int> s_SortedFeatureIndices =
+            new List<int>(16);
+        private static readonly Comparison<int> s_FeatureIndexComparer =
+            CompareFeatureIndicesByMetadata;
+        private static List<NWRPFeature> s_FeatureIndexSortSource;
+
         public static NWRPFrameTargetRequirements CollectFrameTargetRequirements(
             ref NWRPFrameData frameData)
         {
@@ -21,15 +27,10 @@ namespace NWRP
 
             if (features != null)
             {
-                for (int i = 0; i < features.Count; i++)
+                List<int> featureIndices = GetSortedProcessableFeatureIndices(features);
+                for (int sortedIndex = 0; sortedIndex < featureIndices.Count; sortedIndex++)
                 {
-                    if (!NWRPBuiltInFeatureCatalog.ShouldProcessSerializedFeature(
-                            features,
-                            i))
-                    {
-                        continue;
-                    }
-
+                    int i = featureIndices[sortedIndex];
                     NWRPFeature feature = features[i];
                     if (feature.TryGetFrameTargetRequirements(
                             ref frameData,
@@ -54,18 +55,32 @@ namespace NWRP
                 }
             }
 
-            if (rendererData.EnableOpaqueTexture)
+            if (rendererData.OpaqueTexturePolicy
+                == NewWorldRenderPipelineAsset.CameraTexturePolicy.Off)
+            {
+                requirements.requiresOpaqueTexture = false;
+            }
+            else if (rendererData.EnableOpaqueTexture)
             {
                 requirements.requiresIntermediateColor = true;
                 requirements.requiresIntermediateDepth = true;
                 requirements.requiresOpaqueTexture = true;
+                frameData.debugStats.RecordForcedOpaqueTextureCopy();
             }
 
-            if (rendererData.EnableDepthTexture)
+            if (rendererData.DepthTexturePolicy
+                == NewWorldRenderPipelineAsset.CameraTexturePolicy.Off)
+            {
+                requirements.requiresDepthTexture = false;
+                requirements.requiresDepthTextureCopy = false;
+                requirements.requiresDepthTexturePrepass = false;
+            }
+            else if (rendererData.EnableDepthTexture)
             {
                 requirements.Merge(DepthTextureFeature.GetFrameTargetRequirements(
                     rendererData.DepthTextureCopyModeSetting,
                     frameData.camera));
+                frameData.debugStats.RecordForcedDepthTextureCopy();
             }
 
             return requirements;
@@ -84,20 +99,31 @@ namespace NWRP
             List<NWRPFeature> features = rendererData.Features;
             NWRPSerializedFeatureState state =
                 NWRPBuiltInFeatureCatalog.AnalyzeSerializedFeatures(features);
+            bool shouldEnqueueDepthTexture =
+                ShouldEnqueueDepthTextureFeature(ref frameData, rendererData);
+            bool serializedDepthTextureEnqueued = false;
 
-            if (!state.hasDepthTexture && rendererData.EnableDepthTexture)
+            if (shouldEnqueueDepthTexture)
             {
-                EnqueueRuntimeFeature<DepthTextureFeature>(
+                serializedDepthTextureEnqueued = EnqueueSerializedDepthTextureFeature(
                     renderer,
                     ref frameData,
-                    rendererData);
+                    features);
+                if (!serializedDepthTextureEnqueued)
+                {
+                    EnqueueRuntimeFeature<DepthTextureFeature>(
+                        renderer,
+                        ref frameData,
+                        rendererData);
+                }
             }
 
             EnqueueSerializedFeatures(
                 renderer,
                 ref frameData,
                 features,
-                includeDeferredFeatures: false);
+                includeDeferredFeatures: false,
+                skipDepthTextureFeature: serializedDepthTextureEnqueued);
 
             if (!state.hasMainLightShadow && frameData.asset != null)
             {
@@ -113,7 +139,8 @@ namespace NWRP
                     renderer,
                     ref frameData,
                     features,
-                    includeDeferredFeatures: true);
+                    includeDeferredFeatures: true,
+                    skipDepthTextureFeature: false);
             }
             else if (ShouldEnqueueVegetationIndirectShadowFeature(
                          ref frameData,
@@ -138,7 +165,8 @@ namespace NWRP
                 EnqueueRuntimeFeature<OutlineFeature>(renderer, ref frameData, rendererData);
             }
 
-            if (!state.hasOpaqueTexture && rendererData.EnableOpaqueTexture)
+            if (!state.hasOpaqueTexture
+                && ShouldEnqueueOpaqueTextureFeature(ref frameData, rendererData))
             {
                 EnqueueRuntimeFeature<OpaqueTextureFeature>(
                     renderer,
@@ -165,11 +193,44 @@ namespace NWRP
             NWRPRenderer renderer,
             ref NWRPFrameData frameData,
             List<NWRPFeature> features,
-            bool includeDeferredFeatures)
+            bool includeDeferredFeatures,
+            bool skipDepthTextureFeature = false)
         {
             if (features == null)
             {
                 return;
+            }
+
+            List<int> featureIndices = GetSortedProcessableFeatureIndices(features);
+            for (int sortedIndex = 0; sortedIndex < featureIndices.Count; sortedIndex++)
+            {
+                int i = featureIndices[sortedIndex];
+                NWRPFeature feature = features[i];
+                if (skipDepthTextureFeature && feature is DepthTextureFeature)
+                {
+                    continue;
+                }
+
+                bool isDeferred =
+                    NWRPBuiltInFeatureCatalog.ShouldDeferSerializedFeature(feature);
+                if (isDeferred != includeDeferredFeatures)
+                {
+                    continue;
+                }
+
+                feature.EnsureCreated();
+                feature.AddPasses(renderer, ref frameData);
+            }
+        }
+
+        private static bool EnqueueSerializedDepthTextureFeature(
+            NWRPRenderer renderer,
+            ref NWRPFrameData frameData,
+            List<NWRPFeature> features)
+        {
+            if (features == null)
+            {
+                return false;
             }
 
             for (int i = 0; i < features.Count; i++)
@@ -181,17 +242,17 @@ namespace NWRP
                     continue;
                 }
 
-                NWRPFeature feature = features[i];
-                bool isDeferred =
-                    NWRPBuiltInFeatureCatalog.ShouldDeferSerializedFeature(feature);
-                if (isDeferred != includeDeferredFeatures)
+                if (features[i] is not DepthTextureFeature feature)
                 {
                     continue;
                 }
 
                 feature.EnsureCreated();
                 feature.AddPasses(renderer, ref frameData);
+                return true;
             }
+
+            return false;
         }
 
         private static void EnqueueRuntimeFeature<T>(
@@ -244,6 +305,57 @@ namespace NWRP
 #else
             return false;
 #endif
+        }
+
+        private static bool ShouldEnqueueDepthTextureFeature(
+            ref NWRPFrameData frameData,
+            NWRPRendererData rendererData)
+        {
+            return (rendererData != null && rendererData.EnableDepthTexture)
+                || frameData.targets.hasCameraDepthTexture;
+        }
+
+        private static bool ShouldEnqueueOpaqueTextureFeature(
+            ref NWRPFrameData frameData,
+            NWRPRendererData rendererData)
+        {
+            return frameData.targets.hasOpaqueTexture
+                || (rendererData != null && rendererData.EnableOpaqueTexture);
+        }
+
+        private static List<int> GetSortedProcessableFeatureIndices(
+            List<NWRPFeature> features)
+        {
+            s_SortedFeatureIndices.Clear();
+            if (features == null)
+            {
+                return s_SortedFeatureIndices;
+            }
+
+            for (int i = 0; i < features.Count; i++)
+            {
+                if (NWRPBuiltInFeatureCatalog.ShouldProcessSerializedFeature(
+                        features,
+                        i))
+                {
+                    s_SortedFeatureIndices.Add(i);
+                }
+            }
+
+            s_FeatureIndexSortSource = features;
+            s_SortedFeatureIndices.Sort(s_FeatureIndexComparer);
+            s_FeatureIndexSortSource = null;
+            return s_SortedFeatureIndices;
+        }
+
+        private static int CompareFeatureIndicesByMetadata(int a, int b)
+        {
+            NWRPFeature featureA = s_FeatureIndexSortSource[a];
+            NWRPFeature featureB = s_FeatureIndexSortSource[b];
+            int orderA = NWRPFeatureMetadataUtility.Get(featureA.GetType()).sortOrder;
+            int orderB = NWRPFeatureMetadataUtility.Get(featureB.GetType()).sortOrder;
+            int orderCompare = orderA.CompareTo(orderB);
+            return orderCompare != 0 ? orderCompare : a.CompareTo(b);
         }
     }
 }

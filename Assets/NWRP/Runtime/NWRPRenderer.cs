@@ -64,6 +64,8 @@ namespace NWRP
         private RTHandle _cameraDepthHandle;
         private RTHandle _cameraDepthTextureHandle;
         private RTHandle _opaqueTextureHandle;
+        private readonly NWRPTransientResourceAllocator _transientResourceAllocator =
+            new NWRPTransientResourceAllocator();
         private int _enqueueCounter;
 
         public NWRPRenderer()
@@ -126,8 +128,11 @@ namespace NWRP
                 asset = asset,
                 rendererData = rendererData,
                 rendererDataIndex = rendererDataIndex,
-                shadowCullingContext = _shadowCullingContext
+                shadowCullingContext = _shadowCullingContext,
+                transientResources = _transientResourceAllocator,
+                currentPassIndex = -1
             };
+            _transientResourceAllocator.Reset();
 
             try
             {
@@ -140,6 +145,9 @@ namespace NWRP
                         ConfigureFrameTargets(ref frameData);
                         BuildPassQueue(ref frameData);
                         ExecutePassQueue(ref frameData);
+                        frameData.debugStats.RecordTransientResources(
+                            frameData.transientResources);
+                        LogFrameDebugStats(ref frameData);
                     }
                 }
 
@@ -173,16 +181,21 @@ namespace NWRP
         {
             frameData.context.SetupCameraProperties(frameData.camera);
 
-            SetCameraRenderTarget(ref frameData);
-
             CameraClearFlags clearFlags = frameData.camera.clearFlags;
-            frameData.cmd.ClearRenderTarget(
-                clearDepth: clearFlags <= CameraClearFlags.Depth,
-                clearColor: clearFlags <= CameraClearFlags.SolidColor,
-                backgroundColor: clearFlags == CameraClearFlags.SolidColor
-                    ? frameData.camera.backgroundColor.linear
-                    : Color.clear
-            );
+            bool clearDepth = clearFlags <= CameraClearFlags.Depth;
+            bool clearColor = clearFlags <= CameraClearFlags.SolidColor;
+            Color clearColorValue = clearFlags == CameraClearFlags.SolidColor
+                ? frameData.camera.backgroundColor.linear
+                : Color.clear;
+
+            SetCameraRenderTarget(
+                ref frameData,
+                NWRPCameraAttachmentPolicy.ForUsage(
+                    NWRPCameraAttachmentUsage.CameraSetup,
+                    clearColor,
+                    clearDepth),
+                MakeClearFlag(clearColor, clearDepth),
+                clearColorValue);
 
             ExecuteBuffer(ref frameData);
         }
@@ -219,18 +232,29 @@ namespace NWRP
                 && frameData.targets.cameraColorHandle != null
                 && frameData.targets.cameraColorHandle.nameID == BuiltinRenderTextureType.CameraTarget
                 && camera.targetTexture == null;
-            bool yFlip = !isCameraColorFinalTarget;
-            float flipSign = yFlip ? -1.0f : 1.0f;
-            Vector4 scaleBiasRt = flipSign < 0.0f
-                ? new Vector4(flipSign, 1.0f, -1.0f, 1.0f)
-                : new Vector4(flipSign, 0.0f, 1.0f, 1.0f);
-
-            frameData.cmd.SetGlobalVector(NWRPShaderIds.ScaleBiasRt, scaleBiasRt);
+            SetFullscreenScaleBiasRt(ref frameData, isCameraColorFinalTarget);
             frameData.cmd.SetGlobalVector(
                 NWRPShaderIds.CameraDepthTextureScaleBias,
                 GetCameraDepthTextureScaleBias(
                     camera,
                     frameData.targets.cameraDepthTextureWrittenByPrepass));
+        }
+
+        internal static void SetFullscreenScaleBiasRt(
+            ref NWRPFrameData frameData,
+            bool isGameBackBufferTarget)
+        {
+            if (frameData.cmd == null)
+            {
+                return;
+            }
+
+            bool yFlip = !isGameBackBufferTarget;
+            float flipSign = yFlip ? -1.0f : 1.0f;
+            Vector4 scaleBiasRt = flipSign < 0.0f
+                ? new Vector4(flipSign, 1.0f, -1.0f, 1.0f)
+                : new Vector4(flipSign, 0.0f, 1.0f, 1.0f);
+            frameData.cmd.SetGlobalVector(NWRPShaderIds.ScaleBiasRt, scaleBiasRt);
         }
 
         private static Vector4 GetCameraDepthTextureScaleBias(
@@ -342,7 +366,7 @@ namespace NWRP
 
         internal void ExecuteDrawOpaque(ref NWRPFrameData frameData)
         {
-            SetCameraRenderTarget(ref frameData);
+            RestoreCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
 
             SortingSettings sortingSettings = new SortingSettings(frameData.camera)
@@ -367,7 +391,7 @@ namespace NWRP
 
         internal void ExecuteDrawSkybox(ref NWRPFrameData frameData)
         {
-            SetCameraRenderTarget(ref frameData);
+            RestoreCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
 
             RendererList skyboxRendererList =
@@ -381,7 +405,7 @@ namespace NWRP
 
         internal void ExecuteDrawTransparent(ref NWRPFrameData frameData)
         {
-            SetCameraRenderTarget(ref frameData);
+            RestoreCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
 
             SortingSettings sortingSettings = new SortingSettings(frameData.camera)
@@ -482,8 +506,14 @@ namespace NWRP
             }
 
             bool canSampleVolumes = camera != null && frameData.asset != null;
+#pragma warning disable 0618
+            bool isLegacyGles2 =
+                SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLES2;
+#pragma warning restore 0618
+            bool canRunVolumeFullscreenEffects =
+                canSampleVolumes && !isLegacyGles2;
             bool canRunPostProcessing =
-                canSampleVolumes
+                canRunVolumeFullscreenEffects
                 && frameData.asset.SupportsPostProcessing;
 
             if (!canSampleVolumes)
@@ -506,10 +536,16 @@ namespace NWRP
                         camera.transform,
                         camera.cullingMask,
                         null);
+                    ResolveDepthConsumerEffectsFromVolume(ref frameData);
 
                     if (canRunPostProcessing)
                     {
                         ResolvePostProcessingFromVolume(ref frameData);
+                    }
+
+                    if (canRunVolumeFullscreenEffects)
+                    {
+                        ResolveScreenBlurFromVolume(ref frameData);
                     }
                 }
 
@@ -525,10 +561,17 @@ namespace NWRP
                     frameData.cameraData.GetVolumeTrigger(camera),
                     frameData.cameraData.VolumeLayerMask,
                     frameData.cameraData);
+                ResolveDepthConsumerEffectsFromVolume(ref frameData);
 
                 if (frameData.cameraData.renderPostProcessing && canRunPostProcessing)
                 {
                     ResolvePostProcessingFromVolume(ref frameData);
+                }
+
+                if (frameData.cameraData.renderPostProcessing
+                    && canRunVolumeFullscreenEffects)
+                {
+                    ResolveScreenBlurFromVolume(ref frameData);
                 }
             }
 
@@ -616,6 +659,14 @@ namespace NWRP
             frameData.antiAliasingActive =
                 antiAliasing != null
                 && antiAliasing.IsActive();
+        }
+
+        private static void ResolveScreenBlurFromVolume(ref NWRPFrameData frameData)
+        {
+            if (frameData.volumeStack == null)
+            {
+                return;
+            }
 
             NWRPScreenBlur screenBlur =
                 frameData.volumeStack.GetComponent<NWRPScreenBlur>();
@@ -623,6 +674,14 @@ namespace NWRP
             frameData.screenBlurActive =
                 screenBlur != null
                 && screenBlur.IsActive();
+        }
+
+        private static void ResolveDepthConsumerEffectsFromVolume(ref NWRPFrameData frameData)
+        {
+            if (frameData.volumeStack == null)
+            {
+                return;
+            }
 
             NWRPValleyHeightFog valleyHeightFog =
                 frameData.volumeStack.GetComponent<NWRPValleyHeightFog>();
@@ -810,9 +869,15 @@ namespace NWRP
 
             if (needIntermediateDepth)
             {
+                bool useMemorylessDepth =
+                    CanUseMemorylessIntermediateDepth(
+                        requirements,
+                        needIntermediateColor,
+                        needIntermediateDepth);
                 RenderTextureDescriptor depthDescriptor = CreateCameraDepthDescriptor(
                     frameData.cameraTargetWidth,
-                    frameData.cameraTargetHeight);
+                    frameData.cameraTargetHeight,
+                    useMemorylessDepth);
                 ReAllocateFrameTargetIfNeeded(
                     ref _cameraDepthHandle,
                     depthDescriptor,
@@ -1006,6 +1071,19 @@ namespace NWRP
                 && camera.targetTexture == null;
         }
 
+        private static bool CanUseMemorylessIntermediateDepth(
+            NWRPFrameTargetRequirements requirements,
+            bool needIntermediateColor,
+            bool needIntermediateDepth)
+        {
+            return needIntermediateDepth
+                && needIntermediateColor
+                && !requirements.requiresDepthTexture
+                && !requirements.requiresDepthTextureCopy
+                && !requirements.requiresDepthTexturePrepass
+                && !requirements.requiresOpaqueTexture;
+        }
+
         private void PresentIntermediateColor(ref NWRPFrameData frameData)
         {
             if (!EnsureCoreBlitMaterial())
@@ -1029,6 +1107,8 @@ namespace NWRP
 
             using (new ProfilingScope(frameData.cmd, NWRPProfiling.FinalBlit))
             {
+                InvalidateCameraRenderTarget(ref frameData);
+                frameData.debugStats.RecordFinalBlit();
                 CoreUtils.SetRenderTarget(
                     frameData.cmd,
                     frameData.targets.backBufferColor,
@@ -1083,6 +1163,16 @@ namespace NWRP
                     source.rtHandleProperties.rtHandleScale.y)
                 : Vector2.one;
 
+            return GetFinalBlitScaleBias(camera, viewportScale);
+        }
+
+        internal static Vector4 GetFinalBlitScaleBias(Camera camera)
+        {
+            return GetFinalBlitScaleBias(camera, Vector2.one);
+        }
+
+        private static Vector4 GetFinalBlitScaleBias(Camera camera, Vector2 viewportScale)
+        {
             // Match URP FinalBlit: RT -> backbuffer needs a Y flip on top-left UV backends.
             bool yFlip = camera != null
                 && camera.cameraType != CameraType.SceneView
@@ -1118,19 +1208,85 @@ namespace NWRP
             return _coreBlitMaterial != null;
         }
 
-        private static void SetCameraRenderTarget(ref NWRPFrameData frameData)
+        internal static void RestoreCameraRenderTarget(ref NWRPFrameData frameData)
+        {
+            bool isLastCameraDepthUse =
+                frameData.currentPassIndex >= 0
+                && frameData.currentPassIndex
+                == frameData.frameGraph.cameraDepthLastUsePassIndex
+                && frameData.frameGraph.canDiscardCameraDepthAfterLastUse;
+            if (isLastCameraDepthUse)
+            {
+                frameData.debugStats.RecordDiscardedDepthStore();
+            }
+
+            SetCameraRenderTarget(
+                ref frameData,
+                NWRPCameraAttachmentPolicy.ForUsage(
+                    isLastCameraDepthUse
+                        ? NWRPCameraAttachmentUsage.LastCameraDepthUse
+                        : NWRPCameraAttachmentUsage.ContinueCamera,
+                    clearsColor: false,
+                    clearsDepth: false),
+                ClearFlag.None,
+                Color.clear);
+        }
+
+        internal static void InvalidateCameraRenderTarget(ref NWRPFrameData frameData)
+        {
+            frameData.cameraAttachmentState.Invalidate();
+            frameData.debugStats.RecordNonCameraTargetBind();
+        }
+
+        private static void SetCameraRenderTarget(
+            ref NWRPFrameData frameData,
+            NWRPCameraAttachmentPolicy policy,
+            ClearFlag clearFlag,
+            Color clearColor)
         {
             if (frameData.cmd == null || !frameData.targets.hasCameraTargets)
             {
                 return;
             }
 
-            frameData.cmd.SetRenderTarget(
-                frameData.targets.cameraColor,
-                frameData.targets.cameraDepth);
-            frameData.cmd.SetViewport(GetCameraRenderViewport(ref frameData));
+            Rect viewport = GetCameraRenderViewport(ref frameData);
+            bool canSkipBind = clearFlag == ClearFlag.None
+                && frameData.cameraAttachmentState.CanSkipCameraTargetBind(policy, viewport);
+            frameData.debugStats.RecordCameraTargetBind(canSkipBind);
+            if (!canSkipBind)
+            {
+                CoreUtils.SetRenderTarget(
+                    frameData.cmd,
+                    frameData.targets.cameraColor,
+                    policy.colorLoadAction,
+                    policy.colorStoreAction,
+                    frameData.targets.cameraDepth,
+                    policy.depthLoadAction,
+                    policy.depthStoreAction,
+                    clearFlag,
+                    clearColor);
+                frameData.cmd.SetViewport(viewport);
+                frameData.cameraAttachmentState.MarkCameraTargetBound(policy, viewport);
+            }
+
             SetCameraMatrices(ref frameData);
             SetCameraScreenGlobals(ref frameData);
+        }
+
+        private static ClearFlag MakeClearFlag(bool clearColor, bool clearDepth)
+        {
+            ClearFlag clearFlag = ClearFlag.None;
+            if (clearColor)
+            {
+                clearFlag |= ClearFlag.Color;
+            }
+
+            if (clearDepth)
+            {
+                clearFlag |= ClearFlag.Depth;
+            }
+
+            return clearFlag;
         }
 
         private static bool IsCameraProjectionMatrixFlipped(Camera camera, RTHandle colorHandle)
@@ -1345,7 +1501,10 @@ namespace NWRP
                 GraphicsFormatUsage.Linear | GraphicsFormatUsage.Render);
         }
 
-        private static RenderTextureDescriptor CreateCameraDepthDescriptor(int width, int height)
+        private static RenderTextureDescriptor CreateCameraDepthDescriptor(
+            int width,
+            int height,
+            bool memorylessDepth = false)
         {
             RenderTextureDescriptor descriptor = new RenderTextureDescriptor(
                 Mathf.Max(width, 1),
@@ -1358,6 +1517,9 @@ namespace NWRP
                 useMipMap = false,
                 autoGenerateMips = false
             };
+            descriptor.memoryless = memorylessDepth
+                ? RenderTextureMemoryless.Depth
+                : RenderTextureMemoryless.None;
 
             return descriptor;
         }
@@ -1446,6 +1608,72 @@ namespace NWRP
 #endif
 
             _activePasses.Sort(s_QueuedPassComparer);
+            AnalyzeFrameGraph(ref frameData);
+        }
+
+        private void AnalyzeFrameGraph(ref NWRPFrameData frameData)
+        {
+            List<NWRPFramePassResourceUsage> usages =
+                new List<NWRPFramePassResourceUsage>(_activePasses.Count);
+            List<NWRPPass> usagePasses =
+                new List<NWRPPass>(_activePasses.Count);
+            List<int> queuedPassIndices =
+                new List<int>(_activePasses.Count);
+
+            for (int passIndex = 0; passIndex < _activePasses.Count; passIndex++)
+            {
+                NWRPPass pass = _activePasses[passIndex].pass;
+                if (pass == null || pass.passEvent >= NWRPPassEvent.DebugOverlay)
+                {
+                    continue;
+                }
+
+                usages.Add(pass.GetFrameResourceUsage(ref frameData));
+                usagePasses.Add(pass);
+                queuedPassIndices.Add(passIndex);
+            }
+
+            frameData.frameGraph = NWRPFrameGraphAnalyzer.Analyze(usages);
+            int finalPresentIndex =
+                frameData.frameGraph.cameraColorFinalPresentPassIndex;
+            if (finalPresentIndex >= 0 && finalPresentIndex < usagePasses.Count)
+            {
+                frameData.frameGraph.cameraColorFinalPresentPass =
+                    usagePasses[finalPresentIndex];
+            }
+
+            frameData.frameGraph.cameraColorFinalPresentPassIndex =
+                MapUsagePassIndexToQueuedPassIndex(
+                    frameData.frameGraph.cameraColorFinalPresentPassIndex,
+                    queuedPassIndices);
+            frameData.frameGraph.cameraColorLastUsePassIndex =
+                MapUsagePassIndexToQueuedPassIndex(
+                    frameData.frameGraph.cameraColorLastUsePassIndex,
+                    queuedPassIndices);
+            frameData.frameGraph.cameraDepthLastUsePassIndex =
+                MapUsagePassIndexToQueuedPassIndex(
+                    frameData.frameGraph.cameraDepthLastUsePassIndex,
+                    queuedPassIndices);
+
+            frameData.debugStats.RecordRenderPassClusters(
+                frameData.frameGraph.renderPassClusterCount);
+            frameData.debugStats.RecordFrameGraphPassIndices(
+                frameData.frameGraph.cameraColorLastUsePassIndex,
+                frameData.frameGraph.cameraColorFinalPresentPassIndex);
+        }
+
+        private static int MapUsagePassIndexToQueuedPassIndex(
+            int usagePassIndex,
+            List<int> queuedPassIndices)
+        {
+            if (usagePassIndex < 0
+                || queuedPassIndices == null
+                || usagePassIndex >= queuedPassIndices.Count)
+            {
+                return -1;
+            }
+
+            return queuedPassIndices[usagePassIndex];
         }
 
         private void ExecutePassQueue(ref NWRPFrameData frameData)
@@ -1479,7 +1707,7 @@ namespace NWRP
             }
 
             frameData.context.SetupCameraProperties(frameData.camera);
-            SetCameraRenderTarget(ref frameData);
+            RestoreCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
         }
 
@@ -1504,7 +1732,10 @@ namespace NWRP
                         continue;
                     }
 
-                    ExecutePass(ref frameData, _activePasses[passIndex].pass);
+                    ExecutePass(
+                        ref frameData,
+                        _activePasses[passIndex].pass,
+                        passIndex);
                 }
             }
 
@@ -1529,14 +1760,21 @@ namespace NWRP
                     continue;
                 }
 
-                ExecutePass(ref frameData, _activePasses[passIndex].pass);
+                ExecutePass(
+                    ref frameData,
+                    _activePasses[passIndex].pass,
+                    passIndex);
             }
 
             ExecuteBuffer(ref frameData);
         }
 
-        private static void ExecutePass(ref NWRPFrameData frameData, NWRPPass pass)
+        private static void ExecutePass(
+            ref NWRPFrameData frameData,
+            NWRPPass pass,
+            int passIndex)
         {
+            frameData.currentPassIndex = passIndex;
             if (pass.usePassProfilingScope)
             {
                 using (new ProfilingScope(frameData.cmd, pass.profilingSampler))
@@ -1749,6 +1987,40 @@ namespace NWRP
 
             frameData.context.ExecuteCommandBuffer(frameData.cmd);
             frameData.cmd.Clear();
+        }
+
+        private static void LogFrameDebugStats(ref NWRPFrameData frameData)
+        {
+            if (frameData.asset == null || !frameData.asset.LogFrameDebugStats)
+            {
+                return;
+            }
+
+            NWRPFrameDebugStats stats = frameData.debugStats;
+            string cameraName = frameData.camera != null ? frameData.camera.name : "NULL";
+            Debug.Log(
+                $"NWRP Frame Stats [{cameraName}] "
+                + $"cameraBind={stats.cameraTargetBindCount}, "
+                + $"cameraSkip={stats.cameraTargetSkipCount}, "
+                + $"nonCameraBind={stats.nonCameraTargetBindCount}, "
+                + $"fullscreenBlit={stats.fullscreenBlitCount}, "
+                + $"finalBlit={stats.finalBlitCount}, "
+                + $"opaqueCopy={stats.cameraColorCopyCount}, "
+                + $"depthCopy={stats.cameraDepthCopyCount}, "
+                + $"shadowCopy={stats.shadowAtlasCopyCount}, "
+                + $"finalFusion={stats.cameraColorFinalPassFusionCount}, "
+                + $"fullscreenChainNode={stats.fullscreenChainNodeCount}, "
+                + $"fullscreenChainTempRT={stats.fullscreenChainTempRTCount}, "
+                + $"tempColorRT={stats.temporaryColorRTCount}, "
+                + $"tempDepthRT={stats.temporaryDepthRTCount}, "
+                + $"logicalTransientColorRT={stats.logicalTransientColorRTCount}, "
+                + $"physicalTransientColorRT={stats.physicalTransientColorRTCount}, "
+                + $"renderPassClusters={stats.renderPassClusterCount}, "
+                + $"colorLastUsePass={stats.cameraColorLastUsePassIndex}, "
+                + $"colorFinalPresentPass={stats.cameraColorFinalPresentPassIndex}, "
+                + $"discardedDepthStore={stats.discardedDepthStoreCount}, "
+                + $"forcedOpaqueCopy={stats.forcedOpaqueTextureCopyCount}, "
+                + $"forcedDepthCopy={stats.forcedDepthTextureCopyCount}");
         }
     }
 }

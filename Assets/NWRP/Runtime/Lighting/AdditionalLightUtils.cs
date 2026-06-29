@@ -14,6 +14,7 @@ namespace NWRP.Runtime.Lighting
         public Vector4 color;
         public Vector4 attenuation;
         public Vector4 spotDirection;
+        public float sortScore;
     }
 
     internal static class AdditionalLightUtils
@@ -55,8 +56,8 @@ namespace NWRP.Runtime.Lighting
             }
 
             int additionalCount = 0;
-            int limit = Mathf.Min(MaxAdditionalLights, additionalLights.Length);
-            for (int i = 0; i < visibleLights.Length && additionalCount < limit; i++)
+            int limit = GetUploadLimit(ref frameData, additionalLights);
+            for (int i = 0; i < visibleLights.Length; i++)
             {
                 if (i == mainLightIndex)
                 {
@@ -95,10 +96,9 @@ namespace NWRP.Runtime.Lighting
                 spotDirection = spotDirection.normalized;
                 spotDirection.w = 0f;
 
-                additionalLights[additionalCount] = new AdditionalLightData
+                AdditionalLightData data = new AdditionalLightData
                 {
                     visibleLightIndex = i,
-                    compactIndex = additionalCount,
                     visibleLight = visibleLight,
                     light = visibleLight.light,
                     position = position,
@@ -107,10 +107,95 @@ namespace NWRP.Runtime.Lighting
                     spotDirection = spotDirection
                 };
 
-                additionalCount++;
+                float sortScore = GetAdditionalLightSortScore(
+                    frameData.camera,
+                    visibleLight,
+                    position);
+                InsertAdditionalLight(
+                    additionalLights,
+                    limit,
+                    ref additionalCount,
+                    data,
+                    sortScore);
             }
 
             return additionalCount;
+        }
+
+        private static int GetUploadLimit(
+            ref NWRPFrameData frameData,
+            AdditionalLightData[] additionalLights)
+        {
+            int arrayLimit = additionalLights != null ? additionalLights.Length : 0;
+            int assetLimit = MaxAdditionalLights;
+            if (frameData.asset != null && frameData.asset.EnableMobileFullscreenBudget)
+            {
+                assetLimit = frameData.asset.MobileMaxAdditionalLights;
+            }
+
+            return Mathf.Clamp(assetLimit, 0, Mathf.Min(MaxAdditionalLights, arrayLimit));
+        }
+
+        private static float GetAdditionalLightSortScore(
+            Camera camera,
+            VisibleLight visibleLight,
+            Vector4 lightPosition)
+        {
+            if (camera == null)
+            {
+                return visibleLight.light != null ? -visibleLight.light.intensity : 0f;
+            }
+
+            Vector3 toLight = new Vector3(
+                lightPosition.x,
+                lightPosition.y,
+                lightPosition.z) - camera.transform.position;
+            Vector4 color = visibleLight.finalColor;
+            float luminance = Mathf.Max(
+                color.x * 0.2126f + color.y * 0.7152f + color.z * 0.0722f,
+                0.001f);
+            return toLight.sqrMagnitude / luminance;
+        }
+
+        private static void InsertAdditionalLight(
+            AdditionalLightData[] additionalLights,
+            int limit,
+            ref int additionalCount,
+            AdditionalLightData data,
+            float sortScore)
+        {
+            if (limit <= 0 || additionalLights == null)
+            {
+                return;
+            }
+
+            int insertIndex = additionalCount;
+            int compareCount = Mathf.Min(additionalCount, limit);
+            for (int i = 0; i < compareCount; i++)
+            {
+                if (sortScore < additionalLights[i].sortScore)
+                {
+                    insertIndex = i;
+                    break;
+                }
+            }
+
+            if (additionalCount >= limit && insertIndex >= limit)
+            {
+                return;
+            }
+
+            int lastIndex = Mathf.Min(additionalCount, limit - 1);
+            for (int i = lastIndex; i > insertIndex; i--)
+            {
+                additionalLights[i] = additionalLights[i - 1];
+                additionalLights[i].compactIndex = i;
+            }
+
+            data.compactIndex = insertIndex;
+            data.sortScore = sortScore;
+            additionalLights[insertIndex] = data;
+            additionalCount = Mathf.Min(additionalCount + 1, limit);
         }
     }
 }

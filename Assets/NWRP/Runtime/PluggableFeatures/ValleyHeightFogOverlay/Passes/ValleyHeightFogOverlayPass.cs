@@ -25,9 +25,7 @@ namespace NWRP.Runtime.Passes
                 return;
             }
 
-            CommandBuffer cmd = frameData.cmd;
-            cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-            cmd.SetViewport(NWRPRenderer.GetCameraRenderViewport(ref frameData));
+            NWRPRenderer.RestoreCameraRenderTarget(ref frameData);
             ExecuteBuffer(ref frameData);
 
             SortingSettings sortingSettings = new SortingSettings(frameData.camera)
@@ -55,6 +53,16 @@ namespace NWRP.Runtime.Passes
                 ref drawingSettings,
                 ref filteringSettings,
                 ref _stateBlock);
+        }
+
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.ReadWrite,
+                cameraDepth = NWRPFrameResourceAccess.Read
+            };
         }
 
         private static void ExecuteBuffer(ref NWRPFrameData frameData)

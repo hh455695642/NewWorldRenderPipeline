@@ -23,8 +23,8 @@ namespace NWRP.Editor
         private SerializedProperty _featureVegetationIndirectRenderingProperty;
         private SerializedProperty _featureVegetationIndirectShadowProperty;
         private SerializedProperty _enableOutlineProperty;
-        private SerializedProperty _enableOpaqueTextureProperty;
-        private SerializedProperty _enableDepthTextureProperty;
+        private SerializedProperty _opaqueTexturePolicyProperty;
+        private SerializedProperty _depthTexturePolicyProperty;
         private SerializedProperty _copyDepthModeProperty;
         private SerializedProperty _enableVegetationIndirectRenderingProperty;
         private SerializedProperty _enableVegetationIndirectTreeShadowsProperty;
@@ -55,10 +55,10 @@ namespace NWRP.Editor
 
             _enableOutlineProperty =
                 _featureOutlineProperty.FindPropertyRelative("enableOutline");
-            _enableOpaqueTextureProperty =
-                _featureOpaqueTextureProperty.FindPropertyRelative("enableOpaqueTexture");
-            _enableDepthTextureProperty =
-                _featureDepthTextureProperty.FindPropertyRelative("enableDepthTexture");
+            _opaqueTexturePolicyProperty =
+                _featureOpaqueTextureProperty.FindPropertyRelative("texturePolicy");
+            _depthTexturePolicyProperty =
+                _featureDepthTextureProperty.FindPropertyRelative("texturePolicy");
             _copyDepthModeProperty =
                 _featureDepthTextureProperty.FindPropertyRelative("copyDepthMode");
             if (_featureVegetationIndirectRenderingProperty != null)
@@ -104,28 +104,32 @@ namespace NWRP.Editor
             EditorGUILayout.Space(2f);
             DrawSubsectionLabel("Opaque Texture");
             EditorGUILayout.PropertyField(
-                _enableOpaqueTextureProperty,
-                new GUIContent("Enable Camera Opaque Texture"));
-            if (_enableOpaqueTextureProperty.boolValue)
+                _opaqueTexturePolicyProperty,
+                new GUIContent("Camera Opaque Texture Policy"));
+            if (IsTexturePolicyForce(_opaqueTexturePolicyProperty))
             {
                 EditorGUILayout.HelpBox(
                     "Copies opaque color to _CameraOpaqueTexture before transparent rendering. Mobile cost is one full-screen copy and one full-resolution color RT.",
-                    MessageType.Info);
+                    MessageType.Warning);
             }
 
             EditorGUILayout.Space(2f);
             DrawSubsectionLabel("Depth Texture");
             EditorGUILayout.PropertyField(
-                _enableDepthTextureProperty,
-                new GUIContent("Enable Camera Depth Texture"));
-            if (_enableDepthTextureProperty.boolValue)
+                _depthTexturePolicyProperty,
+                new GUIContent("Camera Depth Texture Policy"));
+            if (!IsTexturePolicyOff(_depthTexturePolicyProperty))
             {
                 EditorGUILayout.PropertyField(
                     _copyDepthModeProperty,
                     new GUIContent("Camera Depth Texture Mode"));
+            }
+
+            if (IsTexturePolicyForce(_depthTexturePolicyProperty))
+            {
                 EditorGUILayout.HelpBox(
                     "Copies or pre-renders opaque depth to _CameraDepthTexture. After Opaques is required when transparent materials sample scene depth; Force Prepass depends on DepthOnly passes.",
-                    MessageType.Info);
+                    MessageType.Warning);
             }
 
             EditorGUILayout.Space(2f);
@@ -794,6 +798,20 @@ namespace NWRP.Editor
         private static void DrawSubsectionLabel(string label)
         {
             EditorGUILayout.LabelField(label, EditorStyles.miniBoldLabel);
+        }
+
+        private static bool IsTexturePolicyForce(SerializedProperty property)
+        {
+            return property != null
+                && property.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.CameraTexturePolicy.Force;
+        }
+
+        private static bool IsTexturePolicyOff(SerializedProperty property)
+        {
+            return property == null
+                || property.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.CameraTexturePolicy.Off;
         }
     }
 }

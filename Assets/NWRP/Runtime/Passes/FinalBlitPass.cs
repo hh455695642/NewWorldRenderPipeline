@@ -14,5 +14,15 @@ namespace NWRP.Runtime.Passes
         {
             _renderer.ExecuteFinalBlit(ref frameData);
         }
+
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.Read,
+                writesBackBuffer = true
+            };
+        }
     }
 }
