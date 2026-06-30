@@ -97,6 +97,15 @@ Do not introduce ad hoc pass ordering outside this contract unless there is a ha
 - Bandwidth is more important than ALU in most decisions here.
 - SRP Batcher and GPU Instancing are preferred. `dynamic batching` is intentionally removed and must not be added back.
 
+## Screen-Space and Post-Process Rules
+
+- Screen-space effects must stay on the custom SRP path: use one focused `NWRPFeature` and one or more focused `NWRPPass` implementations. Do not implement NWRP effects with URP `ScriptableRendererFeature` or `ScriptableRenderPass`.
+- Default fullscreen effects to `NWRPFullscreenChain` and `INWRPFullscreenEffectNode` so temporary color targets, copy-back behavior, final backbuffer presentation, and debug stats stay centralized.
+- Declare target needs up front in `TryGetFrameTargetRequirements`, including intermediate color, depth texture, and opaque texture requirements. Do not hide these costs by allocating or copying required camera resources inside a pass.
+- Use existing `NWRPPassEvent` ordering only. Depth-driven height fog style effects normally belong in `AfterTransparent`; regular post-process work belongs in `BeforePostProcess`, `PostProcess`, or `AfterPostProcess` depending on composition needs.
+- For tile-based mobile GPUs, minimize fullscreen pass count, render-target switches, high-resolution intermediates, and depth or opaque texture requests. Single-pass effects should allow final pass fusion to the backbuffer when they are the last camera color user.
+- Request `_CameraDepthTexture` or `_CameraOpaqueTexture` only when the visual result requires them, and provide a disabled or lower-cost fallback path when the required resource is unavailable.
+
 ## Lighting and Shadow Rules
 
 - The default real-time shadow path is:
@@ -138,6 +147,10 @@ Do not introduce ad hoc pass ordering outside this contract unless there is a ha
 - Prefer `half` for mobile shader math unless world-space precision or matrix math requires `float`.
 - Prefer uniforms over shader keywords for runtime intensity/threshold toggles.
 - Prefer `#pragma shader_feature_local` over broad `multi_compile`.
+- Screen-space post-process shaders should use uniforms for intensity, thresholds, blend factors, and runtime toggles instead of adding keywords.
+- For screen-space mode differences, prefer separate shader passes or a dedicated shader over combinatorial keyword matrices.
+- In fullscreen shaders, use `half` for color and blend math by default, but keep depth reconstruction, world-space position, and matrix math in `float`.
+- Every new screen-space shader must call out keyword usage, variant risk, and mobile optimization notes in the implementation handoff or code comments where the cost is non-obvious.
 - Do not build giant shared "do everything" shaders across vegetation, characters, effects, and UI.
 - Environment and vegetation shaders under [`Assets/NWRP/Shaders/Environment`](E:/UnityProject/Unity2022/NewWorldRenderPipeline_Codex/Assets/NWRP/Shaders/Environment) must use NWRP shader libraries and pass tags. Do not include URP shader libraries or keep URP LightMode tags in NWRP-owned variants.
 - Keep grass and tree shaders separate. Grass shaders should default to receiving realtime shadows without casting them; tree shaders that need shadows must use their own ShadowCaster path instead of adding tree-specific complexity to grass shaders.

@@ -23,6 +23,15 @@ Local rules for `Assets/NWRP/Runtime`.
 - GPU-driven renderer integrations should expose explicit provider/registry interfaces instead of adding renderer-specific loops to shadow or camera passes.
 - NWRP-owned runtime systems should not be placed in plugin-style folders unless they are actually third-party package boundaries.
 
+## Screen-Space and Post-Process Runtime Rules
+
+- New fullscreen or screen-space effects should default to `NWRPFullscreenChain` plus `INWRPFullscreenEffectNode`. Add direct blit or custom temporary RT code only when the shared chain cannot express the effect, and keep the reason local to the pass.
+- `TryGetFrameTargetRequirements` must declare intermediate color, depth texture, depth prepass/copy, and opaque texture needs before pass scheduling. Depth-based effects should request depth through `DepthTextureFeature.GetFrameTargetRequirements` instead of creating depth resources inside the pass.
+- `AddPasses` must skip inactive effects, null renderer/camera cases, Preview cameras, and frames where required targets are unavailable. Do not enqueue a pass that will only no-op because required resources were not requested.
+- `GetFrameResourceUsage` must accurately describe camera color, camera depth, depth texture, opaque texture, transient color, backbuffer write, and final-present behavior so the lightweight frame graph can fuse or discard resources safely.
+- Single-pass screen effects should allow final camera color presentation to the backbuffer when they are the last camera color writer. Multi-pass effects must bound iteration count, temporary RT count, and resolution scale explicitly.
+- Prefer existing fullscreen debug stats and Frame Debugger/RenderDoc-visible passes for diagnostics. Do not add heavy runtime debug systems for individual screen effects.
+
 ## Mobile Cost Constraints
 
 - Minimize pass count, intermediate RT allocation, and full-screen operations.
