@@ -312,22 +312,6 @@ namespace NWRP
         [System.Serializable]
         public sealed class MobileBandwidthSettings
         {
-            [InspectorName("Enable Mobile Fullscreen Budget")]
-            [Tooltip("Clamp high-bandwidth fullscreen resources for tile-based mobile GPUs. Disable only for desktop lookdev parity checks.")]
-            public bool enableMobileFullscreenBudget = true;
-
-            [Range(1, 6)]
-            [Tooltip("Maximum bloom pyramid mips allocated by the mobile bandwidth budget.")]
-            public int bloomMaxMipCount = 4;
-
-            [Range(64, 4096)]
-            [Tooltip("Maximum bloom base width before the pyramid halves each mip.")]
-            public int bloomMaxBaseSize = 512;
-
-            [Range(0, AdditionalLightUtils.MaxAdditionalLights)]
-            [Tooltip("Maximum additional punctual lights uploaded to mobile forward lighting when the mobile fullscreen budget is enabled.")]
-            public int maxAdditionalLights = 4;
-
             [InspectorName("Log Frame Debug Stats")]
             [Tooltip("Log per-camera render target, fullscreen blit, copy, and temporary RT counters. Use only while profiling.")]
             public bool logFrameDebugStats = false;
@@ -788,25 +772,6 @@ namespace NWRP
             renderScaleFilterMode == RenderScaleFilterMode.Point
                 ? FilterMode.Point
                 : FilterMode.Bilinear;
-        public bool EnableMobileFullscreenBudget =>
-            mobileBandwidth != null && mobileBandwidth.enableMobileFullscreenBudget;
-        public int MobileBloomMaxMipCount =>
-            Mathf.Clamp(
-                mobileBandwidth != null ? mobileBandwidth.bloomMaxMipCount : 6,
-                1,
-                6);
-        public int MobileBloomMaxBaseSize =>
-            Mathf.Clamp(
-                mobileBandwidth != null ? mobileBandwidth.bloomMaxBaseSize : 4096,
-                64,
-                4096);
-        public int MobileMaxAdditionalLights =>
-            Mathf.Clamp(
-                mobileBandwidth != null
-                    ? mobileBandwidth.maxAdditionalLights
-                    : AdditionalLightUtils.MaxAdditionalLights,
-                0,
-                AdditionalLightUtils.MaxAdditionalLights);
         public bool LogFrameDebugStats =>
             mobileBandwidth != null && mobileBandwidth.logFrameDebugStats;
 
@@ -1106,15 +1071,6 @@ namespace NWRP
             ResolveDefaultRendererIndex();
 
             renderScale = ValidateRenderScale(renderScale);
-            mobileBandwidth.bloomMaxMipCount =
-                Mathf.Clamp(mobileBandwidth.bloomMaxMipCount, 1, 6);
-            mobileBandwidth.bloomMaxBaseSize =
-                Mathf.Clamp(mobileBandwidth.bloomMaxBaseSize, 64, 4096);
-            mobileBandwidth.maxAdditionalLights =
-                Mathf.Clamp(
-                    mobileBandwidth.maxAdditionalLights,
-                    0,
-                    AdditionalLightUtils.MaxAdditionalLights);
 
             MainLightShadowSettings settings = mainLightShadows;
             settings.atlas.mainLightShadowResolution = Mathf.ClosestPowerOfTwo(

@@ -150,9 +150,9 @@ namespace NWRP.Runtime.Passes
             int sourceHeight = Mathf.Max(sourceTexture.height, 1);
             float aspectRatio = (float)sourceHeight / sourceWidth;
             int requestedBaseSize = GetBloomBaseSize(sourceWidth, bloom.resolution.value);
-            BloomBudget budget = ResolveBloomBudget(frameData.asset, requestedBaseSize);
+            BloomBudget budget = ResolveBloomBudget(bloom, requestedBaseSize);
             RenderTextureDescriptor bloomDescriptor =
-                CreateBloomDescriptor(budget.baseSize, aspectRatio, frameData.asset);
+                CreateBloomDescriptor(budget.baseSize, aspectRatio);
 
             for (int i = 0; i < budget.mipCount; i++)
             {
@@ -256,8 +256,7 @@ namespace NWRP.Runtime.Passes
                 RenderTextureDescriptor composeDescriptor =
                     CreateBloomDescriptor(
                         _bloomMips[0].width,
-                        aspectRatio,
-                        frameData.asset);
+                        aspectRatio);
                 composeDescriptor.width = _bloomMips[0].width;
                 composeDescriptor.height = _bloomMips[0].height;
                 NWRPFullscreenPassUtils.AllocateTempColor(
@@ -290,7 +289,9 @@ namespace NWRP.Runtime.Passes
             resources.hasDirtSourceTexture =
                 budget.allowLensDirtExtraCompose
                 && bloom.lensDirtIntensity.value > 0f;
-            resources.dirtSourceTexture = GetLensDirtSourceTexture(bloom.lensDirtSpread.value);
+            resources.dirtSourceTexture = GetLensDirtSourceTexture(
+                ResolveLensDirtSourceMip(bloom, budget),
+                budget.lastMipIndex);
             return resources;
         }
 
@@ -363,7 +364,7 @@ namespace NWRP.Runtime.Passes
         {
             CommandBuffer cmd = frameData.cmd;
             RenderTextureDescriptor descriptor =
-                CreateBloomDescriptor(width, (float)height / width, frameData.asset);
+                CreateBloomDescriptor(width, (float)height / width);
             descriptor.width = width;
             descriptor.height = height;
             NWRPFullscreenPassUtils.AllocateTempColor(
@@ -409,8 +410,7 @@ namespace NWRP.Runtime.Passes
             RenderTextureDescriptor descriptor =
                 CreateBloomDescriptor(
                     destinationWidth,
-                    (float)destinationHeight / destinationWidth,
-                    frameData.asset);
+                    (float)destinationHeight / destinationWidth);
             descriptor.width = destinationWidth;
             descriptor.height = destinationHeight;
             NWRPFullscreenPassUtils.AllocateTempColor(
@@ -828,11 +828,21 @@ namespace NWRP.Runtime.Passes
             return _defaultLensDirtTexture;
         }
 
-        private int GetLensDirtSourceTexture(int lensDirtSpread)
+        public static int ResolveLensDirtSourceMip(
+            NWRPBloom bloom,
+            BloomBudget budget)
         {
-            int index = Mathf.Clamp(lensDirtSpread, 0, k_BloomLastMip);
-            return index >= k_BloomLastMip
-                ? _bloomMips[k_BloomLastMip].down
+            int spread = bloom != null ? bloom.lensDirtSpread.value : 0;
+            return Mathf.Clamp(spread, 0, budget.lastMipIndex);
+        }
+
+        private int GetLensDirtSourceTexture(
+            int sourceMipIndex,
+            int lastMipIndex)
+        {
+            int index = Mathf.Clamp(sourceMipIndex, 0, lastMipIndex);
+            return index >= lastMipIndex
+                ? _bloomMips[lastMipIndex].down
                 : _bloomMips[index].up;
         }
 
@@ -843,42 +853,25 @@ namespace NWRP.Runtime.Passes
         }
 
         public static BloomBudget ResolveBloomBudget(
-            NewWorldRenderPipelineAsset asset,
+            NWRPBloom bloom,
             int requestedBaseSize)
         {
-            if (asset == null || !asset.EnableMobileFullscreenBudget)
-            {
-                return new BloomBudget(
-                    k_BloomMipCount,
-                    requestedBaseSize,
-                    true,
-                    true);
-            }
-
-            int maxMipCount = asset.MobileBloomMaxMipCount;
-            int maxBaseSize = asset.MobileBloomMaxBaseSize;
+            int maxMipCount = bloom != null ? bloom.maxMipCount.value : 4;
+            int maxBaseSize = bloom != null ? bloom.maxBaseSize.value : 512;
             return new BloomBudget(
                 maxMipCount,
                 Mathf.Min(Mathf.Max(requestedBaseSize, 4), maxBaseSize),
-                false,
-                false);
+                maxMipCount >= k_BloomMipCount,
+                true);
         }
 
         private static RenderTextureDescriptor CreateBloomDescriptor(int width, float aspectRatio)
-        {
-            return CreateBloomDescriptor(width, aspectRatio, null);
-        }
-
-        private static RenderTextureDescriptor CreateBloomDescriptor(
-            int width,
-            float aspectRatio,
-            NewWorldRenderPipelineAsset asset)
         {
             int safeWidth = Mathf.Max(width, 1);
             RenderTextureDescriptor descriptor = new RenderTextureDescriptor(
                 safeWidth,
                 Mathf.Max(1, Mathf.RoundToInt(safeWidth * aspectRatio)),
-                ResolveBloomGraphicsFormat(asset),
+                ResolveBloomGraphicsFormat(),
                 0)
             {
                 depthBufferBits = 0,
@@ -892,12 +885,9 @@ namespace NWRP.Runtime.Passes
             return descriptor;
         }
 
-        private static GraphicsFormat ResolveBloomGraphicsFormat(
-            NewWorldRenderPipelineAsset asset)
+        private static GraphicsFormat ResolveBloomGraphicsFormat()
         {
-            if (asset != null
-                && asset.EnableMobileFullscreenBudget
-                && SupportsBloomRenderFormat(GraphicsFormat.B10G11R11_UFloatPack32))
+            if (SupportsBloomRenderFormat(GraphicsFormat.B10G11R11_UFloatPack32))
             {
                 return GraphicsFormat.B10G11R11_UFloatPack32;
             }
