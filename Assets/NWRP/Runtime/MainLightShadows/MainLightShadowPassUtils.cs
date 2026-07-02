@@ -450,6 +450,7 @@ namespace NWRP.Runtime.Passes
 
         public static void ClearShadowAtlas(ref NWRPFrameData frameData, RenderTexture shadowmapTexture)
         {
+            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
             frameData.cmd.SetRenderTarget(shadowmapTexture);
             frameData.cmd.ClearRenderTarget(true, false, Color.black);
             ExecuteBuffer(ref frameData);
@@ -470,12 +471,14 @@ namespace NWRP.Runtime.Passes
             }
 
             frameData.cmd.CopyTexture(source, destination);
+            frameData.debugStats.RecordShadowAtlasCopy();
             ExecuteBuffer(ref frameData);
             return true;
         }
 
         public static void BindShadowAtlas(ref NWRPFrameData frameData, RenderTexture shadowmapTexture)
         {
+            NWRPRenderer.InvalidateCameraRenderTarget(ref frameData);
             frameData.cmd.SetRenderTarget(
                 shadowmapTexture,
                 RenderBufferLoadAction.Load,

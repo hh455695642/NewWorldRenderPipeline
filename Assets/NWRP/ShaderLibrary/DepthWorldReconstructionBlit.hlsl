@@ -23,6 +23,18 @@ float2 TransformSceneDepthUV(float2 screenUV)
     return screenUV * _CameraDepthTextureScaleBias.xy + _CameraDepthTextureScaleBias.zw;
 }
 
+float2 GetBlitScreenUV(float4 positionCS)
+{
+    float2 uv = positionCS.xy * rcp(_ScaledScreenParams.xy);
+#if UNITY_UV_STARTS_AT_TOP
+    // Match Blitter source UV orientation when the final pass writes to a
+    // top-left backbuffer; depth/world reconstruction must sample the same
+    // camera-space pixel as the color source.
+    uv.y = 1.0 - (uv.y * _ScaleBiasRt.x + _ScaleBiasRt.y);
+#endif
+    return uv;
+}
+
 float SampleSceneDepth(float2 screenUV)
 {
     return SAMPLE_TEXTURE2D_X(

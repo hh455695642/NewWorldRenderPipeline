@@ -74,6 +74,12 @@ MonoBehaviour:
   resolution:
     m_OverrideState: 0
     m_Value: 1
+  maxMipCount:
+    m_OverrideState: 0
+    m_Value: 4
+  maxBaseSize:
+    m_OverrideState: 0
+    m_Value: 512
   quickerBlur:
     m_OverrideState: 0
     m_Value: 0

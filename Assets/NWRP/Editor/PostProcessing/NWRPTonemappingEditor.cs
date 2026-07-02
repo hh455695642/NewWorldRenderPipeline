@@ -32,19 +32,31 @@ namespace NWRP.Editor
             }
 
             NWRPTonemappingMode mode = (NWRPTonemappingMode)_mode.value.intValue;
-            if (mode == NWRPTonemappingMode.None)
+
+            if (ShouldDrawAgxGamma(mode))
+            {
+                PropertyField(_agxGamma);
+            }
+
+            if (!ShouldDrawExposureControls(mode))
             {
                 return;
             }
 
+            PropertyField(_maxInputBrightness);
             PropertyField(_preExposure);
             PropertyField(_postBrightness);
-            PropertyField(_maxInputBrightness);
+        }
 
-            if (mode == NWRPTonemappingMode.AGX)
-            {
-                PropertyField(_agxGamma);
-            }
+        private static bool ShouldDrawExposureControls(NWRPTonemappingMode mode)
+        {
+            return mode != NWRPTonemappingMode.None &&
+                mode != NWRPTonemappingMode.Linear;
+        }
+
+        private static bool ShouldDrawAgxGamma(NWRPTonemappingMode mode)
+        {
+            return mode == NWRPTonemappingMode.AGX;
         }
 
         private SerializedDataParameter FindParameter(string propertyName)

@@ -1,19 +1,16 @@
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace NWRP.Runtime.Passes
 {
     public sealed class CloudShadowProjectorPass : NWRPPass
+        , INWRPFullscreenEffectNode
     {
         private const string k_ShaderName = "Hidden/NWRP/Environment/CloudShadowProjector";
         private const float k_MinProjectorAxisSize = 0.001f;
 
-        private static readonly Vector4 s_FullScaleBias = new Vector4(1f, 1f, 0f, 0f);
-
-        private readonly int _tempColorId = Shader.PropertyToID("_NWRPCloudShadowTempColor");
-
-        private Material _copyMaterial;
+        private readonly NWRPFullscreenChain _fullscreenChain =
+            new NWRPFullscreenChain();
         private Material _projectorMaterial;
 
         public CloudShadowProjectorPass()
@@ -23,66 +20,60 @@ namespace NWRP.Runtime.Passes
 
         public override void Execute(ref NWRPFrameData frameData)
         {
-            if (!CloudShadowProjectorFeature.CanRun(ref frameData)
-                || frameData.targets.cameraColorHandle == null
-                || frameData.targets.cameraColorHandle.rt == null
-                || !frameData.targets.hasCameraDepthTexture
-                || frameData.targets.cameraDepthTextureHandle == null)
-            {
-                return;
-            }
-
-            if (!EnsureMaterials())
-            {
-                return;
-            }
-
-            RTHandle source = frameData.targets.cameraColorHandle;
-            RenderTextureDescriptor descriptor = CreateTempDescriptor(source.rt);
-            CommandBuffer cmd = frameData.cmd;
-            Rect viewport = NWRPRenderer.GetCameraRenderViewport(ref frameData);
-
-            UploadConstants(cmd, frameData.cloudShadowProjector);
-            cmd.SetGlobalTexture(
-                NWRPShaderIds.CameraDepthTexture,
-                frameData.targets.cameraDepthTextureHandle);
-
-            cmd.GetTemporaryRT(_tempColorId, descriptor, FilterMode.Bilinear);
-            try
-            {
-                RenderTargetIdentifier tempColor = _tempColorId;
-                BlitToTarget(cmd, source, tempColor, viewport, _projectorMaterial, 0);
-                BlitToTarget(
-                    cmd,
-                    tempColor,
-                    frameData.targets.cameraColor,
-                    viewport,
-                    _copyMaterial,
-                    0);
-            }
-            finally
-            {
-                cmd.ReleaseTemporaryRT(_tempColorId);
-                cmd.SetRenderTarget(frameData.targets.cameraColor, frameData.targets.cameraDepth);
-                cmd.SetViewport(viewport);
-            }
+            _fullscreenChain.Execute(ref frameData, this, this);
         }
 
         public void Dispose()
         {
-            CoreUtils.Destroy(_copyMaterial);
+            _fullscreenChain.Dispose();
             CoreUtils.Destroy(_projectorMaterial);
-            _copyMaterial = null;
             _projectorMaterial = null;
         }
 
-        private bool EnsureMaterials()
+        public override bool CanPresentCameraColorToBackBuffer(ref NWRPFrameData frameData)
         {
-            if (_copyMaterial == null)
-            {
-                _copyMaterial = NWRPBlitterResources.CreateCoreBlitMaterial();
-            }
+            return CanPresentFinalCloudShadow(ref frameData);
+        }
 
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            NWRPFramePassResourceUsage usage =
+                NWRPFramePassResourceUsage.CameraColorReadWrite(
+                    CanPresentFinalCloudShadow(ref frameData));
+            usage.cameraDepthTexture = NWRPFrameResourceAccess.Read;
+            return usage;
+        }
+
+        private static bool CanPresentFinalCloudShadow(ref NWRPFrameData frameData)
+        {
+            return CloudShadowProjectorFeature.CanRun(ref frameData)
+                && frameData.camera != null
+                && frameData.camera.cameraType == CameraType.Game
+                && frameData.targets.usesIntermediateColor
+                && frameData.targets.cameraColorHandle != null
+                && frameData.targets.hasCameraDepthTexture;
+        }
+
+        NWRPPassEvent INWRPFullscreenEffectNode.PassEvent => passEvent;
+
+        bool INWRPFullscreenEffectNode.RequiresDepthTexture => true;
+
+        bool INWRPFullscreenEffectNode.RequiresOpaqueTexture => false;
+
+        bool INWRPFullscreenEffectNode.IsActive(ref NWRPFrameData frameData)
+        {
+            return CloudShadowProjectorFeature.CanRun(ref frameData);
+        }
+
+        bool INWRPFullscreenEffectNode.CanPresentToBackBuffer(
+            ref NWRPFrameData frameData)
+        {
+            return CanPresentFinalCloudShadow(ref frameData);
+        }
+
+        bool INWRPFullscreenEffectNode.Prepare(ref NWRPFrameData frameData)
+        {
             if (_projectorMaterial == null)
             {
                 Shader shader = Shader.Find(k_ShaderName);
@@ -95,58 +86,37 @@ namespace NWRP.Runtime.Passes
                 _projectorMaterial = CoreUtils.CreateEngineMaterial(shader);
             }
 
-            return _copyMaterial != null && _projectorMaterial != null;
+            if (_projectorMaterial == null)
+            {
+                return false;
+            }
+
+            UploadConstants(frameData.cmd, frameData.cloudShadowProjector);
+            frameData.cmd.SetGlobalTexture(
+                NWRPShaderIds.CameraDepthTexture,
+                frameData.targets.cameraDepthTextureHandle);
+            return true;
         }
 
-        private static RenderTextureDescriptor CreateTempDescriptor(RenderTexture sourceTexture)
+        int INWRPFullscreenEffectNode.GetPassCount(ref NWRPFrameData frameData)
         {
-            RenderTextureDescriptor descriptor = sourceTexture.descriptor;
-            descriptor.depthBufferBits = 0;
-            descriptor.depthStencilFormat = GraphicsFormat.None;
-            descriptor.msaaSamples = 1;
-            descriptor.bindMS = false;
-            descriptor.useMipMap = false;
-            descriptor.autoGenerateMips = false;
-            descriptor.enableRandomWrite = false;
-            return descriptor;
+            return 1;
         }
 
-        private static void BlitToTarget(
-            CommandBuffer cmd,
-            RTHandle source,
-            RenderTargetIdentifier destination,
-            Rect viewport,
-            Material material,
-            int passIndex)
+        bool INWRPFullscreenEffectNode.TryGetPass(
+            ref NWRPFrameData frameData,
+            int passIndex,
+            bool isFinalPass,
+            out NWRPFullscreenEffectPass fullscreenPass)
         {
-            CoreUtils.SetRenderTarget(
-                cmd,
-                destination,
-                RenderBufferLoadAction.DontCare,
-                RenderBufferStoreAction.Store,
-                ClearFlag.None,
-                Color.clear);
-            cmd.SetViewport(viewport);
-            Blitter.BlitTexture(cmd, source, s_FullScaleBias, material, passIndex);
-        }
+            fullscreenPass = default;
+            if (passIndex != 0)
+            {
+                return false;
+            }
 
-        private static void BlitToTarget(
-            CommandBuffer cmd,
-            RenderTargetIdentifier source,
-            RenderTargetIdentifier destination,
-            Rect viewport,
-            Material material,
-            int passIndex)
-        {
-            CoreUtils.SetRenderTarget(
-                cmd,
-                destination,
-                RenderBufferLoadAction.DontCare,
-                RenderBufferStoreAction.Store,
-                ClearFlag.None,
-                Color.clear);
-            cmd.SetViewport(viewport);
-            Blitter.BlitTexture(cmd, source, s_FullScaleBias, material, passIndex);
+            fullscreenPass = new NWRPFullscreenEffectPass(_projectorMaterial, 0);
+            return true;
         }
 
         private static void UploadConstants(

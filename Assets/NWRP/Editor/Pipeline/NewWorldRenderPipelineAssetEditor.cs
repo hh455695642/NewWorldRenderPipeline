@@ -23,6 +23,8 @@ namespace NWRP.Editor
         private SerializedProperty _enableRenderScaleProperty;
         private SerializedProperty _renderScaleProperty;
         private SerializedProperty _renderScaleFilterModeProperty;
+        private SerializedProperty _mobileBandwidthProperty;
+        private SerializedProperty _logFrameDebugStatsProperty;
         private SerializedProperty _rendererDataListProperty;
         private SerializedProperty _defaultRendererIndexProperty;
         private SerializedProperty _featureSettingsProperty;
@@ -79,8 +81,8 @@ namespace NWRP.Editor
         private SerializedProperty _additionalLightShadowFilterModeProperty;
         private SerializedProperty _additionalLightShadowFilterRadiusProperty;
         private SerializedProperty _enableOutlineProperty;
-        private SerializedProperty _enableOpaqueTextureProperty;
-        private SerializedProperty _enableDepthTextureProperty;
+        private SerializedProperty _opaqueTexturePolicyProperty;
+        private SerializedProperty _depthTexturePolicyProperty;
         private SerializedProperty _copyDepthModeProperty;
         private SerializedProperty _enableVegetationIndirectRenderingProperty;
         private SerializedProperty _enableVegetationIndirectTreeShadowsProperty;
@@ -99,6 +101,12 @@ namespace NWRP.Editor
             _enableRenderScaleProperty = serializedObject.FindProperty("enableRenderScale");
             _renderScaleProperty = serializedObject.FindProperty("renderScale");
             _renderScaleFilterModeProperty = serializedObject.FindProperty("renderScaleFilterMode");
+            _mobileBandwidthProperty = serializedObject.FindProperty("mobileBandwidth");
+            if (_mobileBandwidthProperty != null)
+            {
+                _logFrameDebugStatsProperty =
+                    _mobileBandwidthProperty.FindPropertyRelative("logFrameDebugStats");
+            }
             _rendererDataListProperty = serializedObject.FindProperty("rendererDataList");
             _defaultRendererIndexProperty = serializedObject.FindProperty("defaultRendererIndex");
             CreateRendererDataList();
@@ -195,10 +203,10 @@ namespace NWRP.Editor
                 _additionalLightShadowFilterProperty.FindPropertyRelative("additionalLightShadowFilterRadius");
             _enableOutlineProperty =
                 _featureOutlineProperty.FindPropertyRelative("enableOutline");
-            _enableOpaqueTextureProperty =
-                _featureOpaqueTextureProperty.FindPropertyRelative("enableOpaqueTexture");
-            _enableDepthTextureProperty =
-                _featureDepthTextureProperty.FindPropertyRelative("enableDepthTexture");
+            _opaqueTexturePolicyProperty =
+                _featureOpaqueTextureProperty.FindPropertyRelative("texturePolicy");
+            _depthTexturePolicyProperty =
+                _featureDepthTextureProperty.FindPropertyRelative("texturePolicy");
             _copyDepthModeProperty =
                 _featureDepthTextureProperty.FindPropertyRelative("copyDepthMode");
             if (_featureVegetationIndirectRenderingProperty != null)
@@ -284,6 +292,22 @@ namespace NWRP.Editor
                     "Eligible Game cameras render into a scaled intermediate color/depth target. Mark UI cameras as Force Native on NWRPCameraData to keep Screen Space Camera UI sharp.",
                     MessageType.Info);
             }
+
+            EditorGUILayout.Space(2f);
+            DrawSubsectionLabel("Diagnostics / Frame Debug");
+            if (_mobileBandwidthProperty == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "The pipeline asset has not serialized the diagnostics block yet. Reimport or resave the asset after script compilation.",
+                    MessageType.Warning);
+                return;
+            }
+
+            EditorGUILayout.PropertyField(
+                _logFrameDebugStatsProperty,
+                new GUIContent("Log Frame Debug Stats"));
+
+            DrawMobileBandwidthRiskSummary();
         }
 
         private void DrawShadowSettings()
@@ -498,28 +522,32 @@ namespace NWRP.Editor
             EditorGUILayout.Space(2f);
             DrawSubsectionLabel("Opaque Texture");
             EditorGUILayout.PropertyField(
-                _enableOpaqueTextureProperty,
-                new GUIContent("Enable Camera Opaque Texture"));
-            if (_enableOpaqueTextureProperty.boolValue)
+                _opaqueTexturePolicyProperty,
+                new GUIContent("Camera Opaque Texture Policy"));
+            if (IsTexturePolicyForce(_opaqueTexturePolicyProperty))
             {
                 EditorGUILayout.HelpBox(
                     "Copies opaque color to _CameraOpaqueTexture before transparent rendering. Mobile cost is one full-screen copy and one full-resolution color RT.",
-                    MessageType.Info);
+                    MessageType.Warning);
             }
 
             EditorGUILayout.Space(2f);
             DrawSubsectionLabel("Depth Texture");
             EditorGUILayout.PropertyField(
-                _enableDepthTextureProperty,
-                new GUIContent("Enable Camera Depth Texture"));
-            if (_enableDepthTextureProperty.boolValue)
+                _depthTexturePolicyProperty,
+                new GUIContent("Camera Depth Texture Policy"));
+            if (!IsTexturePolicyOff(_depthTexturePolicyProperty))
             {
                 EditorGUILayout.PropertyField(
                     _copyDepthModeProperty,
                     new GUIContent("Camera Depth Texture Mode"));
+            }
+
+            if (IsTexturePolicyForce(_depthTexturePolicyProperty))
+            {
                 EditorGUILayout.HelpBox(
                     "Copies or pre-renders opaque depth to _CameraDepthTexture. After Opaques is required when transparent materials sample scene depth; Force Prepass depends on DepthOnly passes.",
-                    MessageType.Info);
+                    MessageType.Warning);
             }
 
             EditorGUILayout.Space(2f);
@@ -1065,6 +1093,77 @@ namespace NWRP.Editor
         private static void DrawSubsectionLabel(string label)
         {
             EditorGUILayout.LabelField(label, EditorStyles.miniBoldLabel);
+        }
+
+        private void DrawMobileBandwidthRiskSummary()
+        {
+            List<string> riskItems = new List<string>();
+            if (_supportsHDRProperty.boolValue)
+            {
+                riskItems.Add("HDR color");
+            }
+
+            if (_supportsPostProcessingProperty.boolValue)
+            {
+                riskItems.Add("post-processing");
+            }
+
+            if (_enableRenderScaleProperty.boolValue)
+            {
+                riskItems.Add("render scale intermediate");
+            }
+
+            if (IsTexturePolicyForce(_opaqueTexturePolicyProperty))
+            {
+                riskItems.Add("forced opaque texture");
+            }
+
+            if (IsTexturePolicyForce(_depthTexturePolicyProperty))
+            {
+                riskItems.Add("forced depth texture");
+            }
+
+            if (_mainLightShadowFilterModeProperty.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.MainLightShadowFilterMode.MediumPCF)
+            {
+                riskItems.Add("main-light Medium PCF");
+            }
+
+            if (_enableAdditionalLightShadowsProperty.boolValue)
+            {
+                riskItems.Add("additional light shadows");
+            }
+
+            if (_additionalLightShadowFilterModeProperty.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.AdditionalLightShadowFilterMode.MediumPCF)
+            {
+                riskItems.Add("additional-light Medium PCF");
+            }
+
+            if (riskItems.Count == 0)
+            {
+                return;
+            }
+
+            EditorGUILayout.HelpBox(
+                "Estimated mobile bandwidth risk: "
+                    + string.Join(", ", riskItems)
+                    + ". Keep these explicit for lookdev only, then verify with Frame Debugger/RenderDoc on device.",
+                MessageType.Warning);
+        }
+
+        private static bool IsTexturePolicyForce(SerializedProperty property)
+        {
+            return property != null
+                && property.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.CameraTexturePolicy.Force;
+        }
+
+        private static bool IsTexturePolicyOff(SerializedProperty property)
+        {
+            return property == null
+                || property.enumValueIndex
+                == (int)NewWorldRenderPipelineAsset.CameraTexturePolicy.Off;
         }
     }
 }

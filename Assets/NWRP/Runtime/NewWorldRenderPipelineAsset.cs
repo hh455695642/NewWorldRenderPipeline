@@ -59,6 +59,13 @@ namespace NWRP
             ForcePrepass = 2
         }
 
+        public enum CameraTexturePolicy
+        {
+            Off = 0,
+            AutoFeatureOnly = 1,
+            Force = 2
+        }
+
         public enum HDRColorBufferPrecision
         {
             _32Bits = 0,
@@ -252,21 +259,38 @@ namespace NWRP
         [System.Serializable]
         public sealed class OpaqueTextureSettings
         {
+            [InspectorName("Camera Opaque Texture Policy")]
+            [Tooltip("Off disables _CameraOpaqueTexture. Auto Feature Only reserves the path for explicit feature requests. Force copies opaque color every camera.")]
+            public CameraTexturePolicy texturePolicy = CameraTexturePolicy.Off;
+
             [InspectorName("Enable Camera Opaque Texture")]
+            [HideInInspector]
             [Tooltip("Copy opaque camera color to _CameraOpaqueTexture after skybox and before transparents. Costs one full-screen copy and one color RT.")]
             public bool enableOpaqueTexture = false;
+
+            public bool ShouldForceTexture =>
+                texturePolicy == CameraTexturePolicy.Force;
         }
 
         [System.Serializable]
         public sealed class DepthTextureSettings
         {
+            [InspectorName("Camera Depth Texture Policy")]
+            [Tooltip("Off disables _CameraDepthTexture. Auto Feature Only creates it only for active depth consumers. Force creates it every camera.")]
+            public CameraTexturePolicy texturePolicy =
+                CameraTexturePolicy.AutoFeatureOnly;
+
             [InspectorName("Enable Camera Depth Texture")]
+            [HideInInspector]
             [Tooltip("Copy or pre-render opaque scene depth to _CameraDepthTexture. Costs one depth texture and usually one full-screen depth copy.")]
             public bool enableDepthTexture = false;
 
             [InspectorName("Camera Depth Texture Mode")]
             [Tooltip("Controls when NWRP makes _CameraDepthTexture available.")]
             public DepthTextureCopyMode copyDepthMode = DepthTextureCopyMode.AfterOpaques;
+
+            public bool ShouldForceTexture =>
+                texturePolicy == CameraTexturePolicy.Force;
         }
 
         [System.Serializable]
@@ -283,6 +307,14 @@ namespace NWRP
             [InspectorName("Enable Vegetation Indirect Tree Shadows")]
             [Tooltip("Render Tree/TreeLeaf ShadowCaster passes through NWRP main-light GPU indirect shadow draws. Extra light shadows stay on the regular renderer path.")]
             public bool enableVegetationIndirectTreeShadows = false;
+        }
+
+        [System.Serializable]
+        public sealed class MobileBandwidthSettings
+        {
+            [InspectorName("Log Frame Debug Stats")]
+            [Tooltip("Log per-camera render target, fullscreen blit, copy, and temporary RT counters. Use only while profiling.")]
+            public bool logFrameDebugStats = false;
         }
 
         [System.Serializable]
@@ -526,6 +558,9 @@ namespace NWRP
         [Tooltip("Upscale filter used by the final blit when render scale creates an intermediate camera color target.")]
         public RenderScaleFilterMode renderScaleFilterMode = RenderScaleFilterMode.Bilinear;
 
+        [Header("Mobile Bandwidth")]
+        public MobileBandwidthSettings mobileBandwidth = new MobileBandwidthSettings();
+
         [Header("Main Light Shadows")]
         public MainLightShadowSettings mainLightShadows = new MainLightShadowSettings();
 
@@ -737,6 +772,8 @@ namespace NWRP
             renderScaleFilterMode == RenderScaleFilterMode.Point
                 ? FilterMode.Point
                 : FilterMode.Bilinear;
+        public bool LogFrameDebugStats =>
+            mobileBandwidth != null && mobileBandwidth.logFrameDebugStats;
 
         internal NWRPRendererData GetRendererData(int index, out int resolvedIndex)
         {
@@ -995,6 +1032,7 @@ namespace NWRP
         void ISerializationCallbackReceiver.OnBeforeSerialize()
         {
             EnsureFeatureSettings();
+            EnsureMobileBandwidthSettings();
             FeatureSettingsData.RemoveNullFeatures();
             ResolveDefaultRendererIndex();
 
@@ -1017,6 +1055,7 @@ namespace NWRP
             EnsureMainLightShadowSettings(allowAssetFileMigration: false);
             EnsureAdditionalLightShadowSettings();
             EnsureFeatureSettings();
+            EnsureMobileBandwidthSettings();
             FeatureSettingsData.RemoveNullFeatures();
             ResolveDefaultRendererIndex();
         }
@@ -1027,6 +1066,7 @@ namespace NWRP
             EnsureMainLightShadowSettings(allowAssetFileMigration: true);
             EnsureAdditionalLightShadowSettings();
             EnsureFeatureSettings();
+            EnsureMobileBandwidthSettings();
             FeatureSettingsData.RemoveNullFeatures();
             ResolveDefaultRendererIndex();
 
@@ -1109,6 +1149,14 @@ namespace NWRP
             }
 
             featureSettings.EnsureInitialized();
+        }
+
+        private void EnsureMobileBandwidthSettings()
+        {
+            if (mobileBandwidth == null)
+            {
+                mobileBandwidth = new MobileBandwidthSettings();
+            }
         }
 
         private static float ValidateRenderScale(float value)

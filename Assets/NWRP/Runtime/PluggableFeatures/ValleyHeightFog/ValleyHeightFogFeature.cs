@@ -10,14 +10,10 @@ namespace NWRP
         SortOrder = 220)]
     public sealed class ValleyHeightFogFeature : NWRPFeature
     {
-        private CopyDepthPass _copyDepthPass;
-        private DepthPrepass _depthPrepass;
         private ValleyHeightFogPass _valleyHeightFogPass;
 
         protected override void Create()
         {
-            _copyDepthPass = new CopyDepthPass();
-            _depthPrepass = new DepthPrepass();
             _valleyHeightFogPass = new ValleyHeightFogPass();
         }
 
@@ -31,39 +27,23 @@ namespace NWRP
                 return false;
             }
 
-            requirements.requiresIntermediateColor = true;
-            if (NeedsOwnEarlyDepthTexture(ref frameData))
+            if (!DepthTextureFeature.AllowsFeatureDepthTextureRequest(ref frameData))
             {
-                requirements.Merge(DepthTextureFeature.GetFrameTargetRequirements(
-                    NewWorldRenderPipelineAsset.DepthTextureCopyMode.AfterOpaques,
-                    frameData.camera));
+                return false;
             }
 
+            requirements.requiresIntermediateColor = true;
+            requirements.Merge(DepthTextureFeature.GetFrameTargetRequirements(
+                DepthTextureFeature.GetCopyMode(ref frameData),
+                frameData.camera));
             return true;
         }
 
         public override void AddPasses(NWRPRenderer renderer, ref NWRPFrameData frameData)
         {
-            if (!IsActive(ref frameData))
+            if (!CanSchedule(ref frameData))
             {
                 return;
-            }
-
-            if (NeedsOwnEarlyDepthTexture(ref frameData))
-            {
-                if (DepthTextureFeature.ShouldUseDepthPrepass(
-                        NewWorldRenderPipelineAsset.DepthTextureCopyMode.AfterOpaques,
-                        frameData.camera))
-                {
-                    _depthPrepass ??= new DepthPrepass();
-                    renderer.EnqueuePass(_depthPrepass);
-                }
-                else
-                {
-                    _copyDepthPass ??= new CopyDepthPass();
-                    _copyDepthPass.Setup(NWRPPassEvent.BeforeTransparent);
-                    renderer.EnqueuePass(_copyDepthPass);
-                }
             }
 
             _valleyHeightFogPass ??= new ValleyHeightFogPass();
@@ -72,20 +52,14 @@ namespace NWRP
 
         internal static bool IsActive(ref NWRPFrameData frameData)
         {
-            return PostProcessFeature.IsPostProcessingEnabled(ref frameData)
-                && frameData.valleyHeightFogActive;
+            return frameData.valleyHeightFogActive
+                && frameData.valleyHeightFog != null;
         }
 
-        private static bool NeedsOwnEarlyDepthTexture(ref NWRPFrameData frameData)
+        internal static bool CanSchedule(ref NWRPFrameData frameData)
         {
-            if (frameData.rendererData == null)
-            {
-                return false;
-            }
-
-            return !frameData.rendererData.EnableDepthTexture
-                || frameData.rendererData.DepthTextureCopyModeSetting
-                    == NewWorldRenderPipelineAsset.DepthTextureCopyMode.AfterTransparents;
+            return IsActive(ref frameData)
+                && frameData.targets.hasCameraDepthTexture;
         }
 
         private void OnDisable()
@@ -100,10 +74,7 @@ namespace NWRP
 
         private void DisposePasses()
         {
-            _copyDepthPass?.Dispose();
             _valleyHeightFogPass?.Dispose();
-            _copyDepthPass = null;
-            _depthPrepass = null;
             _valleyHeightFogPass = null;
         }
     }

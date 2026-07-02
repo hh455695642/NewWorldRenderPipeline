@@ -14,5 +14,15 @@ namespace NWRP.Runtime.Passes
         {
             _renderer.ExecuteDrawTransparent(ref frameData);
         }
+
+        public override NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.ReadWrite,
+                cameraDepth = NWRPFrameResourceAccess.Read
+            };
+        }
     }
 }

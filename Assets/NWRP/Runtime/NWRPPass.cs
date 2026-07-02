@@ -28,5 +28,20 @@ namespace NWRP
         }
 
         public abstract void Execute(ref NWRPFrameData frameData);
+
+        public virtual bool CanPresentCameraColorToBackBuffer(ref NWRPFrameData frameData)
+        {
+            return false;
+        }
+
+        public virtual NWRPFramePassResourceUsage GetFrameResourceUsage(
+            ref NWRPFrameData frameData)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                canPresentCameraColorToBackBuffer =
+                    CanPresentCameraColorToBackBuffer(ref frameData)
+            };
+        }
     }
 }

@@ -47,6 +47,11 @@ namespace NWRP
         public int cameraTargetHeight;
         public FilterMode renderScaleFilterMode;
         public bool renderScaleActive;
+        public NWRPCameraAttachmentState cameraAttachmentState;
+        public NWRPFrameGraphData frameGraph;
+        public NWRPTransientResourceAllocator transientResources;
+        public int currentPassIndex;
+        public NWRPFrameDebugStats debugStats;
     }
 
     /// <summary>
@@ -99,6 +104,104 @@ namespace NWRP
             requiresDepthTextureCopy |= other.requiresDepthTextureCopy;
             requiresDepthTexturePrepass |= other.requiresDepthTexturePrepass;
             requiresOpaqueTexture |= other.requiresOpaqueTexture;
+        }
+    }
+
+    public enum NWRPFrameResourceAccess
+    {
+        None,
+        Read,
+        Write,
+        ReadWrite
+    }
+
+    public struct NWRPFramePassResourceUsage
+    {
+        public NWRPFrameResourceAccess cameraColor;
+        public NWRPFrameResourceAccess cameraDepth;
+        public NWRPFrameResourceAccess cameraDepthTexture;
+        public NWRPFrameResourceAccess opaqueTexture;
+        public NWRPFrameResourceAccess transientColor;
+        public bool keepsCameraDepthAfterPass;
+        public bool canPresentCameraColorToBackBuffer;
+        public bool writesBackBuffer;
+
+        public static NWRPFramePassResourceUsage CameraColorReadWrite(
+            bool canPresentToBackBuffer)
+        {
+            return new NWRPFramePassResourceUsage
+            {
+                cameraColor = NWRPFrameResourceAccess.ReadWrite,
+                canPresentCameraColorToBackBuffer = canPresentToBackBuffer
+            };
+        }
+
+        public bool ReadsCameraColor => Reads(cameraColor);
+        public bool WritesCameraColor => Writes(cameraColor);
+        public bool UsesCameraColor => Reads(cameraColor) || Writes(cameraColor);
+        public bool UsesCameraDepth => Reads(cameraDepth) || Writes(cameraDepth);
+        public bool ReadsCameraDepthTexture => Reads(cameraDepthTexture);
+        public bool ReadsOpaqueTexture => Reads(opaqueTexture);
+        public bool UsesTransientColor => Reads(transientColor) || Writes(transientColor);
+
+        private static bool Reads(NWRPFrameResourceAccess access)
+        {
+            return access == NWRPFrameResourceAccess.Read
+                || access == NWRPFrameResourceAccess.ReadWrite;
+        }
+
+        private static bool Writes(NWRPFrameResourceAccess access)
+        {
+            return access == NWRPFrameResourceAccess.Write
+                || access == NWRPFrameResourceAccess.ReadWrite;
+        }
+    }
+
+    /// <summary>
+    /// Lightweight per-camera frame graph decisions derived from the queued pass list.
+    /// </summary>
+    public struct NWRPFrameGraphData
+    {
+        public NWRPPass cameraColorFinalPresentPass;
+        public int cameraColorReadPassCount;
+        public int cameraColorWritePassCount;
+        public int depthTextureReadPassCount;
+        public int opaqueTextureReadPassCount;
+        public int cameraColorFinalPresentPassIndex;
+        public int cameraColorLastUsePassIndex;
+        public int cameraDepthLastUsePassIndex;
+        public int renderPassClusterCount;
+        public bool canDiscardCameraDepthAfterLastUse;
+        public bool hasBackBufferWriterBeforeDebug;
+
+        public void RecordPassUsage(NWRPFramePassResourceUsage usage)
+        {
+            if (usage.ReadsCameraColor)
+            {
+                cameraColorReadPassCount++;
+            }
+
+            if (usage.WritesCameraColor)
+            {
+                cameraColorWritePassCount++;
+            }
+
+            if (usage.ReadsCameraDepthTexture)
+            {
+                depthTextureReadPassCount++;
+            }
+
+            if (usage.ReadsOpaqueTexture)
+            {
+                opaqueTextureReadPassCount++;
+            }
+
+            hasBackBufferWriterBeforeDebug |= usage.writesBackBuffer;
+        }
+
+        public bool IsCameraColorFinalPresentPass(NWRPPass pass)
+        {
+            return pass != null && ReferenceEquals(cameraColorFinalPresentPass, pass);
         }
     }
 }

@@ -137,16 +137,17 @@ Shader "Hidden/NWRP/Environment/CloudShadowProjector"
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-                float2 uv = input.texcoord.xy;
-                half4 sceneColor = SampleCloudShadowSource(uv);
+                float2 sourceUV = input.texcoord.xy;
+                float2 screenUV = GetBlitScreenUV(input.positionCS);
+                half4 sceneColor = SampleCloudShadowSource(sourceUV);
 
-                float rawDepth = SampleSceneDepth(uv);
+                float rawDepth = SampleSceneDepth(screenUV);
                 if (!IsSceneDepthValid(rawDepth))
                 {
                     return sceneColor;
                 }
 
-                float3 positionWS = ComputeSceneWorldSpacePosition(uv, rawDepth);
+                float3 positionWS = ComputeSceneWorldSpacePosition(screenUV, rawDepth);
                 float2 uvDistortion = ComputeCloudShadowDistortion(positionWS);
                 ApplyCloudShadowLayer(
                     sceneColor,

@@ -44,6 +44,10 @@ namespace NWRP.Runtime.Passes
                     ref frameData,
                     includeStaticCasters: false,
                     includeDynamicCasters: true);
+            if (hasIndirectDynamicCasters)
+            {
+                MainLightShadowIndirectCasterContext.MarkPendingDynamicOverlayDraw();
+            }
 
             if (!MainLightShadowPassUtils.TryGetMainLight(ref frameData, out int mainLightIndex, out _, out Light mainLight))
             {

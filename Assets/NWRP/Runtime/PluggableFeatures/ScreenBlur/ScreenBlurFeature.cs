@@ -48,8 +48,7 @@ namespace NWRP
 
         internal static bool IsActive(ref NWRPFrameData frameData)
         {
-            return PostProcessFeature.IsPostProcessingEnabled(ref frameData)
-                && frameData.screenBlurActive
+            return frameData.screenBlurActive
                 && frameData.screenBlur != null;
         }
 
